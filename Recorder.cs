@@ -76,7 +76,7 @@ class Recorder : IDisposable
             Type = StepType.Click,
             DelayMs = (int)Math.Clamp(elapsed, 200, 10000),
             Process = win.Process,
-            Title = win.Title,
+            Title = Native.StableTitle(win.Title, win.Process),
             WindowClass = win.Class,
             Mode = name != "" ? ClickMode.Element : ClickMode.Coords,
             ElementName = name,

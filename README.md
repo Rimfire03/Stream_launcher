@@ -14,6 +14,7 @@ Application Windows (.NET 8, self-contained) distribuée uniquement par installa
 - **Multitâche** (écran scindé) : sur une étape `Place`, champ `Multitâche` (`Zone` dans le JSON) : `Gauche/Droite`, `Haut/Bas`, quarts (`HautGauche`…), tiers, ou `Grille` (écran découpé en `Cols` x `Rows`, fenêtre sur la case `Col`,`Row` avec `SpanCols`/`SpanRows`). Calculé sur la zone de travail de l'écran choisi, bordures invisibles de Windows compensées. `Manuel` garde X/Y/W/H.
 - **Clic droit sur une étape** : *Tester cette étape* ou *Tester à partir de cette étape* (exécution réelle, la fenêtre se réduit pendant le test).
 - **Recherche de fenêtre** : le processus et la classe de fenêtre (`WindowClass`, capturée automatiquement) sont obligatoires, le titre n'est qu'une préférence : si aucune fenêtre ne contient `Title` (titre modifié par l'appli), la fenêtre du bon processus/classe est utilisée après un court délai. `TitleStrict` rend le titre obligatoire (utile quand plusieurs fenêtres du même processus coexistent, ex. navigateur).
+- **Titre capturé** : si une partie du titre est le nom du processus (« Discussion en cours - Discord » → `Discord`), seule cette partie stable est enregistrée ; sinon le titre complet.
 - Chaque étape se règle dans le panneau de propriétés (mode `Element` ou `Coords` par étape, timeouts, titre/processus cible…).
 - Icône de zone de notification : clic droit → lancer un profil. Fermer la fenêtre réduit dans le tray.
 

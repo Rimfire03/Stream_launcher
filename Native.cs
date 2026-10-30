@@ -58,6 +58,18 @@ static class Native
         return sb.ToString();
     }
 
+    /// <summary>
+    /// Title to store for a captured window. "Discussion en cours - Discord" -> "Discord": when one segment of the title
+    /// (split on " - ", " – ", " — ", " | ") is the process name, only that stable part is kept; otherwise the full title.
+    /// </summary>
+    public static string StableTitle(string title, string process)
+    {
+        if (process == "") return title;
+        foreach (var seg in title.Split(new[] { " - ", " – ", " — ", " | " }, StringSplitOptions.RemoveEmptyEntries))
+            if (seg.Trim().Replace(" ", "").Equals(process, StringComparison.OrdinalIgnoreCase)) return seg.Trim();
+        return title;
+    }
+
     public static string ProcessPath(uint pid)
     {
         var h = OpenProcess(0x1000, false, pid); // PROCESS_QUERY_LIMITED_INFORMATION
