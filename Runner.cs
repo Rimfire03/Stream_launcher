@@ -8,6 +8,14 @@ class Runner
 {
     public Action<string> Log = _ => { };
     IntPtr lastWindow; // window opened by the latest Browser step
+    /// <summary>windows the profile placed, clicked or opened (used to close the live)</summary>
+    public readonly HashSet<(IntPtr H, uint Pid)> Touched = new();
+
+    void Touch(IntPtr h)
+    {
+        Native.GetWindowThreadProcessId(h, out var pid);
+        Touched.Add((h, pid));
+    }
 
     /// <returns>number of failed steps</returns>
     public int Run(Profile p, CancellationToken ct)
@@ -55,6 +63,13 @@ class Runner
     // their title (document name, unread count, page title...). Without a title match the topmost window of the
     // right process/class is used once a grace period has passed, so a freshly launched window can still get its title.
     IntPtr WaitWindow(Step s, CancellationToken ct)
+    {
+        var h = FindWindowFor(s, ct);
+        Touch(h);
+        return h;
+    }
+
+    IntPtr FindWindowFor(Step s, CancellationToken ct)
     {
         if (s.OnLastWindow)
             return lastWindow != IntPtr.Zero && Native.IsWindow(lastWindow) ? lastWindow
@@ -145,6 +160,7 @@ class Runner
             if (fresh != null)
             {
                 lastWindow = fresh.H;
+                Touch(fresh.H);
                 if (s.PlaceWindow)
                 {
                     Native.Move(fresh.H, s);

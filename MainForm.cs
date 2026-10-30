@@ -102,7 +102,7 @@ class MainForm : Form
             if (i >= 0) lbSteps.SelectedIndex = i;
         };
 
-        lbProf.SelectedIndexChanged += (_, _) => RefreshSteps();
+        lbProf.SelectedIndexChanged += (_, _) => { RefreshSteps(); UpdateRunLabel(); };
         lbSteps.SelectedIndexChanged += (_, _) => { if (!refreshing) pg.SelectedObject = CurStep; };
         pg.PropertyValueChanged += (_, _) => { RefreshSteps(); cfg.Save(); };
 
@@ -272,8 +272,9 @@ class MainForm : Form
         foreach (var p in cfg.Profiles)
         {
             var prof = p;
-            quick.Controls.Add(Btn("▶ " + prof.Name, (_, _) => RunProfile(prof)));
-            menu.Items.Add("▶ " + prof.Name, null, (_, _) => RunProfile(prof));
+            var label = (Live.IsLive(prof.Name) ? "■ Fermer " : "▶ ") + prof.Name;
+            quick.Controls.Add(Btn(label, (_, _) => RunProfile(prof)));
+            menu.Items.Add(label, null, (_, _) => RunProfile(prof));
         }
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Identifier les écrans", null, (_, _) => IdentifyScreens());
@@ -281,6 +282,7 @@ class MainForm : Form
         menu.Items.Add("Arrêter l'exécution", null, (_, _) => cts?.Cancel());
         menu.Items.Add("Quitter", null, (_, _) => { exiting = true; Close(); });
         tray.ContextMenuStrip = menu;
+        UpdateRunLabel();
     }
 
     void NewProfile()
@@ -418,13 +420,15 @@ class MainForm : Form
     {
         if (Cur is not { } p || CurStep is not { } s) return;
         int i = lbSteps.SelectedIndex;
-        RunProfile(new Profile { Name = "Test : " + s, Steps = fromHere ? p.Steps.Skip(i).ToList() : new List<Step> { s } });
+        RunProfile(new Profile { Name = "Test : " + s, Steps = fromHere ? p.Steps.Skip(i).ToList() : new List<Step> { s } }, live: false);
     }
 
 
-    async void RunProfile(Profile p)
+    // Toggle: first press runs the profile (and remembers the live), next press closes the windows it opened.
+    async void RunProfile(Profile p, bool live = true)
     {
         if (cts != null) return;
+        if (live && Live.IsLive(p.Name)) { CloseLive(p); return; }
         cts = new CancellationTokenSource();
         SetBusy(true);
         if (Visible) WindowState = FormWindowState.Minimized; // stay out of the way of the clicks
@@ -432,7 +436,7 @@ class MainForm : Form
         var token = cts.Token;
         try
         {
-            int err = await Task.Run(() => new Runner { Log = Log }.Run(p, token));
+            int err = await Task.Run(() => live ? Live.Run(p, new Runner { Log = Log }, token) : new Runner { Log = Log }.Run(p, token));
             Log(err == 0 ? "Terminé" : $"Terminé avec {err} erreur(s)");
         }
         catch (OperationCanceledException) { Log("Annulé"); }
@@ -442,8 +446,19 @@ class MainForm : Form
             cts = null;
             SetBusy(false);
             if (Visible) WindowState = FormWindowState.Normal;
+            if (live) RebuildProfiles();
         }
     }
+
+    async void CloseLive(Profile p)
+    {
+        Log($"=== Fermeture du live : {p.Name} ===");
+        int n = await Task.Run(() => Live.Close(p.Name, Log));
+        Log($"{n} fenêtre(s) fermée(s)");
+        RebuildProfiles();
+    }
+
+    void UpdateRunLabel() => btnRun.Text = Cur != null && Live.IsLive(Cur.Name) ? "■ Fermer le live" : "▶ Lancer";
 
     void SetBusy(bool busy)
     {

@@ -131,6 +131,18 @@ Les applications changent souvent leur titre (nom du document, messages non lus,
 
 Les profils retiennent le nom Windows de l'écran : renommer ne casse rien. Dans le fichier profiles.json, tu peux aussi écrire le nom personnalisé. Si un écran n'existe plus, l'écran principal est utilisé."),
 
+        new("Fermer le live (bouton bascule)", @"Le bouton de lancement d'un profil est une bascule :
+- 1er appui (« ▶ Lancer » ou « ▶ nom du profil ») : le profil s'exécute et Stream Launcher retient les fenêtres déjà ouvertes à ce moment.
+- Le bouton devient « ■ Fermer le live ». 2e appui : toutes les fenêtres ouvertes depuis le lancement sont fermées proprement (demande de fermeture : une application qui a un travail non enregistré affiche sa question habituelle). Les fenêtres que le profil a placées ou cliquées sont fermées aussi.
+- Les fenêtres qui étaient déjà ouvertes avant le lancement et que le profil n'a pas touchées ne sont pas fermées.
+
+Ça marche partout : bouton du profil, bouton « ▶ nom » en haut de la fenêtre, menu de l'icône de la zone de notification, et Stream Deck (même touche pour lancer puis fermer). L'état est mémorisé sur disque : on peut lancer depuis la fenêtre et fermer depuis Stream Deck.
+
+Précisions :
+- Une application qui reste dans la zone de notification quand on ferme sa fenêtre (Discord, par exemple) continue de tourner ; seule sa fenêtre est fermée.
+- Un « Tester une étape » ne démarre pas de live.
+- --start et --stop (ligne de commande) forcent le lancement ou la fermeture au lieu de basculer."),
+
         new("Tester une étape", @"Clic droit sur une étape dans la liste :
 - « Tester cette étape » : exécute uniquement cette étape ;
 - « Tester à partir de cette étape » : exécute cette étape et toutes les suivantes.
@@ -141,11 +153,14 @@ Le test est réel (les applications sont vraiment lancées, les clics vraiment f
 
 StreamLauncher.exe --profile ""Nom du profil""
 
+C'est une bascule : le premier appel lance le profil, le suivant ferme les fenêtres ouvertes (voir « Fermer le live »).
+
 Dans Stream Deck : action « Système > Ouvrir », champ « Application » = chemin de StreamLauncher.exe, champ « Argument » = --profile ""Nom du profil"".
 
-Code de retour : 0 = tout est passé, 1 = au moins une étape en erreur, 2 = profil inconnu.
+Code de retour : 0 = tout est passé, 1 = au moins une étape en erreur, 2 = profil inconnu (la fermeture renvoie 0).
 
 Autres options :
+- --start ""Nom"" / --stop ""Nom"" : force le lancement ou la fermeture.
 - --tray : démarre l'interface masquée dans la zone de notification.
 - --list-tray : écrit sur la sortie standard les noms des icônes de la zone de notification.
 

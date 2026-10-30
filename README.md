@@ -30,7 +30,7 @@ Action « Ouvrir » (Système) :
 StreamLauncher.exe --profile "Nom du profil"
 ```
 
-Exécution sans fenêtre, code retour 0 = OK, 1 = étapes en erreur, 2 = profil inconnu. `--tray` démarre l'interface masquée.
+C'est une **bascule** : le 1er appel lance le profil, le suivant ferme toutes les fenêtres ouvertes depuis (même touche Stream Deck pour lancer et fermer le live). `--start "Nom"` / `--stop "Nom"` forcent un sens. Exécution sans fenêtre, code retour 0 = OK, 1 = étapes en erreur, 2 = profil inconnu. `--tray` démarre l'interface masquée.
 
 ## Installation
 
