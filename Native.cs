@@ -47,7 +47,7 @@ static class Native
         return sb.ToString();
     }
 
-    public record Win(IntPtr H, uint Pid, string Process, string Title, string Path);
+    public record Win(IntPtr H, uint Pid, string Process, string Title, string Path, string Class);
 
     public static string GetTitle(IntPtr h)
     {
@@ -75,7 +75,7 @@ static class Native
     {
         GetWindowThreadProcessId(h, out var pid);
         var path = ProcessPath(pid);
-        return new Win(h, pid, System.IO.Path.GetFileNameWithoutExtension(path), GetTitle(h), path);
+        return new Win(h, pid, System.IO.Path.GetFileNameWithoutExtension(path), GetTitle(h), path, ClassOf(h));
     }
 
     public static List<Win> TopWindows()

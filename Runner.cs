@@ -50,20 +50,32 @@ class Runner
         Process.Start(psi);
     }
 
-    static IntPtr WaitWindow(Step s, CancellationToken ct)
+    // Window lookup: process and class are hard criteria; the title is a preference, because some apps rewrite
+    // their title (document name, unread count, page title...). Without a title match the topmost window of the
+    // right process/class is used once a grace period has passed, so a freshly launched window can still get its title.
+    IntPtr WaitWindow(Step s, CancellationToken ct)
     {
-        if (s.Process == "" && s.Title == "") throw new InvalidOperationException("Process et Title vides");
-        var end = DateTime.UtcNow.AddMilliseconds(s.TimeoutMs);
+        if (s.Process == "" && s.Title == "" && s.WindowClass == "") throw new InvalidOperationException("Process, Title et WindowClass vides");
+        var start = DateTime.UtcNow;
+        var end = start.AddMilliseconds(s.TimeoutMs);
+        var grace = start.AddMilliseconds(Math.Min(s.TimeoutMs / 3, 5000));
         do
         {
             ct.ThrowIfCancellationRequested();
-            var w = Native.TopWindows().FirstOrDefault(w =>
+            var cands = Native.TopWindows().Where(w =>
                 (s.Process == "" || w.Process.Equals(s.Process, StringComparison.OrdinalIgnoreCase)) &&
-                (s.Title == "" || w.Title.Contains(s.Title, StringComparison.OrdinalIgnoreCase)));
-            if (w != null) return w.H;
+                (s.WindowClass == "" || w.Class.Equals(s.WindowClass, StringComparison.OrdinalIgnoreCase))).ToList();
+            var byTitle = s.Title == "" ? null : cands.FirstOrDefault(w => w.Title.Contains(s.Title, StringComparison.OrdinalIgnoreCase));
+            if (s.Title == "" && cands.Count > 0) return cands[0].H;
+            if (byTitle != null) return byTitle.H;
+            if (!s.TitleStrict && cands.Count > 0 && DateTime.UtcNow >= grace)
+            {
+                Log($"  titre '{s.Title}' absent : utilisation de la fenêtre '{cands[0].Title}'");
+                return cands[0].H;
+            }
             Thread.Sleep(250);
         } while (DateTime.UtcNow < end);
-        throw new TimeoutException($"fenêtre introuvable ({s.Process} '{s.Title}')");
+        throw new TimeoutException($"fenêtre introuvable ({s.Process} '{s.Title}' {s.WindowClass})");
     }
 
     void Place(Step s, CancellationToken ct)

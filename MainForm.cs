@@ -444,7 +444,7 @@ class MainForm : Form
             {
                 StopPick();
                 var w = Native.Describe(h);
-                var s = new Step { Type = StepType.Window, Process = w.Process, Title = w.Title, Action = move ? WindowAction.Deplacer : WindowAction.Reduire };
+                var s = new Step { Type = StepType.Window, Process = w.Process, Title = w.Title, WindowClass = w.Class, Action = move ? WindowAction.Deplacer : WindowAction.Reduire };
                 if (move)
                 {
                     Native.GetWindowRect(h, out var r);
@@ -585,7 +585,7 @@ class ImportDialog : Form
                 Result.Add(new Step { Type = StepType.Launch, Exe = w.Path, DelayMs = 500 });
             Result.Add(new Step
             {
-                Type = StepType.Place, DelayMs = 300, Process = w.Process, Title = w.Title, Monitor = scr.DeviceName,
+                Type = StepType.Place, DelayMs = 300, Process = w.Process, Title = w.Title, WindowClass = w.Class, Monitor = scr.DeviceName,
                 X = r.Left - scr.Bounds.X, Y = r.Top - scr.Bounds.Y, W = r.Right - r.Left, H = r.Bottom - r.Top,
                 Maximize = Native.IsZoomed(w.H),
             });

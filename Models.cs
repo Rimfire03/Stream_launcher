@@ -22,6 +22,9 @@ class Step
     [Category("Fenêtre cible"), Description("Nom du processus sans .exe")] public string Process { get; set; } = "";
     [Category("Fenêtre cible"), Description("Texte contenu dans le titre (vide = n'importe quel titre)")] public string Title { get; set; } = "";
 
+    [Category("Fenêtre cible"), Description("Classe de fenêtre Windows (stable même si le titre change). Capturée automatiquement ; vide = ignorée.")] public string WindowClass { get; set; } = "";
+    [Category("Fenêtre cible"), Description("Faux : si aucune fenêtre ne contient le titre, la fenêtre du bon processus (et de la bonne classe) est utilisée après un court délai. Vrai : le titre est obligatoire.")] public bool TitleStrict { get; set; }
+
     [Category("Placement"), TypeConverter(typeof(MonitorConverter)), Description("Nom de l'écran, ex. \\\\.\\DISPLAY2")] public string Monitor { get; set; } = "";
     [Category("Placement"), DisplayName("Multitâche"), Description("Multitâche (écran scindé) : Manuel = X/Y/W/H. Grille = écran scindé en Cols x Rows. Autres = zones prédéfinies (moitiés, quarts, tiers). Zones calculées sur la zone de travail (hors barre des tâches).")] public Zone Zone { get; set; }
     [Category("Placement"), Description("Grille : nombre de colonnes")] public int Cols { get; set; } = 2;

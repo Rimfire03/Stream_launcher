@@ -77,6 +77,7 @@ class Recorder : IDisposable
             DelayMs = (int)Math.Clamp(elapsed, 200, 10000),
             Process = win.Process,
             Title = win.Title,
+            WindowClass = win.Class,
             Mode = name != "" ? ClickMode.Element : ClickMode.Coords,
             ElementName = name,
             ElementId = id,
