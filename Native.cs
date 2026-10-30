@@ -21,6 +21,7 @@ static class Native
     [DllImport("user32")] public static extern bool ShowWindowAsync(IntPtr h, int cmd);
     [DllImport("user32")] static extern bool IsIconic(IntPtr h);
     [DllImport("user32")] public static extern bool IsZoomed(IntPtr h);
+    [DllImport("user32")] public static extern bool IsWindow(IntPtr h);
     [DllImport("user32")] static extern bool SetForegroundWindow(IntPtr h);
     [DllImport("user32")] public static extern IntPtr WindowFromPoint(POINT p);
     [DllImport("user32")] public static extern IntPtr GetAncestor(IntPtr h, uint flags);

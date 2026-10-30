@@ -22,6 +22,7 @@ class Step
     [Category("Fenêtre cible"), Description("Nom du processus sans .exe")] public string Process { get; set; } = "";
     [Category("Fenêtre cible"), Description("Texte contenu dans le titre (vide = n'importe quel titre)")] public string Title { get; set; } = "";
 
+    [Category("Fenêtre cible"), Description("Vrai : cible la fenêtre ouverte par l'étape Navigateur précédente, sans chercher par titre ni processus (idéal pour les pages dont le titre change).")] public bool OnLastWindow { get; set; }
     [Category("Fenêtre cible"), Description("Classe de fenêtre Windows (stable même si le titre change). Capturée automatiquement ; vide = ignorée.")] public string WindowClass { get; set; } = "";
     [Category("Fenêtre cible"), Description("Faux : si aucune fenêtre ne contient le titre, la fenêtre du bon processus (et de la bonne classe) est utilisée après un court délai. Vrai : le titre est obligatoire.")] public bool TitleStrict { get; set; }
 
@@ -41,6 +42,7 @@ class Step
 
     [Category("Navigateur"), Description("Type Browser : navigateur à ouvrir (Defaut = navigateur par défaut de Windows, sans garantie de nouvelle fenêtre)")] public BrowserKind Browser { get; set; }
     [Category("Navigateur"), Description("Adresse http(s) à ouvrir dans une nouvelle fenêtre du navigateur")] public string Url { get; set; } = "https://";
+    [Category("Navigateur"), Description("Place la nouvelle fenêtre du navigateur avec le placement de cette étape (Monitor, Multitâche/Zone, X, Y, W, H). Sans effet avec Defaut.")] public bool PlaceWindow { get; set; }
     [Category("Zone de notification"), Description("Type Tray : texte du nom (info-bulle) de l'icône de la zone de notification à cliquer pour faire apparaître l'application. Le bouton \"Icônes du tray\" liste les noms disponibles. Bouton, Double : voir catégorie Clic.")] public string TrayName { get; set; } = "";
     [Category("Action fenêtre"), Description("Type Window : réduire, agrandir, restaurer ou déplacer la fenêtre cible (Process / Title). Déplacer applique le placement (Monitor, Multitâche/Zone, X, Y, W, H) de cette étape.")] public WindowAction Action { get; set; }
 

@@ -7,6 +7,7 @@ using FlaUI.UIA3;
 class Runner
 {
     public Action<string> Log = _ => { };
+    IntPtr lastWindow; // window opened by the latest Browser step
 
     /// <returns>number of failed steps</returns>
     public int Run(Profile p, CancellationToken ct)
@@ -27,7 +28,7 @@ class Runner
                     case StepType.Place: Place(s, ct); break;
                     case StepType.Window: Window(s, ct); break;
                     case StepType.Tray: Tray(uia, s, ct); break;
-                    case StepType.Browser: Browse(s); break;
+                    case StepType.Browser: Browse(s, ct); break;
                     default: Click(uia, s, ct); break;
                 }
             }
@@ -55,6 +56,9 @@ class Runner
     // right process/class is used once a grace period has passed, so a freshly launched window can still get its title.
     IntPtr WaitWindow(Step s, CancellationToken ct)
     {
+        if (s.OnLastWindow)
+            return lastWindow != IntPtr.Zero && Native.IsWindow(lastWindow) ? lastWindow
+                : throw new InvalidOperationException("aucune fenêtre ouverte par une étape Navigateur précédente");
         if (s.Process == "" && s.Title == "" && s.WindowClass == "") throw new InvalidOperationException("Process, Title et WindowClass vides");
         var start = DateTime.UtcNow;
         var end = start.AddMilliseconds(s.TimeoutMs);
@@ -116,7 +120,7 @@ class Runner
         return null;
     }
 
-    void Browse(Step s)
+    void Browse(Step s, CancellationToken ct)
     {
         // http(s) only: never hand file:, javascript: etc. to a browser
         if (!Uri.TryCreate(s.Url, UriKind.Absolute, out var u) || (u.Scheme != "http" && u.Scheme != "https"))
@@ -124,10 +128,35 @@ class Runner
         if (s.Browser == BrowserKind.Defaut)
         {
             Process.Start(new ProcessStartInfo(u.AbsoluteUri) { UseShellExecute = true });
+            Log("  navigateur par défaut : la nouvelle fenêtre ne peut pas être suivie");
             return;
         }
         var exe = FindBrowser(s.Browser) ?? throw new FileNotFoundException($"{s.Browser} introuvable sur ce poste");
+        var proc = Path.GetFileNameWithoutExtension(BrowserExe[s.Browser]);
+        var before = Native.TopWindows().Where(w => w.Process.Equals(proc, StringComparison.OrdinalIgnoreCase)).Select(w => w.H).ToHashSet();
         Process.Start(new ProcessStartInfo(exe, (s.Browser == BrowserKind.Firefox ? "-new-window" : "--new-window") + $" \"{u.AbsoluteUri}\"") { UseShellExecute = false });
+
+        // the new window is the one that was not there before, whatever its title ends up being
+        var end = DateTime.UtcNow.AddMilliseconds(s.TimeoutMs);
+        do
+        {
+            ct.ThrowIfCancellationRequested();
+            var fresh = Native.TopWindows().FirstOrDefault(w => w.Process.Equals(proc, StringComparison.OrdinalIgnoreCase) && !before.Contains(w.H));
+            if (fresh != null)
+            {
+                lastWindow = fresh.H;
+                if (s.PlaceWindow)
+                {
+                    Native.Move(fresh.H, s);
+                    Thread.Sleep(600);
+                    Native.Move(fresh.H, s);
+                }
+                return;
+            }
+            Thread.Sleep(250);
+        } while (DateTime.UtcNow < end);
+        if (s.PlaceWindow) throw new TimeoutException("nouvelle fenêtre du navigateur non détectée");
+        Log("  nouvelle fenêtre non détectée");
     }
 
     // ---- notification area (UI Automation on the taskbar) ----
