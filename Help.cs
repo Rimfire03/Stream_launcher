@@ -129,11 +129,12 @@ Propriétés (catégorie « OBS Studio ») :
 L'ordre d'exécution est : profil, collection, scène. Chaque champ peut rester vide (par exemple pour ne changer que de collection).
 
 Si la scène n'existe pas, l'étape échoue tout de suite avec le message d'OBS ; si OBS est injoignable (fermé, WebSocket désactivé), elle réessaie puis échoue au bout du délai maximum."),
-        new("Twitch et Kick (titre, jeu, tags)", @"Menu « Live > Éditer le titre, le jeu et les tags… » : change le titre, le jeu et les tags de ta chaîne sur Twitch et sur Kick en même temps (mêmes valeurs sur les deux).
+        new("Twitch, Kick et YouTube (titre, jeu, tags)", @"Menu « Live > Éditer le titre, le jeu et les tags… » : change le titre, le jeu et les tags de ta chaîne sur Twitch, Kick et YouTube en même temps (mêmes valeurs partout).
 
 Connexion (une fois par plateforme) : dans la fenêtre, clique « Connecter », puis autorise Stream Launcher dans la page de la plateforme qui s'ouvre. Rien à configurer : les versions publiées contiennent déjà les applications Twitch et Kick de Stream Launcher.
 - Twitch : la page Twitch affiche un code à saisir (l'application te le montre).
 - Kick : tu autorises l'application dans la page Kick ; le retour se fait sur http://localhost:43117/callback, ce port doit donc être libre sur ton PC. Droits demandés : channel:read et channel:write (lire et modifier les informations de la chaîne), rien d'autre.
+- YouTube : tu autorises l'application dans la page Google (retour sur 127.0.0.1, port choisi automatiquement). YouTube modifie la diffusion en cours, sinon la prochaine programmée : crée-la d'abord dans YouTube Studio, l'application ne crée pas de diffusion. YouTube n'a pas de champ « jeu » dans son API : le jeu devient la catégorie « Jeux vidéo » et un tag. Le titre est limité à 100 caractères (raccourci avec un avertissement). Tant que l'application Google est en mode test, seuls les comptes de test peuvent se connecter et la connexion expire au bout de 7 jours : reconnecte-toi.
 Si une connexion expire (rouge), reconnecte le compte. Une version compilée à la main (développement) ne contient pas les identifiants Kick : Kick y est indisponible, utilise la version publiée.
 Les jetons sont enregistrés chiffrés (Windows, ton compte uniquement), jamais en clair, et ne quittent jamais ton PC sauf pour parler à Twitch ou Kick.
 
@@ -145,7 +146,7 @@ Jeux : le dictionnaire des jeux se met à jour tout seul. Il est relu à chaque 
 
 Favoris : un favori est un combo titre + jeu + tags, qui vont toujours ensemble. « ★ Ajouter aux favoris » enregistre ce qui est dans le formulaire ; « Nouveau… » en crée un directement. Dans l'onglet « Favoris », « Appliquer en 1 clic » (ou double-clic) envoie tout de suite le combo à toutes les plateformes ; « Modifier… » change son titre, son jeu ou ses tags ; « Dans le formulaire » ne fait que le copier ; « Supprimer » le retire.
 
-Historique : les 15 derniers lives (titre, jeu, tags), enregistrés quand tu appliques des valeurs ou que tu lances un live. « Importer mes lives Twitch (VOD) » ajoute les titres de tes dernières diffusions Twitch (Twitch ne donne pas le jeu). Kick ne fournit pas d'historique. « ★ Mettre en favoris » ajoute ce combo aux favoris ; « Appliquer » renvoie ce live.
+Historique : les 15 derniers lives (titre, jeu, tags), enregistrés quand tu appliques des valeurs ou que tu lances un live. « Importer mes derniers lives » ajoute les titres de tes dernières diffusions Twitch (VOD) et YouTube (Twitch et YouTube ne donnent pas le jeu). Kick ne fournit pas d'historique. « ★ Mettre en favoris » ajoute ce combo aux favoris ; « Appliquer » renvoie ce live.
 
 Sur Kick, la recherche de jeux par mot-clé utilise une partie de l'API que Kick marque comme obsolète ; le dictionnaire reste utilisable si elle disparaît."),
         new("Retrouver une fenêtre", @"Les étapes Placer, Action fenêtre et Clic doivent retrouver la bonne fenêtre. Critères (catégorie « Fenêtre cible ») :

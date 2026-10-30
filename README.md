@@ -64,9 +64,10 @@ Stream Launcher est gratuit. Si il vous est utile, vous pouvez soutenir son dév
 
 ## Twitch et Kick : titre, jeu, tags
 
-Menu **Live > Éditer le titre, le jeu et les tags…** : mêmes titre, jeu et tags envoyés à Twitch et à Kick.
+Menu **Live > Éditer le titre, le jeu et les tags…** : mêmes titre, jeu et tags envoyés à Twitch, Kick et YouTube.
 
 - **Connexion sans configuration** : les versions publiées embarquent les applications Twitch et Kick de Stream Launcher. Twitch : flux « device code » (identifiant client public, code à saisir sur twitch.tv). Kick : OAuth 2.1 PKCE avec retour sur `http://localhost:43117/callback` (port à garder libre), droits `channel:read` et `channel:write`.
+- **YouTube** : Google OAuth « application de bureau » (PKCE, retour sur `127.0.0.1`), YouTube Data API v3. L'application modifie la diffusion en cours, sinon la prochaine programmée dans YouTube Studio (titre via `liveBroadcasts.update`, tags et catégorie via `videos.update`). Pas de champ « jeu » sur YouTube : le jeu devient la catégorie « Jeux vidéo » et un tag. Application Google en mode test : comptes de test seulement, connexion valable 7 jours.
 - **Jetons chiffrés** (DPAPI, compte Windows courant) dans `%LOCALAPPDATA%\StreamLauncher\streaming-auth.bin`. Ils ne sont transmis qu'à Twitch et à Kick.
 - **Envoi par plateforme** : un interrupteur à côté de chaque compte connecté choisit si les mises à jour lui sont envoyées (choix mémorisé) ; le bouton principal nomme les plateformes visées.
 - **Voyants de connexion** en haut à droite : vert (opérationnelle), orange (vérification), rouge (erreur, détail au survol), gris (non connecté). Vérifiés au démarrage, toutes les 5 minutes et à chaque envoi.

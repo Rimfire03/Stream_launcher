@@ -117,7 +117,7 @@ sealed class StreamingDialog : Form
         var hb = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, Padding = new Padding(0, 8, 0, 0) };
         hb.Controls.Add(Ui.Btn("Appliquer", Ui.Kind.Primary, async (_, _) => await ApplyHistory()));
         hb.Controls.Add(Ui.Btn("★ Mettre en favoris", Ui.Kind.Secondary, (_, _) => FavHistory()));
-        hb.Controls.Add(Ui.Btn("Importer mes lives Twitch (VOD)", Ui.Kind.Secondary, async (_, _) => await ImportVods()));
+        hb.Controls.Add(Ui.Btn("Importer mes derniers lives (Twitch, YouTube)", Ui.Kind.Secondary, async (_, _) => await ImportVods()));
         hist.Controls.Add(lvHistory);
         hist.Controls.Add(hb);
 
@@ -343,15 +343,23 @@ sealed class StreamingDialog : Form
 
     Task ImportVods() => Guard(async () =>
     {
-        var twitch = Streaming.Platforms.First(p => p.Id == "twitch");
-        if (!twitch.Connected) { Say("Connecte d'abord ton compte Twitch.", true); return; }
-        var vods = await twitch.RecentLivesAsync(CancellationToken.None);
+        var sources = Streaming.Connected.Where(p => p.Id is "twitch" or "youtube").ToList(); // Kick gives no history
+        if (sources.Count == 0) { Say("Connecte d'abord ton compte Twitch ou YouTube.", true); return; }
         int before = store.History.Count;
-        foreach (var v in vods.Where(v => !store.History.Any(h => h.Title == v.Title && Math.Abs((h.Date - v.Date).TotalHours) < 24))) store.History.Add(v);
+        var errors = new List<string>();
+        foreach (var p in sources)
+        {
+            try
+            {
+                var lives = await p.RecentLivesAsync(CancellationToken.None);
+                foreach (var v in lives.Where(v => !store.History.Any(h => h.Title == v.Title && Math.Abs((h.Date - v.Date).TotalHours) < 24))) store.History.Add(v);
+            }
+            catch (Exception e) { errors.Add(e.Message); }
+        }
         store.History = store.History.OrderByDescending(h => h.Date).Take(StreamingStore.HistorySize).ToList();
         store.Save();
         FillHistory();
-        Say($"{Math.Max(0, store.History.Count - before)} live(s) importé(s) (Twitch ne donne que le titre et la date).", false);
+        Say($"{Math.Max(0, store.History.Count - before)} live(s) importé(s) (titre et date seulement)." + (errors.Count > 0 ? "\n✖ " + string.Join("\n✖ ", errors) : ""), errors.Count > 0);
     });
 
     // ---- game dictionary ----
@@ -401,7 +409,7 @@ sealed class StreamingDialog : Form
     {
         var g = GameDict.Current.Get(tbGame.Text);
         if (g == null) { lblGameInfo.Text = tbGame.Text.Trim() == "" ? "" : "Jeu inconnu du dictionnaire (il sera cherché sur la plateforme à l'envoi)"; return; }
-        lblGameInfo.Text = "Pris en charge : " + string.Join("  ·  ", Streaming.Platforms.Select(p => $"{p.Name} {(HasId(g, p) ? "✔" : "?")}"));
+        lblGameInfo.Text = "Pris en charge : " + string.Join("  ·  ", Streaming.Platforms.Where(p => p.UsesGameIds).Select(p => $"{p.Name} {(HasId(g, p) ? "✔" : "?")}"));
     }
 
     static bool HasId(GameEntry g, Platform p) => p.Id == "twitch" ? g.TwitchId != null : g.KickId != null;

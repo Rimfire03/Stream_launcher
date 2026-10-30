@@ -7,6 +7,8 @@ static partial class BuiltIn
 {
     public static string KickId = "";
     public static string KickSecret = "";
+    public static string YouTubeId = "";
+    public static string YouTubeSecret = "";
 
     static BuiltIn() => Load();
 

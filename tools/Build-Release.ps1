@@ -21,7 +21,14 @@ try {
     $kid = [regex]::Match($md, 'Identifiant client \| `([^`]+)`').Groups[1].Value
     $ksecret = [regex]::Match($md, 'Secret client \| `([^`]+)`').Groups[1].Value
     if (-not $kid -or -not $ksecret) { throw 'identifiants Kick introuvables dans le depot prive' }
-    Set-Content $kickFile -Encoding utf8 -Value "static partial class BuiltIn { static partial void Load() { KickId = `"$kid`"; KickSecret = `"$ksecret`"; } }"
+    # Identifiants YouTube / Google (youtube/Stream-Launcher-YouTube.md, meme depot prive)
+    $b64y = gh api repos/Rimfire03/TomLine-signing-keys/contents/youtube/Stream-Launcher-YouTube.md --jq .content
+    if ($LASTEXITCODE -ne 0) { throw 'lecture des identifiants YouTube impossible (depot prive)' }
+    $mdy = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(($b64y -join '')))
+    $yid = [regex]::Match($mdy, 'Identifiant client \| `([^`]+)`').Groups[1].Value
+    $ysecret = [regex]::Match($mdy, 'Secret client \| `([^`]+)`').Groups[1].Value
+    if (-not $yid -or -not $ysecret) { throw 'identifiants YouTube introuvables dans le depot prive' }
+    Set-Content $kickFile -Encoding utf8 -Value "static partial class BuiltIn { static partial void Load() { KickId = `"$kid`"; KickSecret = `"$ksecret`"; YouTubeId = `"$yid`"; YouTubeSecret = `"$ysecret`"; } }"
     dotnet publish "$root\StreamLauncher.csproj" -c Release -o $dist
     if ($LASTEXITCODE -ne 0) { throw 'publish echoue' }
 } finally {

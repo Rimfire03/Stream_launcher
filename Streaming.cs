@@ -179,6 +179,8 @@ abstract class Platform
     public abstract string Id { get; }
     public abstract string Name { get; }
     public abstract bool NeedsSecret { get; }
+    /// <summary>false when the platform has no game catalogue (YouTube): its games are not in the dictionary</summary>
+    public virtual bool UsesGameIds => true;
     protected PlatformAuth Auth => Secrets.Of(Id);
 
     /// <summary>application id built into Stream Launcher for this platform (a public id, not a secret); empty when the user must bring their own</summary>
@@ -549,7 +551,7 @@ sealed class KickPlatform : Platform
 
 static class Streaming
 {
-    public static readonly Platform[] Platforms = { new TwitchPlatform(), new KickPlatform() };
+    public static readonly Platform[] Platforms = { new TwitchPlatform(), new KickPlatform(), new YouTubePlatform() };
     public static IEnumerable<Platform> Connected => Platforms.Where(p => p.Connected);
     /// <summary>where an update goes: the connected platforms whose switch is on</summary>
     public static IEnumerable<Platform> Targets => Connected.Where(p => !StreamingStore.Current.Skipped.Contains(p.Id));
