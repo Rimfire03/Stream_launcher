@@ -93,14 +93,55 @@ sealed class ObsSession : IDisposable
         }).GetAwaiter().GetResult();
     }
 
-    public static void SetScene(string host, string password, string scene, int timeoutMs, CancellationToken ct)
+    /// <summary>Loads the profile, then the scene collection, then the scene: each only when given and not already current.</summary>
+    public static void Apply(string host, string password, string profile, string collection, string scene, int timeoutMs, CancellationToken ct)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(timeoutMs);
         Task.Run(async () =>
         {
             using var s = await ConnectAsync(host, password, cts.Token);
-            await s.RequestAsync("SetCurrentProgramScene", new { sceneName = scene }, cts.Token);
+            await s.SwitchAsync("GetProfileList", "currentProfileName", "SetCurrentProfile", "profileName", profile, cts.Token);
+            await s.SwitchAsync("GetSceneCollectionList", "currentSceneCollectionName", "SetCurrentSceneCollection", "sceneCollectionName", collection, cts.Token);
+            if (!string.IsNullOrWhiteSpace(scene))
+                await s.RequestAsync("SetCurrentProgramScene", new { sceneName = scene }, cts.Token);
+        }).GetAwaiter().GetResult();
+    }
+
+    /// <summary>switches the OBS profile / scene collection when it is not already the current one, and waits until OBS has loaded it</summary>
+    async Task SwitchAsync(string listRequest, string currentKey, string setRequest, string setField, string target, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(target)) return;
+        var list = await RequestAsync(listRequest, null, ct);
+        if (list.GetProperty(currentKey).GetString() == target) return;
+        await RequestAsync(setRequest, new Dictionary<string, string> { [setField] = target }, ct);
+        while (true)
+        {
+            await Task.Delay(500, ct);
+            if ((await RequestAsync(listRequest, null, ct)).GetProperty(currentKey).GetString() == target) break;
+        }
+        await Task.Delay(800, ct); // let OBS finish loading
+    }
+
+    public static List<string> ListProfiles(string host, string password, int timeoutMs = 3000)
+    {
+        using var cts = Timeout(timeoutMs);
+        return Task.Run(async () =>
+        {
+            using var s = await ConnectAsync(host, password, cts.Token);
+            var r = await s.RequestAsync("GetProfileList", null, cts.Token);
+            return r.GetProperty("profiles").EnumerateArray().Select(x => x.GetString() ?? "").ToList();
+        }).GetAwaiter().GetResult();
+    }
+
+    public static List<string> ListCollections(string host, string password, int timeoutMs = 3000)
+    {
+        using var cts = Timeout(timeoutMs);
+        return Task.Run(async () =>
+        {
+            using var s = await ConnectAsync(host, password, cts.Token);
+            var r = await s.RequestAsync("GetSceneCollectionList", null, cts.Token);
+            return r.GetProperty("sceneCollections").EnumerateArray().Select(x => x.GetString() ?? "").ToList();
         }).GetAwaiter().GetResult();
     }
 }
@@ -120,6 +161,44 @@ class ObsSceneConverter : StringConverter
         catch (Exception e) // OBS closed, WebSocket disabled, wrong password
         {
             RunLog.Write("liste des scènes OBS impossible : " + e.Message);
+            return new TypeConverter.StandardValuesCollection(Array.Empty<string>());
+        }
+    }
+}
+
+/// <summary>Drop-down of the scene collections read live from OBS; typing a name is still allowed.</summary>
+class ObsCollectionConverter : StringConverter
+{
+    public override bool GetStandardValuesSupported(ITypeDescriptorContext? c) => true;
+    public override bool GetStandardValuesExclusive(ITypeDescriptorContext? c) => false;
+
+    public override TypeConverter.StandardValuesCollection GetStandardValues(ITypeDescriptorContext? c)
+    {
+        var s = c?.Instance as Step ?? (c?.Instance as StepView)?.Step;
+        if (s == null) return new TypeConverter.StandardValuesCollection(Array.Empty<string>());
+        try { return new TypeConverter.StandardValuesCollection(ObsSession.ListCollections(s.ObsHost, s.ObsPassword)); }
+        catch (Exception e)
+        {
+            RunLog.Write("liste des collections OBS impossible : " + e.Message);
+            return new TypeConverter.StandardValuesCollection(Array.Empty<string>());
+        }
+    }
+}
+
+/// <summary>Drop-down of the OBS profiles read live from OBS; typing a name is still allowed.</summary>
+class ObsProfileConverter : StringConverter
+{
+    public override bool GetStandardValuesSupported(ITypeDescriptorContext? c) => true;
+    public override bool GetStandardValuesExclusive(ITypeDescriptorContext? c) => false;
+
+    public override TypeConverter.StandardValuesCollection GetStandardValues(ITypeDescriptorContext? c)
+    {
+        var s = c?.Instance as Step ?? (c?.Instance as StepView)?.Step;
+        if (s == null) return new TypeConverter.StandardValuesCollection(Array.Empty<string>());
+        try { return new TypeConverter.StandardValuesCollection(ObsSession.ListProfiles(s.ObsHost, s.ObsPassword)); }
+        catch (Exception e)
+        {
+            RunLog.Write("liste des profils OBS impossible : " + e.Message);
             return new TypeConverter.StandardValuesCollection(Array.Empty<string>());
         }
     }

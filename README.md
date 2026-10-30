@@ -11,7 +11,7 @@ Application Windows (.NET 8, self-contained) distribuée uniquement par installa
   - **+ Application** : étape de lancement manuelle. Ou glisser-déposer des raccourcis (.lnk), exe ou documents dans la fenêtre (le raccourci est résolu vers sa cible).
   - **+ Déplacer fenêtre** : clique le bouton, puis déplace (ou redimensionne) toi-même la fenêtre voulue : sa nouvelle position est enregistrée. **+ Réduire fenêtre** : clique le bouton, puis clique sur la fenêtre à réduire (le clic est capturé, pas transmis). Annulation par la barre affichée en haut de l'écran.
   - **+ Navigateur** : ouvre une URL http(s) dans une **nouvelle fenêtre** du navigateur choisi (`Browser` : Chrome, Edge, Firefox, Brave, Opera, Vivaldi, ou `Defaut` pour le navigateur par défaut de Windows, sans garantie de nouvelle fenêtre). Pour positionner la fenêtre sans dépendre du titre de la page (qui change) : cocher `PlaceWindow` (placement porté par l'étape elle-même : écran, Multitâche/Zone ou X/Y/W/H), et/ou cocher `OnLastWindow` sur les étapes suivantes (Placer, Action fenêtre, Clic) pour cibler la fenêtre que cette étape vient d'ouvrir.
-  - **+ Scène OBS Studio** : passe OBS sur une scène (serveur WebSocket d'OBS 28+ : *Outils > Réglages du serveur WebSocket*). Champs `ObsHost` (défaut `localhost:4455`), `ObsPassword`, `ObsScene` (liste lue dans OBS quand il tourne). Réessaie tant qu'OBS démarre.
+  - **+ Scène OBS Studio** : passe OBS sur une scène (serveur WebSocket d'OBS 28+ : *Outils > Réglages du serveur WebSocket*). Champs `ObsHost` (défaut `localhost:4455`), `ObsPassword`, `ObsProfile`, `ObsCollection`, `ObsScene` (listes lues dans OBS quand il tourne ; appliqués dans cet ordre, chacun facultatif). Réessaie tant qu'OBS démarre.
   - **+ Icône du tray** : clique le bouton puis clique toi-même l'icône de l'application dans la zone de notification (ouvre d'abord les icônes cachées si besoin) : l'étape est enregistrée (nom de l'icône, clic gauche ou droit). À l'exécution, elle reclique cette icône pour faire apparaître l'application. `TrayName` est un fragment de l'info-bulle ; **Icônes du tray…** (ou `StreamLauncher.exe --list-tray`) liste les noms. Selon l'appli, régler `Double` (double-clic).
   - **● Enregistrer les clics** : clique normalement dans les apps, chaque clic devient une étape `Click` (élément UI Automation par nom + coordonnées relatives, délais réels conservés).
 - **Glisser-déposer** : une étape se déplace à la souris dans la liste (ligne d'insertion). **Étapes en rouge** : exécutable d'une étape `Lancer` introuvable (vérifié au démarrage) ; l'étape et celles qui visent le même processus sont ignorées au lancement. Un profil ne s'exécute qu'une fois à la fois (touche Stream Deck pressée deux fois : 2e appel ignoré).
@@ -60,6 +60,10 @@ Produit `dist\StreamLauncher-Va.b.c-win-x64.msi` signé (certificat global TomLi
 Stream Launcher est gratuit. Si il vous est utile, vous pouvez soutenir son développement :
 
 <a href="https://buymeacoffee.com/slide598b" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50"></a>
+
+## Twitch et Kick : titre, jeu, tags
+
+Menu **Live > Éditer le titre, le jeu et les tags…** : mêmes titre, jeu et tags envoyés à Twitch et à Kick. Comptes connectés avec une application développeur de l'utilisateur (Twitch : flux « device code », identifiant client public ; Kick : OAuth 2.1 PKCE, callback `http://localhost:43117/callback`, identifiant + secret). Jetons chiffrés (DPAPI) dans `%LOCALAPPDATA%\StreamLauncher\streaming-auth.bin`. Voyants de connexion (vert / orange / rouge / gris) en haut à droite. Favoris (titres, jeux, tags) en 1 clic, historique des 15 derniers lives (`streaming.json`), dictionnaire des jeux mis à jour dynamiquement (`games.json`).
 
 ## Canaux de mise à jour et branches
 

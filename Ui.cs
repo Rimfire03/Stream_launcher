@@ -98,7 +98,8 @@ static class Ui
         StepType.Click => (s.Mode == ClickMode.Element ? $"Cliquer sur « {s.ElementName} »" : $"Cliquer à {s.RelX}, {s.RelY}",
             $"{Target(s)} · bouton {(s.Button == MouseBtn.Right ? "droit" : "gauche")}{(s.Double ? " · double-clic" : "")}"),
         StepType.Tray => ($"Ouvrir « {s.TrayName} » depuis la zone de notification", $"bouton {(s.Button == MouseBtn.Right ? "droit" : "gauche")}{(s.Double ? " · double-clic" : "")}"),
-        StepType.Obs => ($"Activer la scène « {s.ObsScene} »", $"OBS Studio · {s.ObsHost}"),
+        StepType.Obs => (s.ObsScene != "" ? $"Activer la scène « {s.ObsScene} »" : s.ObsCollection != "" ? $"Charger la collection « {s.ObsCollection} »" : $"Charger le profil « {s.ObsProfile} »",
+            "OBS Studio" + (s.ObsProfile != "" && (s.ObsScene != "" || s.ObsCollection != "") ? $" · profil « {s.ObsProfile} »" : "") + (s.ObsCollection != "" && s.ObsScene != "" ? $" · collection « {s.ObsCollection} »" : "") + $" · {s.ObsHost}"),
         _ => (Uri.TryCreate(s.Url, UriKind.Absolute, out var u) ? $"Ouvrir {u.Host}" : "Ouvrir un site", $"{Fr.Of(s.Browser)} · {s.Url}{(s.PlaceWindow ? " · fenêtre placée" : "")}"),
     };
 }
@@ -130,7 +131,7 @@ class StepView : ICustomTypeDescriptor
                 h.UnionWith(s.Mode == ClickMode.Element ? new[] { "ElementName", "ElementId" } : new[] { "RelX", "RelY" });
                 break;
             case StepType.Tray: h.UnionWith(new[] { "TrayName", "Button", "Double" }); break;
-            case StepType.Obs: h.UnionWith(new[] { "ObsHost", "ObsPassword", "ObsScene" }); break;
+            case StepType.Obs: h.UnionWith(new[] { "ObsHost", "ObsPassword", "ObsProfile", "ObsCollection", "ObsScene" }); break;
             default: h.UnionWith(new[] { "Browser", "Url", "PlaceWindow", "KeepOpen" }); if (s.PlaceWindow) Placement(); break;
         }
         return h;

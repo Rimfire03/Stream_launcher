@@ -27,6 +27,11 @@ class MainForm : Form
 
     Profile? Cur => lbProf.SelectedItem as Profile;
     Step? CurStep => lbSteps.SelectedItem as Step;
+    readonly System.Windows.Forms.Timer healthTimer = new() { Interval = 5 * 60 * 1000 }; // Twitch / Kick connection check
+    void CheckConnections()
+    {
+        foreach (var p in Streaming.Platforms) _ = p.CheckAsync();
+    }
     int dragFrom = -1, dropIndex = -1; // reordering steps by drag & drop: row being dragged, insertion position (0..Count)
     Point dragStart;
     const string StepDragFormat = "StreamLauncher.StepIndex";
@@ -113,6 +118,14 @@ class MainForm : Form
 
         // header menus: Paramètres (application settings), Outils (helpers), Aide
         var settingsMenu = new ToolStripMenuItem("Paramètres");
+        var liveMenu = new ToolStripMenuItem("Live");
+        liveMenu.DropDownItems.Add("Éditer le titre, le jeu et les tags…", null, (_, _) => { using var d = new StreamingDialog(); d.ShowDialog(this); });
+        liveMenu.DropDownItems.Add("Actualiser le dictionnaire des jeux", null, async (_, _) =>
+        {
+            if (!Streaming.Connected.Any()) { MessageBox.Show("Connecte d'abord un compte Twitch ou Kick (Live > Éditer…).", Text); return; }
+            try { Log($"Dictionnaire des jeux : {await Streaming.RefreshGamesAsync()} jeux"); }
+            catch (Exception e) { Log("ERREUR dictionnaire des jeux : " + e.Message); }
+        });
         var toolsMenu = new ToolStripMenuItem("Outils");
         toolsMenu.DropDownItems.Add("Ouvrir le dossier des raccourcis Stream Deck", null, (_, _) => SyncDeck(true));
         toolsMenu.DropDownItems.Add("Journal des lancements Stream Deck", null, (_, _) => OpenRunLog());
@@ -222,12 +235,25 @@ class MainForm : Form
         {
             foreach (ToolStripItem i in items) { i.ForeColor = Ui.Text; if (i is ToolStripMenuItem m) DarkText(m.DropDownItems); }
         }
-        foreach (var m in new[] { settingsMenu, toolsMenu }) { m.ForeColor = Color.White; DarkText(m.DropDownItems); }
+        foreach (var m in new[] { liveMenu, settingsMenu, toolsMenu }) { m.ForeColor = Color.White; DarkText(m.DropDownItems); }
         DarkText(help.DropDownItems);
-        var menu = new MenuStrip { Dock = DockStyle.Right, LayoutStyle = ToolStripLayoutStyle.HorizontalStackWithOverflow, AutoSize = false, Width = 270, BackColor = Ui.Header, Font = Ui.Base, GripStyle = ToolStripGripStyle.Hidden };
-        menu.Items.AddRange(new ToolStripItem[] { settingsMenu, toolsMenu, help });
+        var menu = new MenuStrip { Dock = DockStyle.Right, LayoutStyle = ToolStripLayoutStyle.HorizontalStackWithOverflow, AutoSize = false, Width = 330, BackColor = Ui.Header, Font = Ui.Base, GripStyle = ToolStripGripStyle.Hidden };
+        menu.Items.AddRange(new ToolStripItem[] { liveMenu, settingsMenu, toolsMenu, help });
         MainMenuStrip = menu;
+        // connection indicators: one dot per platform, next to the menus (click = open the live editor)
+        var tipPills = new ToolTip { InitialDelay = 300 };
+        var pills = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, WrapContents = false, BackColor = Ui.Header, Padding = new Padding(0, 8, 8, 0) };
+        foreach (var plat in Streaming.Platforms)
+        {
+            var pill = new StatusPill(plat, tipPills);
+            pill.Click += (_, _) => { using var d = new StreamingDialog(); d.ShowDialog(this); };
+            pills.Controls.Add(pill);
+        }
+        header.Controls.Add(pills);
         header.Controls.Add(menu);
+        healthTimer.Tick += (_, _) => CheckConnections();
+        healthTimer.Start();
+        Shown += (_, _) => CheckConnections();
 
         // ---- step list: right-click menu and drawing ----
         var stepMenu = new ContextMenuStrip { Font = Ui.Base };
@@ -789,6 +815,7 @@ class MainForm : Form
         SetBusy(true);
         if (Visible) WindowState = FormWindowState.Minimized; // stay out of the way of the clicks
         Log($"=== {p.Name} ===");
+        if (live && Streaming.Connected.Any()) _ = Task.Run(async () => { try { await Streaming.SnapshotAsync(); } catch (Exception e) { RunLog.Write("historique du live : " + e.Message); } });
         var token = cts.Token;
         try
         {

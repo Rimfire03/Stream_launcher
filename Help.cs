@@ -124,9 +124,30 @@ Préparation dans OBS (28 ou plus) : menu « Outils > Réglages du serveur WebSo
 Propriétés (catégorie « OBS Studio ») :
 - Serveur WebSocket : adresse et port (localhost:4455 par défaut).
 - Mot de passe WebSocket : laisse vide s'il n'y en a pas. Il est enregistré en clair dans profiles.json.
-- Scène à activer : choisis-la dans la liste (lue dans OBS quand il est lancé) ou tape son nom exact.
+- Profil OBS : profil à charger en premier (laisse vide pour ne pas en changer). Choisis-le dans la liste ou tape son nom exact.
+- Collection de scènes : collection à charger ensuite (laisse vide pour ne pas en changer). Si elle n'est pas déjà active, l'étape attend qu'OBS l'ait chargée.
+- Scène à activer : choisis-la dans la liste (lue dans OBS quand il est lancé) ou tape son nom exact. La liste montre les scènes de la collection active : pour une autre collection, tape le nom de la scène.
+L'ordre d'exécution est : profil, collection, scène. Chaque champ peut rester vide (par exemple pour ne changer que de collection).
 
 Si la scène n'existe pas, l'étape échoue tout de suite avec le message d'OBS ; si OBS est injoignable (fermé, WebSocket désactivé), elle réessaie puis échoue au bout du délai maximum."),
+        new("Twitch et Kick (titre, jeu, tags)", @"Menu « Live > Éditer le titre, le jeu et les tags… » : change le titre, le jeu et les tags de ta chaîne sur Twitch et sur Kick en même temps (mêmes valeurs sur les deux).
+
+Connexion (une fois par plateforme) : dans la fenêtre, clique « Connecter ». La première fois, l'application demande les identifiants d'une application que tu crées toi-même (gratuit) ; la fenêtre explique les étapes :
+- Twitch : dev.twitch.tv/console/apps, URL de redirection http://localhost, type de client « Public ». Seul l'identifiant client est nécessaire. Tu saisis ensuite le code affiché dans la page Twitch.
+- Kick : Paramètres > Développeur sur kick.com, URL de redirection http://localhost:43117/callback, droits channel:read et channel:write. L'identifiant et le secret client sont nécessaires. Tu autorises ensuite l'application dans la page Kick.
+Les jetons et le secret sont enregistrés chiffrés (Windows, ton compte uniquement), jamais en clair.
+
+Indicateur de connexion : en haut à droite, un point par plateforme : vert = connexion opérationnelle, orange = vérification en cours, rouge = erreur (passe la souris pour lire le détail), gris = non connecté. L'état est vérifié au démarrage puis toutes les 5 minutes, et à chaque envoi. Clique sur un point pour ouvrir la fenêtre.
+
+Titre, jeu, tags : « Appliquer sur les plateformes » envoie les trois valeurs ; « Charger depuis le live » lit les valeurs actuelles. Les tags : 10 au plus, lettres et chiffres seulement (les espaces et symboles sont retirés). Si un jeu n'existe pas sur une plateforme, le titre et les tags sont quand même appliqués et un avertissement le signale.
+
+Jeux : le dictionnaire des jeux se complète tout seul. Il est rempli à la connexion avec les catégories des plateformes, mis à jour au bout de 7 jours (ou avec « Actualiser le dictionnaire des jeux »), et chaque recherche tapée y ajoute les jeux trouvés. Il est enregistré dans %LOCALAPPDATA%\StreamLauncher\games.json. Sous le champ, « Pris en charge : Twitch ✔ Kick ✔ » indique où le jeu est connu.
+
+Favoris : trois listes (titres, jeux, jeux de tags) avec les boutons ★. « Appliquer en 1 clic » (ou double-clic) envoie tout de suite ce favori seul à toutes les plateformes ; « Dans le formulaire » ne fait que le copier.
+
+Historique : les 15 derniers lives (titre, jeu, tags), enregistrés quand tu appliques des valeurs ou que tu lances un live. « Importer mes lives Twitch (VOD) » ajoute les titres de tes dernières diffusions Twitch (Twitch ne donne pas le jeu). Kick ne fournit pas d'historique. « ★ Mettre en favoris » copie titre, jeu et tags dans les favoris ; « Appliquer » renvoie ce live.
+
+Sur Kick, la recherche de jeux par mot-clé utilise une partie de l'API que Kick marque comme obsolète ; le dictionnaire reste utilisable si elle disparaît."),
         new("Retrouver une fenêtre", @"Les étapes Placer, Action fenêtre et Clic doivent retrouver la bonne fenêtre. Critères (catégorie « Fenêtre cible ») :
 
 - Process : nom du processus sans .exe (obligatoire s'il est renseigné).

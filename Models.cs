@@ -23,6 +23,8 @@ class Step
 
     [DisplayName("Serveur WebSocket"), Category("OBS Studio"), Description("Adresse du serveur WebSocket d'OBS (Outils > Réglages du serveur WebSocket dans OBS). Par défaut localhost:4455.")] public string ObsHost { get; set; } = "localhost:4455";
     [DisplayName("Mot de passe WebSocket"), Category("OBS Studio"), Description("Mot de passe du serveur WebSocket d'OBS (laisser vide s'il n'y en a pas). Enregistré en clair dans profiles.json."), PasswordPropertyText(true)] public string ObsPassword { get; set; } = "";
+    [DisplayName("Profil OBS"), Category("OBS Studio"), Description("Profil OBS à charger en premier (réglages de sortie, flux, enregistrement). Laisser vide pour ne pas en changer. La liste est lue dans OBS quand il est lancé."), TypeConverter(typeof(ObsProfileConverter))] public string ObsProfile { get; set; } = "";
+    [DisplayName("Collection de scènes"), Category("OBS Studio"), Description("Collection de scènes OBS à charger avant de choisir la scène (laisser vide pour ne pas en changer). La liste est lue dans OBS quand il est lancé."), TypeConverter(typeof(ObsCollectionConverter))] public string ObsCollection { get; set; } = "";
     [DisplayName("Scène à activer"), Category("OBS Studio"), Description("Scène OBS à passer en sortie. La liste est lue dans OBS quand il est lancé ; sinon, tape le nom exact."), TypeConverter(typeof(ObsSceneConverter))] public string ObsScene { get; set; } = "";
 
     [DisplayName("Processus (sans .exe)"), Category("Fenêtre cible"), Description("Nom du processus sans .exe")] public string Process { get; set; } = "";
@@ -75,7 +77,7 @@ class Step
             _ => $"Placer {Process} '{Title}' → {Config.Label(Monitor)} multitâche {Fr.Of(Zone)}",
         },
         StepType.Browser => $"Ouvrir {Fr.Of(Browser)} sur {Url}",
-        StepType.Obs => $"OBS : scène « {ObsScene} »",
+        StepType.Obs => "OBS : " + string.Join(", ", new[] { ObsProfile != "" ? $"profil « {ObsProfile} »" : "", ObsCollection != "" ? $"collection « {ObsCollection} »" : "", ObsScene != "" ? $"scène « {ObsScene} »" : "" }.Where(x => x != "")),
         StepType.Tray => $"Ouvrir depuis la zone de notification « {TrayName} » ({Fr.Of(Button)}{(Double ? " x2" : "")})",
         StepType.Window => $"{Fr.Of(Action)} la fenêtre {Process} '{Title}'",
         _ => Mode == ClickMode.Element

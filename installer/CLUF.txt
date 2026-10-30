@@ -96,7 +96,7 @@ ARTICLE 8 - DONNÉES PERSONNELLES ET MISES À JOUR
 Le Logiciel ne collecte aucune donnée personnelle pour le compte de l'Éditeur. Pour rechercher une
 mise à jour, il interroge la plateforme de publication GitHub (api.github.com) ; cette plateforme
 peut traiter l'adresse IP de l'Utilisateur et des informations techniques de la requête selon sa
-propre politique de confidentialité. Aucune Donnée de l'Utilisateur n'est transmise. Pour toute
+propre politique de confidentialité. Aucune Donnée de l'Utilisateur n'est transmise. Si l'Utilisateur connecte son compte Twitch ou Kick (fonction facultative), le Logiciel communique directement avec ces plateformes, pour lire et modifier le titre, le jeu et les tags de sa chaîne ; les jetons d'accès sont enregistrés chiffrés sur son poste et ne sont jamais transmis à l'Éditeur. Pour toute
 question ou pour exercer ses droits (accès, rectification, effacement, opposition), l'Utilisateur
 peut écrire à contact@tomlineprodco.fr ; il dispose du droit d'introduire une réclamation auprès de
 la CNIL (www.cnil.fr).

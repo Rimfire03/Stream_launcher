@@ -147,14 +147,14 @@ class Runner
     // OBS may still be starting (an earlier step launched it): retry while it is unreachable, fail at once when it answers with an error
     void Obs(Step s, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(s.ObsScene)) throw new InvalidOperationException("scène OBS vide");
+        if (string.IsNullOrWhiteSpace(s.ObsScene) && string.IsNullOrWhiteSpace(s.ObsCollection) && string.IsNullOrWhiteSpace(s.ObsProfile)) throw new InvalidOperationException("profil, collection et scène OBS vides");
         var end = DateTime.UtcNow.AddMilliseconds(s.TimeoutMs);
         while (true)
         {
             ct.ThrowIfCancellationRequested();
             try
             {
-                ObsSession.SetScene(s.ObsHost, s.ObsPassword, s.ObsScene, 5000, ct);
+                ObsSession.Apply(s.ObsHost, s.ObsPassword, s.ObsProfile, s.ObsCollection, s.ObsScene, Math.Max(5000, s.TimeoutMs), ct);
                 return;
             }
             catch (InvalidOperationException) { throw; }
