@@ -1,19 +1,15 @@
-using System.Runtime.InteropServices;
-
 /// <summary>
 /// Raccourcis Stream Deck. L'action « Ouvrir » de Stream Deck n'a pas de champ d'arguments, ignore les arguments d'un .lnk
 /// et refuse les .cmd : elle n'accepte qu'un exécutable. Pour chaque profil on crée donc, dans « Profils\nom », trois
-/// liens physiques de StreamLauncher.exe (aucun espace disque en plus) dont le NOM porte l'action : « nom - bascule.exe »,
-/// « nom - lancer.exe », « nom - fermer.exe ». Au démarrage, l'exe lit son propre nom (voir <see cref="FromExeName"/>).
+/// copies d'un lanceur de 4 Ko (assets\LaunchStub.exe) dont le NOM porte l'action : « nom - bascule.exe », « nom - lancer.exe »,
+/// « nom - fermer.exe ». Des liens physiques de StreamLauncher.exe ne marchent pas : Stream Deck les résout vers l'exe d'origine
+/// et perd le nom. Le lanceur démarre StreamLauncher.exe --link "<son nom>" (voir <see cref="FromExeName"/>).
 /// Des .lnk équivalents sont créés pour un usage manuel.
 /// </summary>
 static class Deck
 {
     public static readonly (string Suffix, string Flag)[] Kinds = { (" - bascule", "--profile"), (" - lancer", "--start"), (" - fermer", "--stop") };
     const string Marker = "Stream Launcher :"; // description of our shortcuts: only those are ever deleted
-
-    [DllImport("kernel32", CharSet = CharSet.Unicode, SetLastError = true)]
-    static extern bool CreateHardLink(string newFile, string existingFile, IntPtr security);
 
     public static string Safe(string name) => string.Concat(name.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
 
@@ -31,9 +27,9 @@ static class Deck
     static string RealExe => Path.Combine(AppDir, "StreamLauncher.exe");
 
     /// <summary>When this process was started through a profile link, the arguments that link stands for.</summary>
-    public static string[]? FromExeName(Config cfg)
+    public static string[]? FromExeName(Config cfg, string? fileName = null)
     {
-        var self = Path.GetFileNameWithoutExtension(Environment.ProcessPath);
+        var self = Path.GetFileNameWithoutExtension(fileName ?? Environment.ProcessPath);
         if (self == null) return null;
         foreach (var (suffix, flag) in Kinds)
         {
@@ -96,8 +92,8 @@ static class Deck
                 lnk.Description = $"{Marker} {p.Name}";
                 lnk.Save();
 
-                // hard link: needs the exe's volume, and a profile folder inside the application folder (the link finds profiles.json from there)
-                if (inAppDir) TryLink(baseName + ".exe", exe);
+                // the stub finds StreamLauncher.exe two folders up, so only inside the application folder
+                if (inAppDir) TryStub(baseName + ".exe");
                 if (File.Exists(baseName + ".cmd")) TryDelete(baseName + ".cmd"); // earlier versions made these; Stream Deck refuses them
             }
         }
@@ -114,26 +110,30 @@ static class Deck
             foreach (var f in Directory.GetFiles(dir, "*.cmd"))
                 if (File.ReadLines(f).Take(2).Any(l => l.Contains(Marker))) TryDelete(f);
             foreach (var f in Directory.GetFiles(dir, "*.exe"))
-                if (Kinds.Any(k => Path.GetFileNameWithoutExtension(f).EndsWith(k.Suffix, StringComparison.OrdinalIgnoreCase)) && IsSameFile(f, exe)) TryDelete(f);
+                if (Kinds.Any(k => Path.GetFileNameWithoutExtension(f).EndsWith(k.Suffix, StringComparison.OrdinalIgnoreCase)) && IsOurs(f, exe)) TryDelete(f);
             if (!Directory.EnumerateFileSystemEntries(dir).Any()) Directory.Delete(dir);
         }
     }
 
-    static bool IsSameFile(string a, string b) => new FileInfo(a).Length == new FileInfo(b).Length;
+    // a stub copy, or a hard link of the exe made by version 0.1.15
+    static bool IsOurs(string f, string exe) => new FileInfo(f).Length is var n && (n == StubBytes().Length || n == new FileInfo(exe).Length);
+
+    static byte[] StubBytes()
+    {
+        using var s = typeof(Deck).Assembly.GetManifestResourceStream("LaunchStub.exe")!;
+        using var m = new MemoryStream();
+        s.CopyTo(m);
+        return m.ToArray();
+    }
 
     static void TryDelete(string path)
     {
         try { File.Delete(path); } catch { }
     }
 
-    // always re-created, so the links follow an updated StreamLauncher.exe; a running link (locked) is left as is
-    static void TryLink(string link, string target)
+    // always re-written; a running launcher (locked) is left as is
+    static void TryStub(string path)
     {
-        try
-        {
-            if (File.Exists(link)) File.Delete(link);
-            CreateHardLink(link, target, IntPtr.Zero);
-        }
-        catch { }
+        try { File.WriteAllBytes(path, StubBytes()); } catch { }
     }
 }

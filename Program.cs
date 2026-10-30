@@ -11,9 +11,17 @@ static class Program
     {
         ApplicationConfiguration.Initialize();
         var cfg = Config.Load();
-        if (args.Length == 0 && Deck.FromExeName(cfg) is { } fromName)
+        // « nom - bascule.exe » & co: the launcher's file name carries the action (the stub passes it as --link)
+        int link = Array.IndexOf(args, "--link");
+        if (link >= 0 && link + 1 < args.Length)
         {
-            args = fromName; // « nom - bascule.exe » & co: the file name carries the action
+            var linkName = args[link + 1];
+            RunLog.Write($"lancement via {linkName}");
+            args = Deck.FromExeName(cfg, linkName) ?? args;
+        }
+        else if (args.Length == 0 && Deck.FromExeName(cfg) is { } fromName)
+        {
+            args = fromName;
             RunLog.Write($"lancement via {Path.GetFileName(Environment.ProcessPath)}");
         }
         RunLog.Write($"lancement : {(args.Length == 0 ? "(sans argument)" : string.Join(" ", args))}");
