@@ -8,6 +8,7 @@ Exe Windows portable (.NET 8, self-contained, un seul fichier) : lance des appli
   - **Importer fenêtres ouvertes** : ouvre tes apps, place-les à la main, importe → étapes `Launch` + `Place` (écran + position + taille).
   - **+ Application** : étape de lancement manuelle. Ou glisser-déposer des raccourcis (.lnk), exe ou documents dans la fenêtre (le raccourci est résolu vers sa cible).
   - **● Enregistrer les clics** : clique normalement dans les apps, chaque clic devient une étape `Click` (élément UI Automation par nom + coordonnées relatives, délais réels conservés).
+- **Écran scindé** : sur une étape `Place`, champ `Zone` : `Gauche/Droite`, `Haut/Bas`, quarts (`HautGauche`…), tiers, ou `Grille` (écran découpé en `Cols` x `Rows`, fenêtre sur la case `Col`,`Row` avec `SpanCols`/`SpanRows`). Calculé sur la zone de travail de l'écran choisi, bordures invisibles de Windows compensées. `Manuel` garde X/Y/W/H.
 - Chaque étape se règle dans le panneau de propriétés (mode `Element` ou `Coords` par étape, timeouts, titre/processus cible…).
 - Icône de zone de notification : clic droit → lancer un profil. Fermer la fenêtre réduit dans le tray.
 

@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 enum StepType { Launch, Place, Click }
 enum ClickMode { Element, Coords }
 enum MouseBtn { Left, Right }
+enum Zone { Manuel, Grille, Gauche, Droite, Haut, Bas, HautGauche, HautDroite, BasGauche, BasDroite, TiersGauche, TiersCentre, TiersDroit }
 
 class Step
 {
@@ -20,7 +21,14 @@ class Step
     [Category("Fenêtre cible"), Description("Texte contenu dans le titre (vide = n'importe quel titre)")] public string Title { get; set; } = "";
 
     [Category("Placement"), TypeConverter(typeof(MonitorConverter)), Description("Nom de l'écran, ex. \\\\.\\DISPLAY2")] public string Monitor { get; set; } = "";
-    [Category("Placement"), Description("Position X relative à l'écran")] public int X { get; set; }
+    [Category("Placement"), Description("Manuel = X/Y/W/H. Grille = écran scindé en Cols x Rows. Autres = zones prédéfinies (moitiés, quarts, tiers). Zones calculées sur la zone de travail (hors barre des tâches).")] public Zone Zone { get; set; }
+    [Category("Placement"), Description("Grille : nombre de colonnes")] public int Cols { get; set; } = 2;
+    [Category("Placement"), Description("Grille : nombre de lignes")] public int Rows { get; set; } = 1;
+    [Category("Placement"), Description("Grille : colonne de départ (0 = première)")] public int Col { get; set; }
+    [Category("Placement"), Description("Grille : ligne de départ (0 = première)")] public int Row { get; set; }
+    [Category("Placement"), Description("Grille : nombre de colonnes occupées")] public int SpanCols { get; set; } = 1;
+    [Category("Placement"), Description("Grille : nombre de lignes occupées")] public int SpanRows { get; set; } = 1;
+    [Category("Placement"), Description("Mode Manuel : position X relative à l'écran")] public int X { get; set; }
     [Category("Placement")] public int Y { get; set; }
     [Category("Placement"), Description("0 = ne pas redimensionner")] public int W { get; set; }
     [Category("Placement")] public int H { get; set; }
@@ -37,7 +45,12 @@ class Step
     public override string ToString() => $"+{DelayMs}ms  " + Type switch
     {
         StepType.Launch => $"Lancer {Exe} {Args}".TrimEnd(),
-        StepType.Place => $"Placer {Process} '{Title}' → {Monitor} {X},{Y} {W}x{H}{(Maximize ? " max" : "")}",
+        StepType.Place => Zone switch
+        {
+            Zone.Manuel => $"Placer {Process} '{Title}' → {Monitor} {X},{Y} {W}x{H}{(Maximize ? " max" : "")}",
+            Zone.Grille => $"Placer {Process} '{Title}' → {Monitor} grille {Cols}x{Rows} case {Col},{Row} ({SpanCols}x{SpanRows})",
+            _ => $"Placer {Process} '{Title}' → {Monitor} zone {Zone}",
+        },
         _ => Mode == ClickMode.Element
             ? $"Clic {Button}{(Double ? " x2" : "")} sur « {ElementName} » ({Process})"
             : $"Clic {Button}{(Double ? " x2" : "")} à {RelX},{RelY} ({Process})",

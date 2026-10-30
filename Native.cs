@@ -73,7 +73,7 @@ static class Native
         {
             if (!IsWindowVisible(h) || GetWindowTextLength(h) == 0) return true;
             // UWP "ghost" windows are visible but cloaked
-            if (DwmGetWindowAttribute(h, 14, out var cloaked, 4) == 0 && cloaked != 0) return true;
+            if (DwmGetWindowAttribute(h, 14, out int cloaked, 4) == 0 && cloaked != 0) return true;
             list.Add(Describe(h));
             return true;
         }, IntPtr.Zero);
@@ -102,14 +102,54 @@ static class Native
         }
     }
 
+    // (cols, rows, col, row, spanCols, spanRows) of the predefined zones
+    static (int, int, int, int, int, int) Cell(Step s) => s.Zone switch
+    {
+        Zone.Grille => (Math.Max(s.Cols, 1), Math.Max(s.Rows, 1), s.Col, s.Row, Math.Max(s.SpanCols, 1), Math.Max(s.SpanRows, 1)),
+        Zone.Gauche => (2, 1, 0, 0, 1, 1),
+        Zone.Droite => (2, 1, 1, 0, 1, 1),
+        Zone.Haut => (1, 2, 0, 0, 1, 1),
+        Zone.Bas => (1, 2, 0, 1, 1, 1),
+        Zone.HautGauche => (2, 2, 0, 0, 1, 1),
+        Zone.HautDroite => (2, 2, 1, 0, 1, 1),
+        Zone.BasGauche => (2, 2, 0, 1, 1, 1),
+        Zone.BasDroite => (2, 2, 1, 1, 1, 1),
+        Zone.TiersGauche => (3, 1, 0, 0, 1, 1),
+        Zone.TiersCentre => (3, 1, 1, 0, 1, 1),
+        _ => (3, 1, 2, 0, 1, 1),
+    };
+
+    [DllImport("dwmapi")] static extern int DwmGetWindowAttribute(IntPtr h, int attr, out RECT r, int size);
+
     public static void Move(IntPtr h, Step s)
     {
         var scr = Screen.AllScreens.FirstOrDefault(x => x.DeviceName == s.Monitor) ?? Screen.PrimaryScreen!;
-        var b = scr.Bounds;
         if (IsIconic(h) || IsZoomed(h)) ShowWindow(h, 9);
-        uint flags = 0x14; // NOZORDER | NOACTIVATE
-        if (s.W <= 0 || s.H <= 0) flags |= 0x1; // NOSIZE
-        SetWindowPos(h, IntPtr.Zero, b.X + s.X, b.Y + s.Y, s.W, s.H, flags);
-        if (s.Maximize) ShowWindow(h, 3); // SW_MAXIMIZE
+
+        if (s.Zone == Zone.Manuel)
+        {
+            var b = scr.Bounds;
+            uint flags = 0x14; // NOZORDER | NOACTIVATE
+            if (s.W <= 0 || s.H <= 0) flags |= 0x1; // NOSIZE
+            SetWindowPos(h, IntPtr.Zero, b.X + s.X, b.Y + s.Y, s.W, s.H, flags);
+            if (s.Maximize) ShowWindow(h, 3); // SW_MAXIMIZE
+            return;
+        }
+
+        var (cols, rows, col, row, sc, sr) = Cell(s);
+        col = Math.Clamp(col, 0, cols - 1);
+        row = Math.Clamp(row, 0, rows - 1);
+        var a = scr.WorkingArea;
+        // edges computed from the same formula for both neighbours: no gap, no overlap
+        int x0 = a.X + a.Width * col / cols, x1 = a.X + a.Width * Math.Min(col + sc, cols) / cols;
+        int y0 = a.Y + a.Height * row / rows, y1 = a.Y + a.Height * Math.Min(row + sr, rows) / rows;
+        SetWindowPos(h, IntPtr.Zero, x0, y0, x1 - x0, y1 - y0, 0x14);
+
+        // Win10/11 windows have an invisible border (shadow): grow the rect by it so the visible frame fills the zone
+        if (GetWindowRect(h, out var w) && DwmGetWindowAttribute(h, 9, out RECT f, Marshal.SizeOf<RECT>()) == 0) // DWMWA_EXTENDED_FRAME_BOUNDS
+        {
+            int l = f.Left - w.Left, t = f.Top - w.Top, r = w.Right - f.Right, bt = w.Bottom - f.Bottom;
+            SetWindowPos(h, IntPtr.Zero, x0 - l, y0 - t, x1 - x0 + l + r, y1 - y0 + t + bt, 0x14);
+        }
     }
 }
