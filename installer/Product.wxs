@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- MSI de Stream Launcher (WiX 4, par machine, 64 bits). Construit par tools\Build-Release.ps1 :
-     wix build installer\Product.wxs -d Version=x.y.z -d ExePath=<exe signé> -->
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+<!-- MSI de Stream Launcher (WiX 4, par machine, 64 bits) avec choix du dossier d'installation
+     (défaut : C:\Program Files (x86)\Stream Launcher). Construit par tools\Build-Release.ps1 :
+     wix build installer\Product.wxs -ext WixToolset.Util.wixext -ext WixToolset.UI.wixext -culture fr-FR
+       -d Version=x.y.z -d ExePath=<exe signé> -d IconPath=<app.ico> -->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
   <Package Name="Stream Launcher" Manufacturer="TomLine prod&amp;co" Version="$(Version)"
            UpgradeCode="6B1F0C5E-3A47-4D2B-9E8A-5C7D21F4A0B3" Scope="perMachine" Language="1036" Codepage="1252">
 
@@ -10,8 +12,13 @@
     <Icon Id="app.ico" SourceFile="$(IconPath)" />
     <Property Id="ARPPRODUCTICON" Value="app.ico" />
 
-    <StandardDirectory Id="ProgramFiles64Folder">
-      <Directory Id="INSTALLFOLDER" Name="StreamLauncher">
+    <!-- Mise à jour / réinstallation : reprend le dossier choisi la première fois (sinon retour au défaut). -->
+    <Property Id="INSTALLFOLDER">
+      <RegistrySearch Id="PrevInstallDir" Root="HKLM" Key="SOFTWARE\TomLine\StreamLauncher" Name="InstallDir" Type="directory" Bitness="always64" />
+    </Property>
+
+    <StandardDirectory Id="ProgramFilesFolder">
+      <Directory Id="INSTALLFOLDER" Name="Stream Launcher">
 
         <!-- profiles.json vit à côté de l'exe : le dossier reste inscriptible pour les utilisateurs standard.
              Les mises à jour passent par un nouveau MSI (releases GitHub). -->
@@ -28,13 +35,24 @@
           </CreateFolder>
         </Component>
 
+        <Component Id="InstallDirRegistry" Guid="*" Bitness="always64">
+          <RegistryValue Root="HKLM" Key="SOFTWARE\TomLine\StreamLauncher" Name="InstallDir" Type="string" Value="[INSTALLFOLDER]" KeyPath="yes" />
+        </Component>
+
       </Directory>
     </StandardDirectory>
 
     <Feature Id="Main" Title="Stream Launcher" Level="1">
       <ComponentRef Id="MainExe" />
       <ComponentRef Id="InstallFolder" />
+      <ComponentRef Id="InstallDirRegistry" />
     </Feature>
 
+    <!-- Assistant : accueil, choix du dossier, installation (sans page de licence). -->
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <UI>
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg" Order="2" Condition="NOT Installed" />
+      <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="2" />
+    </UI>
   </Package>
 </Wix>

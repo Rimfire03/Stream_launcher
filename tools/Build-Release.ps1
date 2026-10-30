@@ -2,7 +2,7 @@
 # -Publish : crée la release GitHub (tag Va.b.c depuis <Version> du csproj) avec le MSI seul (pas d'exe portable ;
 # la mise à jour automatique télécharge ce MSI).
 # Pour changer de version : modifier <Version> dans StreamLauncher.csproj (ex. 1.2.0 -> V1.2.0).
-# Prérequis MSI : wix 4.0.x + extension Util (voir le dépôt filtres, tools\Build-Installer.ps1).
+# Prérequis MSI : wix 4.0.6 + extensions Util et UI (wix extension add -g WixToolset.UI.wixext/4.0.6 ; voir aussi le dépôt filtres).
 param([switch]$Publish)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
@@ -27,7 +27,7 @@ $ver = '{0}.{1}.{2}' -f $v.Major, $v.Minor, [math]::Max($v.Build, 0)
 $msi = Join-Path $dist "StreamLauncher-V$ver-win-x64.msi"
 $wix = Join-Path $env:USERPROFILE '.dotnet\tools\wix.exe'
 if (Test-Path $msi) { Remove-Item $msi -Force }
-& $wix build "$root\installer\Product.wxs" -arch x64 -ext WixToolset.Util.wixext -d "Version=$ver" -d "ExePath=$exe" -d "IconPath=$root\assets\app.ico" -o $msi
+& $wix build "$root\installer\Product.wxs" -arch x64 -ext WixToolset.Util.wixext -ext WixToolset.UI.wixext -culture fr-FR -d "Version=$ver" -d "ExePath=$exe" -d "IconPath=$root\assets\app.ico" -o $msi
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path $msi)) { throw 'wix build echoue' }
 Sign $msi
 

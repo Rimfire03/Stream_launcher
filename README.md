@@ -22,6 +22,10 @@ StreamLauncher.exe --profile "Nom du profil"
 
 Exécution sans fenêtre, code retour 0 = OK, 1 = étapes en erreur, 2 = profil inconnu. `--tray` démarre l'interface masquée.
 
+## Installation
+
+L'assistant MSI propose le dossier de destination (défaut : `C:\Program Files (x86)\Stream Launcher`). Les mises à jour automatiques réinstallent dans le dossier choisi la première fois.
+
 ## Build
 
 ```
