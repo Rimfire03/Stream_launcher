@@ -23,6 +23,10 @@ function Sign($path) {
     "Signature : $($s.Status) - $path ($([math]::Round((Get-Item $path).Length/1MB,1)) Mo)"
 }
 
+# CLUF affiché par l'assistant MSI (installer\CLUF.txt -> RTF)
+$rtf = Join-Path $dist 'CLUF.rtf'
+& "$PSScriptRoot\Make-Rtf.ps1" -Out $rtf
+
 $exe = Join-Path $dist 'StreamLauncher.exe'
 Sign $exe
 
@@ -31,7 +35,7 @@ $ver = '{0}.{1}.{2}' -f $v.Major, $v.Minor, [math]::Max($v.Build, 0)
 $msi = Join-Path $dist "StreamLauncher-V$ver-win-x64.msi"
 $wix = Join-Path $env:USERPROFILE '.dotnet\tools\wix.exe'
 if (Test-Path $msi) { Remove-Item $msi -Force }
-& $wix build "$root\installer\Product.wxs" -arch x64 -ext WixToolset.Util.wixext -ext WixToolset.UI.wixext -culture fr-FR -d "Version=$ver" -d "ExePath=$exe" -d "IconPath=$root\assets\app.ico" -o $msi
+& $wix build "$root\installer\Product.wxs" -arch x64 -ext WixToolset.Util.wixext -ext WixToolset.UI.wixext -culture fr-FR -d "Version=$ver" -d "ExePath=$exe" -d "IconPath=$root\assets\app.ico" -d "LicenseRtf=$rtf" -o $msi
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path $msi)) { throw 'wix build echoue' }
 Sign $msi
 

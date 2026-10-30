@@ -182,19 +182,17 @@ class MainForm : Form
         main.Controls.Add(content);
         main.Controls.Add(sidebar);
         // footer, same look as FiltresApp: thin top border, copyright centred, version on the right, status on the left
-        var footer = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 26, BackColor = Ui.Card, Padding = new Padding(16, 0, 16, 0), ColumnCount = 3, RowCount = 1 };
-        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
-        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
-        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
+        var footer = new Panel { Dock = DockStyle.Bottom, Height = 26, BackColor = Ui.Card, Padding = new Padding(16, 0, 16, 0) };
         var footColor = ColorTranslator.FromHtml("#64748B");
-        footer.Controls.Add(lblFootLeft, 0, 0);
-        footer.Controls.Add(new Label { Dock = DockStyle.Fill, Font = Ui.Small, ForeColor = footColor, TextAlign = ContentAlignment.MiddleCenter, Text = "© TomLine prod&&co by Thomas Guidez  ·  Préparation de live Twitch" }, 1, 0);
-        var footRight = new Panel { Dock = DockStyle.Fill };
-        var coffee = new LinkLabel { Dock = DockStyle.Right, AutoSize = true, Font = Ui.Small, LinkColor = Ui.Primary, ActiveLinkColor = Ui.Primary, TextAlign = ContentAlignment.MiddleRight, Text = "☕ Buy Me A Coffee", Padding = new Padding(0, 0, 14, 0), Cursor = Cursors.Hand };
+        // dock order: the centre (fill) is added first, then the edges
+        footer.Controls.Add(new Label { Dock = DockStyle.Fill, Font = Ui.Small, ForeColor = footColor, TextAlign = ContentAlignment.MiddleCenter, Text = "© TomLine prod&&co by Thomas Guidez  ·  Préparation de live Twitch" });
+        var coffee = new LinkLabel { Dock = DockStyle.Right, AutoSize = false, Width = 128, Font = Ui.Small, LinkColor = Ui.Primary, ActiveLinkColor = Ui.Primary, TextAlign = ContentAlignment.MiddleRight, Text = "☕ Buy Me A Coffee", Cursor = Cursors.Hand };
         coffee.LinkClicked += (_, _) => OpenCoffee();
-        footRight.Controls.Add(new Label { Dock = DockStyle.Right, AutoSize = true, Font = Ui.Small, ForeColor = footColor, TextAlign = ContentAlignment.MiddleRight, Text = $"Stream Launcher {Updater.Format(Updater.Current)}" });
-        footRight.Controls.Add(coffee);
-        footer.Controls.Add(footRight, 2, 0);
+        footer.Controls.Add(coffee);
+        footer.Controls.Add(new Label { Dock = DockStyle.Right, AutoSize = false, Width = 160, Font = Ui.Small, ForeColor = footColor, TextAlign = ContentAlignment.MiddleRight, Text = $"Stream Launcher {Updater.Format(Updater.Current)}" });
+        lblFootLeft.Dock = DockStyle.Left;
+        lblFootLeft.Width = 230;
+        footer.Controls.Add(lblFootLeft);
         footer.Paint += (_, e) => { using var pen = new Pen(Ui.Border); e.Graphics.DrawLine(pen, 0, 0, footer.Width, 0); };
 
         Controls.Add(main);

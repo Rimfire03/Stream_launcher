@@ -1,0 +1,183 @@
+CONTRAT DE LICENCE UTILISATEUR FINAL (CLUF)
+Logiciel « Stream Launcher » - Version 1.0 du 30 octobre 2026
+
+IDENTIFICATION DE L'ÉDITEUR
+
+Thomas GUIDEZ, entrepreneur individuel, exerçant sous le nom commercial « TomLine prod&co »,
+immatriculé au Registre du commerce et des sociétés de Cusset sous le numéro 522 433 333, dont
+l'établissement est situé 51B Rue des Tuileries, 03400 Yzeure (France). Contact : contact@tomlineprodco.fr
+(ci-après l'« Éditeur »).
+
+Le présent contrat (le « Contrat ») est conclu entre l'Éditeur et toute personne physique ou morale
+qui installe, copie ou utilise le logiciel « Stream Launcher » (l'« Utilisateur »).
+
+EN CLIQUANT SUR « J'ACCEPTE » OU EN INSTALLANT OU UTILISANT LE LOGICIEL, L'UTILISATEUR RECONNAÎT
+AVOIR LU LE CONTRAT ET EN ACCEPTE L'ENSEMBLE DES CONDITIONS. S'IL NE LES ACCEPTE PAS, IL NE DOIT NI
+L'INSTALLER, NI LE COPIER, NI L'UTILISER.
+
+
+ARTICLE 1 - DÉFINITIONS
+
+« Logiciel » : le programme « Stream Launcher » sous forme exécutable, son installateur, ses mises
+à jour, sa documentation et les fichiers fournis avec lui, à l'exclusion des Données.
+
+« Données » : les informations créées par l'Utilisateur au moyen du Logiciel (profils, étapes,
+réglages, noms d'écrans, journaux).
+
+« Consommateur » : toute personne physique qui agit à des fins qui n'entrent pas dans le cadre de
+son activité commerciale, industrielle, artisanale, libérale ou agricole, au sens de l'article
+liminaire du Code de la consommation.
+
+
+ARTICLE 2 - OBJET ET ACCEPTATION
+
+Le Contrat définit les conditions dans lesquelles l'Éditeur concède à l'Utilisateur le droit
+d'utiliser le Logiciel. L'acceptation électronique (clic sur « J'accepte » dans l'installateur)
+vaut signature et engage l'Utilisateur. L'Utilisateur qui accepte pour le compte d'une société ou
+d'une association déclare avoir le pouvoir de l'engager.
+
+
+ARTICLE 3 - LICENCE CONCÉDÉE
+
+L'Éditeur concède à l'Utilisateur, à titre gratuit, un droit personnel, non exclusif, non cessible
+et non transférable d'utiliser le Logiciel, pour des usages personnels ou professionnels, sur les
+postes dont il a la maîtrise. Ce droit couvre l'installation, le chargement, l'affichage et
+l'exécution du Logiciel et une copie de sauvegarde à des fins de sécurité. Aucune clé de licence
+n'est requise. Tous les droits non expressément concédés sont réservés.
+
+Le Logiciel est gratuit. Un soutien volontaire à son développement est possible (lien « Buy Me A
+Coffee »), sans contrepartie ni droit supplémentaire.
+
+
+ARTICLE 4 - RESTRICTIONS
+
+Sauf accord écrit préalable de l'Éditeur, et sous réserve des droits que la loi reconnaît
+impérativement à l'Utilisateur (notamment l'article L. 122-6-1 I, II et IV du Code de la propriété
+intellectuelle), il est interdit de :
+
+  a) vendre, louer, prêter ou sous-licencier le Logiciel, ou le redistribuer à titre onéreux ;
+  b) le mettre à la disposition de tiers sous forme de service en ligne ;
+  c) le modifier, l'adapter, le traduire ou créer des œuvres dérivées ;
+  d) le décompiler ou le désassembler, hors les cas où la loi l'autorise expressément
+     (interopérabilité) ;
+  e) supprimer ou modifier les mentions de propriété, de marque ou de droit d'auteur, ou la
+     signature numérique du Logiciel.
+
+
+ARTICLE 5 - PROPRIÉTÉ INTELLECTUELLE
+
+Le Logiciel, sa documentation et ses éléments graphiques sont la propriété exclusive de l'Éditeur,
+protégés par le Code de la propriété intellectuelle et les conventions internationales relatives au
+droit d'auteur. Le Contrat ne transfère à l'Utilisateur aucun droit de propriété sur le Logiciel.
+Les Données restent la propriété exclusive de l'Utilisateur.
+
+
+ARTICLE 6 - FONCTIONNEMENT DU LOGICIEL ET RESPONSABILITÉ DE L'UTILISATEUR
+
+Le Logiciel lance des applications, déplace et ferme des fenêtres, simule des clics de souris et
+peut fermer, à la demande de l'Utilisateur, les fenêtres ouvertes pendant un « live ». L'Utilisateur
+est seul responsable des profils qu'il crée et des actions qu'ils déclenchent : il lui appartient
+de vérifier ses profils avant usage, d'enregistrer ses travaux avant de fermer un live et de ne pas
+automatiser d'action qu'il n'est pas autorisé à effectuer. Le Logiciel demande aux applications de
+se fermer normalement ; une application peut proposer d'enregistrer ses données ou refuser de se
+fermer.
+
+
+ARTICLE 7 - DONNÉES DE L'UTILISATEUR
+
+Les Données sont enregistrées localement sur le poste de l'Utilisateur (fichier « profiles.json »
+dans le dossier d'installation, journaux dans « %LOCALAPPDATA%\StreamLauncher ») : l'Éditeur n'y a
+pas accès et elles ne lui sont jamais transmises. L'Utilisateur en est seul responsable et il lui
+appartient d'en effectuer des sauvegardes.
+
+
+ARTICLE 8 - DONNÉES PERSONNELLES ET MISES À JOUR
+
+Le Logiciel ne collecte aucune donnée personnelle pour le compte de l'Éditeur. Pour rechercher une
+mise à jour, il interroge la plateforme de publication GitHub (api.github.com) ; cette plateforme
+peut traiter l'adresse IP de l'Utilisateur et des informations techniques de la requête selon sa
+propre politique de confidentialité. Aucune Donnée de l'Utilisateur n'est transmise. Pour toute
+question ou pour exercer ses droits (accès, rectification, effacement, opposition), l'Utilisateur
+peut écrire à contact@tomlineprodco.fr ; il dispose du droit d'introduire une réclamation auprès de
+la CNIL (www.cnil.fr).
+
+
+ARTICLE 9 - MISES À JOUR ET CANAUX
+
+L'Éditeur peut proposer des mises à jour du Logiciel, téléchargées depuis la plateforme de
+publication et vérifiées par la signature numérique de l'Éditeur avant installation. Le canal
+« stable » propose les versions testées ; le canal « dev » propose des versions de test, plus
+récentes mais pouvant contenir des anomalies, que l'Utilisateur choisit à ses risques. Les mises à
+jour sont soumises au Contrat. Le Contrat peut évoluer ; à défaut d'acceptation d'une nouvelle
+version, l'Utilisateur peut continuer à utiliser la version déjà installée selon les conditions
+qu'il a acceptées.
+
+
+ARTICLE 10 - COMPOSANTS TIERS
+
+Le Logiciel intègre des composants de tiers (notamment .NET et FlaUI), qui restent la propriété de
+leurs auteurs et sont régis par leurs propres licences. Le Contrat ne modifie pas les droits et
+obligations résultant de ces licences. Les marques citées (Twitch, Stream Deck, Discord, etc.)
+appartiennent à leurs titulaires ; le Logiciel n'est ni affilié à eux ni approuvé par eux.
+
+
+ARTICLE 11 - GARANTIE
+
+Le Logiciel est fourni gratuitement, « en l'état ». L'Éditeur apporte ses meilleurs soins à sa
+conception mais ne garantit pas, dans les limites permises par la loi, qu'il sera exempt d'erreur,
+qu'il fonctionnera sans interruption ou qu'il répondra aux besoins particuliers de l'Utilisateur.
+L'Éditeur s'efforce de corriger dans un délai raisonnable les anomalies qui lui sont signalées. Les
+garanties légales dont bénéficie le Consommateur (article 13) ne sont pas affectées.
+
+
+ARTICLE 12 - RESPONSABILITÉ
+
+Dans les limites permises par la loi, l'Éditeur n'est responsable que des dommages directs et
+prévisibles résultant d'un manquement à ses obligations, à l'exclusion des dommages indirects (perte
+de données, d'exploitation, de chance, d'audience ou de revenus, ou préjudice commercial,
+notamment lié à un live mal préparé ou interrompu). Le Logiciel étant gratuit, la responsabilité
+de l'Éditeur à l'égard d'un Utilisateur professionnel est limitée au maximum permis par la loi.
+
+Ces limitations ne s'appliquent ni en cas de faute lourde ou dolosive, ni aux dommages corporels,
+ni lorsque la loi l'interdit, notamment à l'égard du Consommateur.
+
+
+ARTICLE 13 - DISPOSITIONS APPLICABLES AU CONSOMMATEUR
+
+Si l'Utilisateur est un Consommateur, il bénéficie des garanties légales qui lui sont applicables
+(notamment les articles L. 224-25-12 et suivants du Code de la consommation relatifs aux contenus et
+services numériques, et les articles 1641 et suivants du Code civil), que le Contrat n'exclut ni
+ne limite.
+
+
+ARTICLE 14 - DURÉE ET RÉSILIATION
+
+Le Contrat prend effet à son acceptation. L'Utilisateur peut y mettre fin à tout moment en cessant
+d'utiliser le Logiciel et en le désinstallant. En cas de manquement grave de l'Utilisateur
+(notamment à l'article 4), l'Éditeur peut résilier le Contrat de plein droit, quinze (15) jours
+après une mise en demeure restée sans effet (article 1225 du Code civil). À la fin du Contrat,
+l'Utilisateur cesse d'utiliser le Logiciel et en supprime les copies ; il conserve ses Données. Les
+articles 5, 7, 8, 12 et 16 survivent à la fin du Contrat.
+
+
+ARTICLE 15 - DISPOSITIONS GÉNÉRALES
+
+Le Contrat constitue l'intégralité de l'accord des parties sur son objet. Si une clause était
+déclarée nulle ou inapplicable, les autres resteraient en vigueur. Le fait de ne pas se prévaloir
+d'un manquement ne vaut pas renonciation. L'Éditeur peut céder le Contrat à un successeur dans
+l'exploitation du Logiciel ; l'Utilisateur ne le peut pas sans accord écrit. Aucune partie n'est
+responsable d'un manquement dû à un cas de force majeure (article 1218 du Code civil). Le Contrat
+est rédigé en langue française.
+
+
+ARTICLE 16 - DROIT APPLICABLE ET LITIGES
+
+Le Contrat est régi par le droit français. En cas de litige, les parties recherchent d'abord une
+solution amiable, par réclamation écrite adressée à contact@tomlineprodco.fr. À défaut d'accord sous
+trente jours, le litige est porté devant les juridictions françaises compétentes : pour un
+Utilisateur professionnel, celles du ressort du siège de l'Éditeur (Cusset), dans la mesure où la
+loi le permet ; pour un Consommateur, celles désignées par les règles légales de compétence, sans
+que le Contrat le prive des dispositions impératives de protection du pays où il réside.
+
+
+© TomLine prod&co by Thomas Guidez - Tous droits réservés.
