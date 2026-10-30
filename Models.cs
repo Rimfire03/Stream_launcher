@@ -2,7 +2,7 @@ using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-[TypeConverter(typeof(FrEnumConverter))] enum StepType { Launch, Place, Click, Window, Tray, Browser }
+[TypeConverter(typeof(FrEnumConverter))] enum StepType { Launch, Place, Click, Window, Tray, Browser, Obs }
 [TypeConverter(typeof(FrEnumConverter))] enum BrowserKind { Defaut, Chrome, Edge, Firefox, Brave, Opera, Vivaldi }
 [TypeConverter(typeof(FrEnumConverter))] enum WindowAction { Reduire, Agrandir, Restaurer, Deplacer }
 [TypeConverter(typeof(FrEnumConverter))] enum ClickMode { Element, Coords }
@@ -20,6 +20,10 @@ class Step
     [DisplayName("Ne pas relancer si déjà lancée"), Category("Lancement"), Description("Ne pas relancer si un processus du même nom tourne déjà"), TypeConverter(typeof(FrBool))] public bool SkipIfRunning { get; set; } = true;
 
     [DisplayName("Garder ouverte à l'arrêt du live"), Category("Lancement"), Description("Si oui, les fenêtres de cette application ne sont pas fermées quand on arrête le live"), TypeConverter(typeof(FrBool))] public bool KeepOpen { get; set; }
+
+    [DisplayName("Serveur WebSocket"), Category("OBS Studio"), Description("Adresse du serveur WebSocket d'OBS (Outils > Réglages du serveur WebSocket dans OBS). Par défaut localhost:4455.")] public string ObsHost { get; set; } = "localhost:4455";
+    [DisplayName("Mot de passe WebSocket"), Category("OBS Studio"), Description("Mot de passe du serveur WebSocket d'OBS (laisser vide s'il n'y en a pas). Enregistré en clair dans profiles.json."), PasswordPropertyText(true)] public string ObsPassword { get; set; } = "";
+    [DisplayName("Scène à activer"), Category("OBS Studio"), Description("Scène OBS à passer en sortie. La liste est lue dans OBS quand il est lancé ; sinon, tape le nom exact."), TypeConverter(typeof(ObsSceneConverter))] public string ObsScene { get; set; } = "";
 
     [DisplayName("Processus (sans .exe)"), Category("Fenêtre cible"), Description("Nom du processus sans .exe")] public string Process { get; set; } = "";
     [DisplayName("Titre contient"), Category("Fenêtre cible"), Description("Texte contenu dans le titre (vide = n'importe quel titre)")] public string Title { get; set; } = "";
@@ -68,6 +72,7 @@ class Step
             _ => $"Placer {Process} '{Title}' → {Config.Label(Monitor)} multitâche {Fr.Of(Zone)}",
         },
         StepType.Browser => $"Ouvrir {Fr.Of(Browser)} sur {Url}",
+        StepType.Obs => $"OBS : scène « {ObsScene} »",
         StepType.Tray => $"Ouvrir depuis la zone de notification « {TrayName} » ({Fr.Of(Button)}{(Double ? " x2" : "")})",
         StepType.Window => $"{Fr.Of(Action)} la fenêtre {Process} '{Title}'",
         _ => Mode == ClickMode.Element
@@ -153,7 +158,7 @@ static class Fr
     static readonly Dictionary<string, string> L = new()
     {
         ["StepType.Launch"] = "Lancer une application", ["StepType.Place"] = "Placer une fenêtre", ["StepType.Click"] = "Clic",
-        ["StepType.Window"] = "Action sur une fenêtre", ["StepType.Tray"] = "Icône de la zone de notification", ["StepType.Browser"] = "Site web",
+        ["StepType.Window"] = "Action sur une fenêtre", ["StepType.Tray"] = "Icône de la zone de notification", ["StepType.Browser"] = "Site web", ["StepType.Obs"] = "Scène OBS",
         ["ClickMode.Element"] = "Élément (par son nom)", ["ClickMode.Coords"] = "Coordonnées dans la fenêtre",
         ["MouseBtn.Left"] = "Gauche", ["MouseBtn.Right"] = "Droit",
         ["WindowAction.Reduire"] = "Réduire", ["WindowAction.Agrandir"] = "Agrandir", ["WindowAction.Restaurer"] = "Restaurer", ["WindowAction.Deplacer"] = "Déplacer",

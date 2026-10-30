@@ -75,6 +75,7 @@ static class Ui
         StepType.Click => ("CLIC", ColorTranslator.FromHtml("#D9822B")),
         StepType.Window => ("FENÊTRE", ColorTranslator.FromHtml("#3B6FD4")),
         StepType.Tray => ("TRAY", ColorTranslator.FromHtml("#B24A7A")),
+        StepType.Obs => ("OBS", ColorTranslator.FromHtml("#4B5563")),
         _ => ("WEB", ColorTranslator.FromHtml("#2E7D32")),
     };
 
@@ -97,6 +98,7 @@ static class Ui
         StepType.Click => (s.Mode == ClickMode.Element ? $"Cliquer sur « {s.ElementName} »" : $"Cliquer à {s.RelX}, {s.RelY}",
             $"{Target(s)} · bouton {(s.Button == MouseBtn.Right ? "droit" : "gauche")}{(s.Double ? " · double-clic" : "")}"),
         StepType.Tray => ($"Ouvrir « {s.TrayName} » depuis la zone de notification", $"bouton {(s.Button == MouseBtn.Right ? "droit" : "gauche")}{(s.Double ? " · double-clic" : "")}"),
+        StepType.Obs => ($"Activer la scène « {s.ObsScene} »", $"OBS Studio · {s.ObsHost}"),
         _ => (Uri.TryCreate(s.Url, UriKind.Absolute, out var u) ? $"Ouvrir {u.Host}" : "Ouvrir un site", $"{Fr.Of(s.Browser)} · {s.Url}{(s.PlaceWindow ? " · fenêtre placée" : "")}"),
     };
 }
@@ -127,6 +129,7 @@ class StepView : ICustomTypeDescriptor
                 h.UnionWith(s.Mode == ClickMode.Element ? new[] { "ElementName", "ElementId" } : new[] { "RelX", "RelY" });
                 break;
             case StepType.Tray: h.UnionWith(new[] { "TrayName", "Button", "Double" }); break;
+            case StepType.Obs: h.UnionWith(new[] { "ObsHost", "ObsPassword", "ObsScene" }); break;
             default: h.UnionWith(new[] { "Browser", "Url", "PlaceWindow", "KeepOpen" }); if (s.PlaceWindow) Placement(); break;
         }
         return h;

@@ -113,6 +113,16 @@ Propriétés :
 
 « Icônes du tray… » écrit dans le journal la liste des noms disponibles (même chose en ligne de commande : StreamLauncher.exe --list-tray)."),
 
+        new("Étape Scène OBS", @"Passe OBS Studio sur une scène précise (scène en sortie / « programme »). À placer après l'étape qui lance OBS : si OBS démarre encore, l'étape réessaie jusqu'au délai maximum.
+
+Préparation dans OBS (28 ou plus) : menu « Outils > Réglages du serveur WebSocket », coche « Activer le serveur WebSocket ». Note le port (4455 par défaut) et, si tu en as défini un, le mot de passe.
+
+Propriétés (catégorie « OBS Studio ») :
+- Serveur WebSocket : adresse et port (localhost:4455 par défaut).
+- Mot de passe WebSocket : laisse vide s'il n'y en a pas. Il est enregistré en clair dans profiles.json.
+- Scène à activer : choisis-la dans la liste (lue dans OBS quand il est lancé) ou tape son nom exact.
+
+Si la scène n'existe pas, l'étape échoue tout de suite avec le message d'OBS ; si OBS est injoignable (fermé, WebSocket désactivé), elle réessaie puis échoue au bout du délai maximum."),
         new("Retrouver une fenêtre", @"Les étapes Placer, Action fenêtre et Clic doivent retrouver la bonne fenêtre. Critères (catégorie « Fenêtre cible ») :
 
 - Process : nom du processus sans .exe (obligatoire s'il est renseigné).

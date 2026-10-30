@@ -38,6 +38,7 @@ class Runner
                     case StepType.Window: Window(s, ct); break;
                     case StepType.Tray: Tray(uia, s, ct); break;
                     case StepType.Browser: Browse(s, ct); break;
+                    case StepType.Obs: Obs(s, ct); break;
                     default: Click(uia, s, ct); break;
                 }
             }
@@ -134,6 +135,25 @@ class Runner
                 if (k?.GetValue(null) as string is { } path && File.Exists(path)) return path;
             }
         return null;
+    }
+
+    // OBS may still be starting (an earlier step launched it): retry while it is unreachable, fail at once when it answers with an error
+    void Obs(Step s, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(s.ObsScene)) throw new InvalidOperationException("scène OBS vide");
+        var end = DateTime.UtcNow.AddMilliseconds(s.TimeoutMs);
+        while (true)
+        {
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                ObsSession.SetScene(s.ObsHost, s.ObsPassword, s.ObsScene, 5000, ct);
+                return;
+            }
+            catch (InvalidOperationException) { throw; }
+            catch (Exception e) when (!ct.IsCancellationRequested && DateTime.UtcNow < end) { Log("  OBS injoignable, nouvel essai : " + e.Message); Thread.Sleep(1000); }
+            catch (Exception e) when (!ct.IsCancellationRequested) { throw new TimeoutException("OBS injoignable (WebSocket activé ? mot de passe ?) : " + e.Message); }
+        }
     }
 
     void Browse(Step s, CancellationToken ct)
