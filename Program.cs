@@ -1,6 +1,7 @@
 static class Program
 {
     // StreamLauncher.exe                    -> GUI (+ tray icon); a second launch just brings the open window to the front
+    // StreamLauncher.exe --chat             -> opens the unified chat window (starts the GUI hidden in the tray if needed)
     // StreamLauncher.exe --tray             -> GUI started hidden in the tray
     // StreamLauncher.exe --list-tray        -> prints the notification-area icon names (stdout, when redirected)
     // StreamLauncher.exe --profile "Nom"    -> toggle, headless (Stream Deck): starts the profile, or closes its windows if it is live; exit code 0 ok, 1 step errors, 2 unknown profile
@@ -62,7 +63,7 @@ static class Program
                     return 0;
                 }
                 RunLog.Write($"[{p.Name}] lancement ({p.Steps.Count} étapes)");
-                int errors = Task.Run(() => Live.Run(p, new Runner { Log = RunLog.Write }, CancellationToken.None)).GetAwaiter().GetResult();
+                int errors = Task.Run(() => Live.Run(p, new Runner { Log = RunLog.Write, OpenChat = () => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!, "--chat") { UseShellExecute = false }) }, CancellationToken.None)).GetAwaiter().GetResult();
                 RunLog.Write($"[{p.Name}] terminé, {errors} erreur(s)");
                 return errors == 0 ? 0 : 1;
             }
@@ -75,6 +76,12 @@ static class Program
 
         using var mutex = new Mutex(true, "TomLine.StreamLauncher.Gui", out var first);
         using var showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, "TomLine.StreamLauncher.Show");
+        using var chatEvent = new EventWaitHandle(false, EventResetMode.AutoReset, "TomLine.StreamLauncher.Chat");
+        if (!first && args.Contains("--chat"))
+        {
+            chatEvent.Set(); // the running application opens its chat window
+            return 0;
+        }
         if (!first)
         {
             // already open: bring that window forward instead of exiting silently
@@ -83,11 +90,16 @@ static class Program
             return 0;
         }
 
-        var form = new MainForm(cfg, args.Contains("--tray"));
+        var form = new MainForm(cfg, args.Contains("--tray") || args.Contains("--chat")) { OpenChatOnStart = args.Contains("--chat") };
         new Thread(() =>
         {
             while (showEvent.WaitOne())
                 if (form.IsHandleCreated && !form.IsDisposed) form.BeginInvoke(form.ShowMain);
+        }) { IsBackground = true }.Start();
+        new Thread(() =>
+        {
+            while (chatEvent.WaitOne())
+                if (form.IsHandleCreated && !form.IsDisposed) form.BeginInvoke(form.OpenChatWindow);
         }) { IsBackground = true }.Start();
         Application.Run(form);
         return 0;

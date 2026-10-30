@@ -8,7 +8,7 @@ Stream Launcher s'exécute sur ton PC. **L'éditeur ne collecte, ne reçoit et n
 
 **Comptes Twitch, Kick et YouTube (fonction facultative).** Si tu connectes un compte, l'application communique directement,
 depuis ton PC, avec la plateforme concernée, uniquement pour lire et modifier le titre, le jeu (ou la catégorie) et les tags de ta chaîne
-ou de ta diffusion. Elle demande les autorisations strictement nécessaires à cela.
+ou de ta diffusion, et, si tu ouvres le chat unifié, pour lire le chat de ta chaîne et y envoyer les messages que tu écris. Les messages du chat s'affichent seulement dans la fenêtre et ne sont pas enregistrés. Elle demande les autorisations strictement nécessaires à cela.
 - Les jetons d'accès sont enregistrés **chiffrés** sur ton PC (protection Windows, compte utilisateur courant) et ne sont jamais envoyés à l'éditeur ni à un tiers.
 - Les titres, jeux, tags, favoris et historique sont enregistrés **localement** (`%LOCALAPPDATA%\StreamLauncher`).
 - Tu peux révoquer l'accès à tout moment : bouton « Déconnecter » dans l'application, ou dans les paramètres de sécurité de ton compte
@@ -25,7 +25,7 @@ ou de ta diffusion. Elle demande les autorisations strictement nécessaires à c
 Stream Launcher runs on your PC. **The publisher does not collect, receive or store any data about you.**
 
 **Twitch, Kick and YouTube accounts (optional feature).** If you connect an account, the app talks directly from your PC to that platform, only to read and
-update the title, game (or category) and tags of your channel or broadcast, using the minimum permissions required.
+update the title, game (or category) and tags of your channel or broadcast and, if you open the unified chat, to read your channel's chat and send the messages you type. Chat messages are only shown in the window and are not stored. It uses the minimum permissions required.
 - Access tokens are stored **encrypted** on your PC (Windows user-scope protection) and are never sent to the publisher or to any third party.
 - Titles, games, tags, favourites and history are stored **locally** (`%LOCALAPPDATA%\StreamLauncher`).
 - You can revoke access at any time: "Disconnect" in the app, or in your account security settings (Google: https://myaccount.google.com/permissions).

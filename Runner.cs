@@ -10,6 +10,7 @@ class Runner
     IntPtr lastWindow; // window opened by the latest Browser step
     /// <summary>windows the profile placed, clicked or opened (used to close the live)</summary>
     public readonly HashSet<(IntPtr H, uint Pid)> Touched = new();
+    public Action? OpenChat; // opens the unified chat window (set by the GUI, or by the command line which starts the GUI)
     public readonly HashSet<IntPtr> KeepWindows = new(); // browser windows left open at stop (KeepOpen)
 
     void Touch(IntPtr h)
@@ -46,6 +47,10 @@ class Runner
                     case StepType.Tray: Tray(uia, s, ct); break;
                     case StepType.Browser: Browse(s, ct); break;
                     case StepType.Obs: Obs(s, ct); break;
+                    case StepType.Chat:
+                        if (OpenChat == null) Log("  fenêtre de chat indisponible ici");
+                        else OpenChat();
+                        break;
                     default: Click(uia, s, ct); break;
                 }
             }

@@ -65,6 +65,18 @@ class StreamingStore
     public List<LiveInfo> Favorites { get; set; } = new();
     /// <summary>ids of the platforms whose switch is off: updates are not sent to them</summary>
     public List<string> Skipped { get; set; } = new();
+    /// <summary>ids of the platforms switched off in the unified chat window</summary>
+    public List<string> ChatOff { get; set; } = new();
+    /// <summary>"platform:kind" pairs hidden in the unified chat (everything is shown by default)</summary>
+    public List<string> ChatHidden { get; set; } = new();
+    /// <summary>sound when a message arrives after a quiet moment</summary>
+    public bool ChatSoundOn { get; set; } = true;
+    public int ChatSoundDelay { get; set; } = 60;
+    public string ChatSoundFile { get; set; } = ""; // empty = the sound shipped with the application
+    public List<string> ChatExcluded { get; set; } = new(); // users (bots...) that never trigger the sound
+    /// <summary>local estimate of the YouTube quota used today</summary>
+    public string YtQuotaDay { get; set; } = "";
+    public int YtQuotaUnits { get; set; }
     public List<HistoryEntry> History { get; set; } = new();
 
     public const int HistorySize = 15;
@@ -145,6 +157,8 @@ class PlatformAuth
     public DateTime Expires { get; set; }
     public string UserId { get; set; } = "";
     public string UserName { get; set; } = "";
+    public string Login { get; set; } = "";   // chat login (Twitch IRC)
+    public string Scopes { get; set; } = "";  // scopes granted at the last connection (space separated)
 }
 
 static class Secrets
@@ -243,8 +257,16 @@ abstract class Platform
         Auth.Access = tokens.GetProperty("access_token").GetString() ?? "";
         if (tokens.TryGetProperty("refresh_token", out var r) && r.GetString() is { Length: > 0 } rt) Auth.Refresh = rt;
         Auth.Expires = DateTime.UtcNow.AddSeconds(tokens.TryGetProperty("expires_in", out var e) ? e.GetInt32() : 3600);
+        if (tokens.TryGetProperty("scope", out var sc))
+            Auth.Scopes = sc.ValueKind == JsonValueKind.Array ? string.Join(' ', sc.EnumerateArray().Select(x => x.GetString())) : sc.GetString() ?? Auth.Scopes;
         Secrets.Save();
     }
+
+    // ---- used by the unified chat
+    public Task<string> AccessTokenAsync(CancellationToken ct) => TokenAsync(ct);
+    public bool HasScope(string scope) => Auth.Scopes.Split(' ', StringSplitOptions.RemoveEmptyEntries).Contains(scope);
+    public string UserId => Auth.UserId;
+    public string Login => Auth.Login;
 
     protected async Task<string> TokenAsync(CancellationToken ct)
     {
@@ -291,7 +313,7 @@ sealed class TwitchPlatform : Platform
 {
     static string Api => Environment.GetEnvironmentVariable("STREAMLAUNCHER_TWITCH_API") ?? "https://api.twitch.tv/helix";
     static string OAuth => Environment.GetEnvironmentVariable("STREAMLAUNCHER_TWITCH_AUTH") ?? "https://id.twitch.tv/oauth2";
-    const string Scope = "channel:manage:broadcast";
+    const string Scope = "channel:manage:broadcast chat:read chat:edit"; // chat:* = unified chat window (IRC)
 
     protected override string DefaultClientId => "gwjqrmds3c2ewc58x51mnr99v2d74z"; // Stream Launcher's Twitch application (public client)
     public override string Id => "twitch";
@@ -336,6 +358,7 @@ sealed class TwitchPlatform : Platform
                 var u = me.GetProperty("data")[0];
                 Auth.UserId = u.GetProperty("id").GetString() ?? "";
                 Auth.UserName = u.GetProperty("display_name").GetString() ?? u.GetProperty("login").GetString() ?? "";
+                Auth.Login = u.GetProperty("login").GetString() ?? "";
                 Secrets.Save();
                 return;
             }
@@ -357,6 +380,30 @@ sealed class TwitchPlatform : Platform
         if (body != null) req.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
         using var r = await Http.SendAsync(req, ct);
         return await ReadAsync("Twitch", r, ct);
+    }
+
+    /// <summary>badge images: "set/version" -> url (global badges, then the channel's own: subscriber months, bits...)</summary>
+    public async Task<Dictionary<string, string>> BadgeUrlsAsync(CancellationToken ct)
+    {
+        var map = new Dictionary<string, string>();
+        foreach (var path in new[] { "/chat/badges/global", "/chat/badges?broadcaster_id=" + Auth.UserId })
+        {
+            var r = await SendAsync(HttpMethod.Get, path, null, ct);
+            foreach (var set in r.GetProperty("data").EnumerateArray())
+                foreach (var v in set.GetProperty("versions").EnumerateArray())
+                    map[$"{set.GetProperty("set_id").GetString()}/{v.GetProperty("id").GetString()}"] = v.GetProperty("image_url_1x").GetString()!;
+        }
+        return map;
+    }
+
+    /// <summary>the chat login (IRC): stored at connection, read from Helix for accounts connected before the chat existed</summary>
+    public async Task<string> LoginAsync(CancellationToken ct)
+    {
+        if (Auth.Login != "") return Auth.Login;
+        var u = (await SendAsync(HttpMethod.Get, "/users", null, ct)).GetProperty("data")[0];
+        Auth.Login = u.GetProperty("login").GetString() ?? "";
+        Secrets.Save();
+        return Auth.Login;
     }
 
     public override async Task<LiveInfo> GetLiveAsync(CancellationToken ct)
@@ -427,6 +474,7 @@ sealed class KickPlatform : Platform
     public const int CallbackPort = 43117;
     public const string RedirectUri = "http://localhost:43117/callback"; // to declare as-is in the Kick application settings
     const string Scope = "channel:read channel:write";
+    const string ChatScope = "channel:read channel:write chat:write"; // chat:write must be enabled on the Kick application
 
     protected override string DefaultClientId => BuiltIn.KickId;
     protected override string DefaultClientSecret => BuiltIn.KickSecret;
@@ -437,7 +485,17 @@ sealed class KickPlatform : Platform
 
     static string B64Url(byte[] b) => Convert.ToBase64String(b).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
+    /// <summary>asks for the chat right too; if Kick refuses it (not enabled on the application), connects again without it</summary>
     public override async Task ConnectAsync(Action<string> info, CancellationToken ct)
+    {
+        try { await ConnectWithAsync(ChatScope, info, ct); }
+        catch (InvalidOperationException e) when (e.Message.StartsWith("Kick : "))
+        {
+            await ConnectWithAsync(Scope, info, ct);
+        }
+    }
+
+    async Task ConnectWithAsync(string scope, Action<string> info, CancellationToken ct)
     {
         var verifier = B64Url(RandomNumberGenerator.GetBytes(48));
         var challenge = B64Url(SHA256.HashData(Encoding.ASCII.GetBytes(verifier)));
@@ -448,7 +506,7 @@ sealed class KickPlatform : Platform
 
         info("Autorise l'application dans la page Kick qui s'ouvre…\n\n(en attente de ton autorisation)");
         OpenBrowser($"{OAuth}/authorize?client_id={Uri.EscapeDataString(ClientId)}&response_type=code&redirect_uri={Uri.EscapeDataString(RedirectUri)}" +
-            $"&scope={Uri.EscapeDataString(Scope)}&code_challenge={challenge}&code_challenge_method=S256&state={state}");
+            $"&scope={Uri.EscapeDataString(scope)}&code_challenge={challenge}&code_challenge_method=S256&state={state}");
 
         using var reg = ct.Register(listener.Stop);
         string code;
@@ -525,6 +583,14 @@ sealed class KickPlatform : Platform
         }
         if (body.Count > 0) await SendAsync(new HttpMethod("PATCH"), "/v1/channels", body, ct);
         return warning;
+    }
+
+    /// <summary>a chat message as the streamer, in their own channel (scope chat:write)</summary>
+    public async Task SendChatAsync(string text, CancellationToken ct)
+    {
+        var r = await SendAsync(HttpMethod.Post, "/v1/chat", new { broadcaster_user_id = long.Parse(Auth.UserId), content = text, type = "user" }, ct);
+        if (r.ValueKind == JsonValueKind.Object && r.TryGetProperty("data", out var d) && d.TryGetProperty("is_sent", out var ok) && !ok.GetBoolean())
+            throw new InvalidOperationException("Kick : message non envoyé");
     }
 
     static List<GameEntry> Games(JsonElement data) => data.EnumerateArray()

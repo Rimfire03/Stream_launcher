@@ -62,6 +62,10 @@ Stream Launcher est gratuit. Si il vous est utile, vous pouvez soutenir son dév
 
 <a href="https://buymeacoffee.com/slide598b" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50"></a>
 
+## Chat unifié
+
+**Live > Chat unifié…**, étape de profil **Ouvrir le chat unifié** ou `StreamLauncher.exe --chat` : fenêtre unique avec le chat de Twitch, Kick et YouTube (logo de plateforme, badges Twitch). Les logos en haut allument/éteignent chaque plateforme ; un message écrit dans la fenêtre part sur toutes les plateformes allumées. Son à l'arrivée d'un message après un silence (délai réglable, fichier .wav au choix, pseudos exclus) et choix par plateforme de ce qui s'affiche en plus du texte (points de chaîne, bits, abonnements, raids, GIF, Super Chat…). Twitch : IRC (portées `chat:read chat:edit`) ; Kick : lecture par le flux public non officiel du site, envoi par l'API officielle (`chat:write`) ; YouTube : API `liveChat` lue toutes les 10 s au minimum. Le son par défaut est généré par `tools/Make-ChatSound.ps1`.
+
 ## Twitch et Kick : titre, jeu, tags
 
 Menu **Live > Éditer le titre, le jeu et les tags…** : mêmes titre, jeu et tags envoyés à Twitch, Kick et YouTube.

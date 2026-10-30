@@ -27,6 +27,17 @@ class MainForm : Form
 
     Profile? Cur => lbProf.SelectedItem as Profile;
     Step? CurStep => lbSteps.SelectedItem as Step;
+    ChatWindow? chatWindow;
+
+    /// <summary>opens the unified chat (one window); not modal, it stays next to the other windows</summary>
+    public void OpenChatWindow()
+    {
+        if (chatWindow is { IsDisposed: false }) { chatWindow.Show(); chatWindow.WindowState = FormWindowState.Normal; chatWindow.Activate(); return; }
+        chatWindow = new ChatWindow();
+        chatWindow.Show();
+    }
+
+    public bool OpenChatOnStart { get; set; }
     readonly System.Windows.Forms.Timer healthTimer = new() { Interval = 5 * 60 * 1000 }; // Twitch / Kick connection check
     /// <summary>the game dictionary is re-read from the connected platforms at every launch (in the background)</summary>
     void RefreshGames() => _ = Task.Run(async () =>
@@ -126,11 +137,13 @@ class MainForm : Form
         Item("Clic (réglé à la main)", () => AddStep(new Step { Type = StepType.Click }));
         Item("Icône de la zone de notification (je clique dessus)", PickTray);
         Item("Scène OBS Studio…", () => AddStep(new Step { Type = StepType.Obs }));
+        Item("Ouvrir le chat unifié", () => AddStep(new Step { Type = StepType.Chat }));
         var addBtn = Ui.Btn("＋  Ajouter une étape  ▾", Ui.Kind.Primary, (s, _) => addMenu.Show((Control)s!, new Point(0, ((Control)s!).Height)));
 
         // header menus: Paramètres (application settings), Outils (helpers), Aide
         var settingsMenu = new ToolStripMenuItem("Paramètres");
         var liveMenu = new ToolStripMenuItem("Live");
+        liveMenu.DropDownItems.Add("Chat unifié…", null, (_, _) => OpenChatWindow());
         liveMenu.DropDownItems.Add("Éditer le titre, le jeu et les tags…", null, (_, _) => { using var d = new StreamingDialog(); d.ShowDialog(this); });
         var toolsMenu = new ToolStripMenuItem("Outils");
         toolsMenu.DropDownItems.Add("Ouvrir le dossier des raccourcis Stream Deck", null, (_, _) => SyncDeck(true));
@@ -359,6 +372,7 @@ class MainForm : Form
             var bad = Checks.Analyze(pr.Steps).Count(x => x != null);
             if (bad > 0) Log($"⚠ Profil « {pr.Name} » : {bad} étape(s) en rouge (exécutable introuvable), ignorée(s) au lancement");
         }
+        HandleCreated += (_, _) => { if (OpenChatOnStart) BeginInvoke(OpenChatWindow); };
         HandleCreated += (_, _) => { SyncDeck(); if (Autostart.Enabled) Autostart.Set(true); }; // re-register: the install folder may have changed
         UpdateHeader();
         Log("Écrans : " + string.Join(" | ", Screen.AllScreens.Select(s =>
@@ -823,7 +837,7 @@ class MainForm : Form
         var token = cts.Token;
         try
         {
-            int err = await Task.Run(() => live ? Live.Run(p, new Runner { Log = Log }, token) : new Runner { Log = Log }.Run(p, token));
+            int err = await Task.Run(() => live ? Live.Run(p, new Runner { Log = Log, OpenChat = () => BeginInvoke(OpenChatWindow) }, token) : new Runner { Log = Log, OpenChat = () => BeginInvoke(OpenChatWindow) }.Run(p, token));
             Log(err == 0 ? "Terminé" : $"Terminé avec {err} erreur(s)");
         }
         catch (OperationCanceledException) { Log("Annulé"); }

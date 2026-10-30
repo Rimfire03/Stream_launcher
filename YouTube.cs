@@ -114,6 +114,23 @@ sealed class YouTubePlatform : Platform
         throw new InvalidOperationException("YouTube : aucune diffusion en cours ni programmée. Crée-la dans YouTube Studio (Créer > Passer en direct).");
     }
 
+    // ---- live chat (unified chat window)
+
+    /// <summary>chat id of the active broadcast, else of the next scheduled one; null when there is none</summary>
+    public async Task<string?> LiveChatIdAsync(CancellationToken ct)
+    {
+        try { return (await FindBroadcastAsync(ct)).GetProperty("snippet").GetProperty("liveChatId").GetString(); }
+        catch (InvalidOperationException e) when (e.Message.Contains("aucune diffusion")) { return null; }
+    }
+
+    public Task<JsonElement> LiveChatMessagesAsync(string chatId, string? pageToken, CancellationToken ct) =>
+        SendAsync(HttpMethod.Get, $"/liveChat/messages?liveChatId={Uri.EscapeDataString(chatId)}&part=snippet,authorDetails&maxResults=200" + (pageToken == null ? "" : "&pageToken=" + Uri.EscapeDataString(pageToken)), null, ct);
+
+    /// <summary>sends a message (YouTube refuses more than 200 characters)</summary>
+    public Task LiveChatSendAsync(string chatId, string text, CancellationToken ct) =>
+        SendAsync(HttpMethod.Post, "/liveChat/messages?part=snippet",
+            new { snippet = new { liveChatId = chatId, type = "textMessageEvent", textMessageDetails = new { messageText = text.Length > 200 ? text[..200] : text } } }, ct);
+
     async Task<JsonElement> VideoSnippetAsync(string id, CancellationToken ct)
     {
         var r = await SendAsync(HttpMethod.Get, "/videos?part=snippet&id=" + Uri.EscapeDataString(id), null, ct);

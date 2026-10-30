@@ -22,6 +22,7 @@
     <PackageReference Include="FlaUI.UIA3" Version="4.0.0" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
     <EmbeddedResource Include="assets\LaunchStub.exe" LogicalName="LaunchStub.exe" />
+    <EmbeddedResource Include="assets\chat-default.wav" LogicalName="chat-default.wav" />
     <Compile Remove="tools\**" />
   </ItemGroup>
 </Project>

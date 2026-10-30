@@ -2,7 +2,7 @@ using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-[TypeConverter(typeof(FrEnumConverter))] enum StepType { Launch, Place, Click, Window, Tray, Browser, Obs }
+[TypeConverter(typeof(FrEnumConverter))] enum StepType { Launch, Place, Click, Window, Tray, Browser, Obs, Chat }
 [TypeConverter(typeof(FrEnumConverter))] enum BrowserKind { Defaut, Chrome, Edge, Firefox, Brave, Opera, Vivaldi }
 [TypeConverter(typeof(FrEnumConverter))] enum WindowAction { Reduire, Agrandir, Restaurer, Deplacer }
 [TypeConverter(typeof(FrEnumConverter))] enum ClickMode { Element, Coords }
@@ -77,6 +77,7 @@ class Step
             _ => $"Placer {Process} '{Title}' → {Config.Label(Monitor)} multitâche {Fr.Of(Zone)}",
         },
         StepType.Browser => $"Ouvrir {Fr.Of(Browser)} sur {Url}",
+        StepType.Chat => "Ouvrir le chat unifié",
         StepType.Obs => "OBS : " + string.Join(", ", new[] { ObsProfile != "" ? $"profil « {ObsProfile} »" : "", ObsCollection != "" ? $"collection « {ObsCollection} »" : "", ObsScene != "" ? $"scène « {ObsScene} »" : "" }.Where(x => x != "")),
         StepType.Tray => $"Ouvrir depuis la zone de notification « {TrayName} » ({Fr.Of(Button)}{(Double ? " x2" : "")})",
         StepType.Window => $"{Fr.Of(Action)} la fenêtre {Process} '{Title}'",
@@ -163,7 +164,7 @@ static class Fr
     static readonly Dictionary<string, string> L = new()
     {
         ["StepType.Launch"] = "Lancer une application", ["StepType.Place"] = "Placer une fenêtre", ["StepType.Click"] = "Clic",
-        ["StepType.Window"] = "Action sur une fenêtre", ["StepType.Tray"] = "Icône de la zone de notification", ["StepType.Browser"] = "Site web", ["StepType.Obs"] = "Scène OBS",
+        ["StepType.Window"] = "Action sur une fenêtre", ["StepType.Tray"] = "Icône de la zone de notification", ["StepType.Browser"] = "Site web", ["StepType.Obs"] = "Scène OBS", ["StepType.Chat"] = "Chat unifié",
         ["ClickMode.Element"] = "Élément (par son nom)", ["ClickMode.Coords"] = "Coordonnées dans la fenêtre",
         ["MouseBtn.Left"] = "Gauche", ["MouseBtn.Right"] = "Droit",
         ["WindowAction.Reduire"] = "Réduire", ["WindowAction.Agrandir"] = "Agrandir", ["WindowAction.Restaurer"] = "Restaurer", ["WindowAction.Deplacer"] = "Déplacer",

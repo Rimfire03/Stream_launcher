@@ -76,6 +76,7 @@ static class Ui
         StepType.Window => ("FENÊTRE", ColorTranslator.FromHtml("#3B6FD4")),
         StepType.Tray => ("TRAY", ColorTranslator.FromHtml("#B24A7A")),
         StepType.Obs => ("OBS", ColorTranslator.FromHtml("#4B5563")),
+        StepType.Chat => ("CHAT", ColorTranslator.FromHtml("#0E8A7D")),
         _ => ("WEB", ColorTranslator.FromHtml("#2E7D32")),
     };
 
@@ -98,6 +99,7 @@ static class Ui
         StepType.Click => (s.Mode == ClickMode.Element ? $"Cliquer sur « {s.ElementName} »" : $"Cliquer à {s.RelX}, {s.RelY}",
             $"{Target(s)} · bouton {(s.Button == MouseBtn.Right ? "droit" : "gauche")}{(s.Double ? " · double-clic" : "")}"),
         StepType.Tray => ($"Ouvrir « {s.TrayName} » depuis la zone de notification", $"bouton {(s.Button == MouseBtn.Right ? "droit" : "gauche")}{(s.Double ? " · double-clic" : "")}"),
+        StepType.Chat => ("Ouvrir le chat unifié", "Twitch, Kick et YouTube dans une fenêtre dédiée"),
         StepType.Obs => (s.ObsScene != "" ? $"Activer la scène « {s.ObsScene} »" : s.ObsCollection != "" ? $"Charger la collection « {s.ObsCollection} »" : $"Charger le profil « {s.ObsProfile} »",
             "OBS Studio" + (s.ObsProfile != "" && (s.ObsScene != "" || s.ObsCollection != "") ? $" · profil « {s.ObsProfile} »" : "") + (s.ObsCollection != "" && s.ObsScene != "" ? $" · collection « {s.ObsCollection} »" : "") + $" · {s.ObsHost}"),
         _ => (Uri.TryCreate(s.Url, UriKind.Absolute, out var u) ? $"Ouvrir {u.Host}" : "Ouvrir un site", $"{Fr.Of(s.Browser)} · {s.Url}{(s.PlaceWindow ? " · fenêtre placée" : "")}"),
@@ -131,6 +133,7 @@ class StepView : ICustomTypeDescriptor
                 h.UnionWith(s.Mode == ClickMode.Element ? new[] { "ElementName", "ElementId" } : new[] { "RelX", "RelY" });
                 break;
             case StepType.Tray: h.UnionWith(new[] { "TrayName", "Button", "Double" }); break;
+            case StepType.Chat: break; // nothing to set: only the delay
             case StepType.Obs: h.UnionWith(new[] { "ObsHost", "ObsPassword", "ObsProfile", "ObsCollection", "ObsScene" }); break;
             default: h.UnionWith(new[] { "Browser", "Url", "PlaceWindow", "KeepOpen" }); if (s.PlaceWindow) Placement(); break;
         }

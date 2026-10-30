@@ -149,6 +149,18 @@ Favoris : un favori est un combo titre + jeu + tags, qui vont toujours ensemble.
 Historique : les 15 derniers lives (titre, jeu, tags), enregistrés quand tu appliques des valeurs ou que tu lances un live. « Importer mes derniers lives » ajoute les titres de tes dernières diffusions Twitch (VOD) et YouTube (Twitch et YouTube ne donnent pas le jeu). Kick ne fournit pas d'historique. « ★ Mettre en favoris » ajoute ce combo aux favoris ; « Appliquer » renvoie ce live.
 
 Sur Kick, la recherche de jeux par mot-clé utilise une partie de l'API que Kick marque comme obsolète ; le dictionnaire reste utilisable si elle disparaît."),
+        new("Chat unifié", @"Menu « Live > Chat unifié… » (ou étape « Ouvrir le chat unifié » d'un profil, ou StreamLauncher.exe --chat) : une seule fenêtre avec le chat de Twitch, Kick et YouTube. Chaque message porte le logo de sa plateforme ; sur Twitch, les badges (diffuseur, modérateur, abonné…) s'affichent devant le pseudo.
+
+Les trois boutons ronds en haut allument ou éteignent une plateforme (le point indique l'état : vert = lecture en cours). Ce que tu écris dans la zone du bas part sur toutes les plateformes allumées. « Au premier plan » garde la fenêtre au-dessus des autres.
+
+⚙ Réglages :
+- Son : un son est joué à l'arrivée d'un message après un silence (délai réglable, en secondes), quelle que soit la plateforme. Son par défaut intégré ; tu peux choisir ton propre fichier .wav. Une liste de pseudos exclus ne déclenche jamais le son.
+- Une page par plateforme : choisis ce qui s'affiche en plus du texte (Twitch : points de chaîne, bits, messages mis en avant, abonnements et raids, GIF ; Kick : points de chaîne, abonnements, abonnements offerts ; YouTube : Super Chat, Super Stickers, nouveaux membres). Un type décoché est masqué.
+
+Limites :
+- Twitch : reconnecte ton compte une fois (nouvelles autorisations de lecture et d'écriture du chat). Une récompense de points de chaîne sans message n'est pas visible dans le chat Twitch.
+- Kick : la lecture passe par la connexion publique du site (non officielle, peut cesser de fonctionner si Kick la modifie). Pour écrire, l'application Kick doit avoir l'autorisation « Écrire dans le flux du chat », puis reconnecte le compte.
+- YouTube : lecture espacée (une requête toutes les 10 s au minimum) pour ménager le quota quotidien ; l'envoi est limité à 200 caractères. Le chat n'existe que pendant une diffusion en cours."),
         new("Retrouver une fenêtre", @"Les étapes Placer, Action fenêtre et Clic doivent retrouver la bonne fenêtre. Critères (catégorie « Fenêtre cible ») :
 
 - Process : nom du processus sans .exe (obligatoire s'il est renseigné).
