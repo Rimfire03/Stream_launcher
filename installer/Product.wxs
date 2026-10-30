@@ -7,6 +7,8 @@
 
     <MajorUpgrade AllowDowngrades="yes" />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+    <Icon Id="app.ico" SourceFile="$(IconPath)" />
+    <Property Id="ARPPRODUCTICON" Value="app.ico" />
 
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="StreamLauncher">

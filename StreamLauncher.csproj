@@ -7,6 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <AssemblyName>StreamLauncher</AssemblyName>
+    <ApplicationIcon>assets\app.ico</ApplicationIcon>
     <Product>Stream Launcher</Product>
     <Company>TomLine prod&amp;co</Company>
     <Version>0.1.1</Version>

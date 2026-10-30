@@ -1,7 +1,7 @@
 class MainForm : Form
 {
     readonly Config cfg;
-    readonly NotifyIcon tray = new() { Icon = SystemIcons.Application, Text = "Stream Launcher" };
+    readonly NotifyIcon tray = new() { Icon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!), Text = "Stream Launcher" };
     readonly ListBox lbProf = new() { Dock = DockStyle.Fill, IntegralHeight = false };
     readonly ListBox lbSteps = new() { Dock = DockStyle.Fill, IntegralHeight = false, HorizontalScrollbar = true };
     readonly PropertyGrid pg = new() { Dock = DockStyle.Fill };
@@ -21,6 +21,7 @@ class MainForm : Form
         this.cfg = cfg;
         allowShow = !startHidden;
         Text = "Stream Launcher " + Updater.Format(Updater.Current);
+        Icon = tray.Icon;
         Size = new Size(1100, 720);
         StartPosition = FormStartPosition.CenterScreen;
 
