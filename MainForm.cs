@@ -107,14 +107,16 @@ class MainForm : Form
         Item("Icône de la zone de notification (je clique dessus)", PickTray);
         var addBtn = Ui.Btn("＋  Ajouter une étape  ▾", Ui.Kind.Primary, (s, _) => addMenu.Show((Control)s!, new Point(0, ((Control)s!).Height)));
 
-        var toolsMenu = new ContextMenuStrip { Font = Ui.Base };
-        toolsMenu.Items.Add("Ouvrir le dossier des raccourcis Stream Deck", null, (_, _) => SyncDeck(true));
-        toolsMenu.Items.Add("Journal des lancements Stream Deck", null, (_, _) => OpenRunLog());
-        toolsMenu.Items.Add(new ToolStripSeparator());
-        toolsMenu.Items.Add("Identifier les écrans", null, (_, _) => IdentifyScreens());
-        toolsMenu.Items.Add("Renommer les écrans…", null, (_, _) => RenameScreens());
-        toolsMenu.Items.Add("Lister les icônes de la zone de notification", null, (_, _) => ListTray());
-        toolsMenu.Items.Add(new ToolStripSeparator());
+        // header menus: Paramètres (application settings), Outils (helpers), Aide
+        var settingsMenu = new ToolStripMenuItem("Paramètres");
+        var toolsMenu = new ToolStripMenuItem("Outils");
+        toolsMenu.DropDownItems.Add("Ouvrir le dossier des raccourcis Stream Deck", null, (_, _) => SyncDeck(true));
+        toolsMenu.DropDownItems.Add("Journal des lancements Stream Deck", null, (_, _) => OpenRunLog());
+        toolsMenu.DropDownItems.Add(new ToolStripSeparator());
+        toolsMenu.DropDownItems.Add("Lister les icônes de la zone de notification", null, (_, _) => ListTray());
+        var screensMenu = new ToolStripMenuItem("Écrans");
+        screensMenu.DropDownItems.Add("Identifier les écrans", null, (_, _) => IdentifyScreens());
+        screensMenu.DropDownItems.Add("Renommer les écrans…", null, (_, _) => RenameScreens());
         var channel = new ToolStripMenuItem("Canal de mise à jour");
         var stable = new ToolStripMenuItem("Stable (main) : versions testées") { Checked = !Updater.IsDev };
         var dev = new ToolStripMenuItem("Dev : versions de test, plus récentes mais instables") { Checked = Updater.IsDev };
@@ -131,17 +133,17 @@ class MainForm : Form
         stable.Click += (_, _) => SetChannel("main");
         dev.Click += (_, _) => SetChannel("dev");
         channel.DropDownItems.AddRange(new ToolStripItem[] { stable, dev });
-        toolsMenu.Items.Add(channel);
+        settingsMenu.DropDownItems.Add(channel);
         var startup = new ToolStripMenuItem("Démarrer avec Windows (dans la zone de notification)") { Checked = Autostart.Enabled, CheckOnClick = true };
         startup.CheckedChanged += (_, _) => Autostart.Set(startup.Checked);
-        toolsMenu.Items.Add(startup);
-        toolsMenu.Items.Add("Vérifier les mises à jour…", null, (_, _) => CheckUpdate(true));
-        var toolsBtn = Ui.Btn("Outils  ▾", Ui.Kind.Secondary, (s, _) => toolsMenu.Show((Control)s!, new Point(0, ((Control)s!).Height)));
+        settingsMenu.DropDownItems.Add(startup);
+        settingsMenu.DropDownItems.Add(new ToolStripSeparator());
+        settingsMenu.DropDownItems.Add(screensMenu);
 
         var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 44, BackColor = Ui.Bg, Padding = new Padding(18, 6, 14, 0), WrapContents = false };
         toolbar.Controls.AddRange(new Control[]
         {
-            addBtn, toolsBtn,
+            addBtn,
             Ui.Btn("↑", Ui.Kind.Secondary, (_, _) => MoveStep(-1)),
             Ui.Btn("↓", Ui.Kind.Secondary, (_, _) => MoveStep(1)),
             Ui.Btn("Dupliquer", Ui.Kind.Secondary, (_, _) => DuplicateStep()),
@@ -218,9 +220,10 @@ class MainForm : Form
         {
             foreach (ToolStripItem i in items) { i.ForeColor = Ui.Text; if (i is ToolStripMenuItem m) DarkText(m.DropDownItems); }
         }
+        foreach (var m in new[] { settingsMenu, toolsMenu }) { m.ForeColor = Color.White; DarkText(m.DropDownItems); }
         DarkText(help.DropDownItems);
-        var menu = new MenuStrip { Dock = DockStyle.Right, LayoutStyle = ToolStripLayoutStyle.HorizontalStackWithOverflow, AutoSize = false, Width = 70, BackColor = Ui.Header, Font = Ui.Base, GripStyle = ToolStripGripStyle.Hidden };
-        menu.Items.Add(help);
+        var menu = new MenuStrip { Dock = DockStyle.Right, LayoutStyle = ToolStripLayoutStyle.HorizontalStackWithOverflow, AutoSize = false, Width = 270, BackColor = Ui.Header, Font = Ui.Base, GripStyle = ToolStripGripStyle.Hidden };
+        menu.Items.AddRange(new ToolStripItem[] { settingsMenu, toolsMenu, help });
         MainMenuStrip = menu;
         header.Controls.Add(menu);
 

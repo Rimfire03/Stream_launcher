@@ -29,7 +29,7 @@ Boutons principaux :
 - ■ Stop : interrompt une exécution en cours.
 - ● Enregistrer les clics : transforme tes clics en étapes.
 - ＋ Ajouter une étape ▾ : menu par thèmes (Applications, Fenêtres, Interactions) : application ou fichier, import des fenêtres ouvertes, site web, placer / déplacer / réduire une fenêtre, clic, icône de la zone de notification.
-- Outils ▾ : identifier ou renommer les écrans, lister les icônes de la zone de notification, mises à jour.
+- Menus du bandeau du haut : « Paramètres » (démarrer avec Windows, canal de mise à jour, identifier ou renommer les écrans), « Outils » (dossier des raccourcis Stream Deck, journal des lancements, liste des icônes de la zone de notification) et « Aide » (guide, mises à jour, à propos).
 - ↑ ↓ Dupliquer Supprimer : réorganisent la liste (même chose par clic droit sur une étape).
 
 Chaque étape de la liste porte une pastille de couleur (LANCER, PLACER, CLIC, FENÊTRE, TRAY, WEB), un résumé en clair et son temps d'attente. Le panneau de droite n'affiche que les réglages utiles au type d'étape choisi.
@@ -168,7 +168,7 @@ Code de retour : 0 = tout est passé, 1 = au moins une étape en erreur, 2 = pro
 
 Autres options :
 - --start ""Nom"" / --stop ""Nom"" : force le lancement ou la fermeture.
-- --tray : démarre l'interface masquée dans la zone de notification. « Outils > Démarrer avec Windows » l'ajoute au démarrage de la session avec cette option.
+- --tray : démarre l'interface masquée dans la zone de notification. « Paramètres > Démarrer avec Windows » l'ajoute au démarrage de la session avec cette option.
 - --list-tray : écrit sur la sortie standard les noms des icônes de la zone de notification.
 
 Au quotidien, l'icône de la zone de notification (clic droit) permet aussi de lancer chaque profil."),
@@ -177,7 +177,7 @@ Au quotidien, l'icône de la zone de notification (clic droit) permet aussi de l
 
 Mises à jour : au démarrage, et via le bouton « Mises à jour » ou le menu Aide, l'application compare sa version (format Va.b.c, par exemple V0.1.10) à la dernière release GitHub. Si une version plus récente existe, elle télécharge l'installateur, vérifie qu'il est signé par TomLine prod&co, l'installe (Windows demande une validation administrateur) puis redémarre l'application.
 
-Canal de mise à jour (Outils > Canal de mise à jour) : « Stable » (par défaut) ne propose que les versions publiées depuis la branche main. « Dev » propose aussi les versions de test publiées depuis la branche dev (pré-releases GitHub, tag Va.b.c-dev) : plus récentes mais pouvant contenir des bogues. Revenir de dev à stable ne rétrograde pas l'application : elle attend la prochaine version stable plus récente.
+Canal de mise à jour (Paramètres > Canal de mise à jour) : « Stable » (par défaut) ne propose que les versions publiées depuis la branche main. « Dev » propose aussi les versions de test publiées depuis la branche dev (pré-releases GitHub, tag Va.b.c-dev) : plus récentes mais pouvant contenir des bogues. Revenir de dev à stable ne rétrograde pas l'application : elle attend la prochaine version stable plus récente.
 
 Fermer la fenêtre réduit l'application dans la zone de notification ; « Quitter » est dans le menu de son icône."),
 

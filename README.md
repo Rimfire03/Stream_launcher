@@ -32,7 +32,7 @@ L'action « Ouvrir » (Système) de Stream Deck n'a pas de champ d'arguments : l
 StreamLauncher.exe --profile "Nom du profil"
 ```
 
-C'est une **bascule** : le 1er appel lance le profil, le suivant ferme toutes les fenêtres ouvertes depuis (même touche Stream Deck pour lancer et fermer le live). `--start "Nom"` / `--stop "Nom"` forcent un sens. Exécution sans fenêtre, code retour 0 = OK, 1 = étapes en erreur, 2 = profil inconnu. `--tray` démarre l'interface masquée. **Outils > Démarrer avec Windows** lance l'application à l'ouverture de session, directement dans la zone de notification (désactivé par défaut).
+C'est une **bascule** : le 1er appel lance le profil, le suivant ferme toutes les fenêtres ouvertes depuis (même touche Stream Deck pour lancer et fermer le live). `--start "Nom"` / `--stop "Nom"` forcent un sens. Exécution sans fenêtre, code retour 0 = OK, 1 = étapes en erreur, 2 = profil inconnu. `--tray` démarre l'interface masquée. **Paramètres > Démarrer avec Windows** lance l'application à l'ouverture de session, directement dans la zone de notification (désactivé par défaut).
 
 ## Installation
 
@@ -63,4 +63,4 @@ Stream Launcher est gratuit. Si il vous est utile, vous pouvez soutenir son dév
 
 - **main** : versions stables (releases GitHub `Va.b.c`). Canal par défaut.
 - **dev** : versions de test, publiées en pré-release GitHub (tag `Va.b.c-dev`) depuis la branche `dev` avec `tools\Build-Release.ps1 -Publish -Dev`. Le script refuse de publier depuis une autre branche.
-- Le choix se fait dans **Outils > Canal de mise à jour** (enregistré dans `profiles.json`). Revenir de dev à stable ne rétrograde pas : l'application attend la prochaine version stable plus récente.
+- Le choix se fait dans **Paramètres > Canal de mise à jour** (enregistré dans `profiles.json`). Revenir de dev à stable ne rétrograde pas : l'application attend la prochaine version stable plus récente.
