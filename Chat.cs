@@ -11,9 +11,10 @@ using System.Text.RegularExpressions;
 
 /// <param name="Kind">message, highlight, bits, reward, sub, gift, raid, gif (Twitch / Kick) ; superchat, sticker, member, gift (YouTube) : each kind can be hidden per platform</param>
 /// <param name="Extra">short label shown before the text for special messages ("100 bits", "Raid"...)</param>
+/// <param name="SourceRoom">Twitch shared chat: id of the channel the message was sent from</param>
 /// <param name="Badges">Twitch badges as "set/version" (broadcaster/1, subscriber/12...)</param>
 record ChatMessage(DateTime Time, string PlatformId, string Author, string Text, string? Color = null, bool Mine = false, bool System = false,
-    string Kind = "message", string? Extra = null, string[]? Badges = null, EmoteSpan[]? Emotes = null);
+    string Kind = "message", string? Extra = null, string[]? Badges = null, EmoteSpan[]? Emotes = null, string? SourceRoom = null);
 
 /// <summary>an emote inside the text of a message: UTF-16 position and length of its name, and the image url</summary>
 readonly record struct EmoteSpan(int Start, int Length, string Url);
@@ -290,7 +291,9 @@ sealed class TwitchChatSource : ChatSource
                 "raid" => $"raid avec {Tag("msg-param-viewerCount")} spectateurs",
                 _ => Tag("system-msg"),
             };
-            return new ChatMessage(DateTime.Now, "twitch", name, (sys + (text != "" ? " : " + text : "")).Trim(), color, Kind: kind, Extra: extra, Badges: badges);
+            int offset = sys == "" ? 0 : sys.Length + 3; // the viewer's own text comes after "<system text> : ", the emotes shift with it
+            var shifted = emotes?.Select(s => s with { Start = s.Start + offset }).ToArray();
+            return new ChatMessage(DateTime.Now, "twitch", name, sys == "" ? text : sys + (text != "" ? " : " + text : ""), color, Kind: kind, Extra: extra, Badges: badges, Emotes: shifted);
         }
 
         string k = "message"; string? ex = null;
@@ -298,7 +301,7 @@ sealed class TwitchChatSource : ChatSource
         else if (Tag("custom-reward-id") != "") { k = "reward"; ex = "Récompense"; }
         else if (Tag("msg-id") == "highlighted-message") { k = "highlight"; ex = "Mis en avant"; }
         else if (ChatKinds.GifLink.IsMatch(text)) k = "gif";
-        return new ChatMessage(DateTime.Now, "twitch", name, text, color, Kind: k, Extra: ex, Badges: badges, Emotes: emotes);
+        return new ChatMessage(DateTime.Now, "twitch", name, text, color, Kind: k, Extra: ex, Badges: badges, Emotes: emotes, SourceRoom: Tag("source-room-id") is { Length: > 0 } room ? room : null); // source-room-id only exists during a shared chat (Stream Together)
     }
 
     /// <summary>the "emotes" tag ("25:0-4,12-16/1902:6-10": id, then first-last positions in code points) as spans of the text</summary>

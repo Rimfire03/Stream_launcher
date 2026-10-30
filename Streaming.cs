@@ -405,6 +405,13 @@ sealed class TwitchPlatform : Platform
         return map;
     }
 
+    /// <summary>profile picture of a Twitch channel (shown in the chat for the messages of a shared chat)</summary>
+    public async Task<string?> AvatarUrlAsync(string userId, CancellationToken ct)
+    {
+        var data = (await SendAsync(HttpMethod.Get, "/users?id=" + Uri.EscapeDataString(userId), null, ct)).GetProperty("data");
+        return data.GetArrayLength() > 0 ? data[0].GetProperty("profile_image_url").GetString() : null;
+    }
+
     /// <summary>the chat login (IRC): stored at connection, read from Helix for accounts connected before the chat existed</summary>
     public async Task<string> LoginAsync(CancellationToken ct)
     {

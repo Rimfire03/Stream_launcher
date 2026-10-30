@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Collections.Concurrent;
 
@@ -96,6 +98,56 @@ static class ChatBadges
                 Loaded?.Invoke();
             });
         return null;
+    }
+}
+
+/// <summary>Profile pictures of the channels of a Twitch shared chat, looked up once per channel.</summary>
+static class ChatAvatars
+{
+    static readonly ConcurrentDictionary<string, string?> Urls = new();
+    static readonly ConcurrentDictionary<string, bool> Loading = new();
+
+    /// <returns>the picture of this channel, or null while it is looked up and downloaded (the view is told through <see cref="ChatBadges.Loaded"/>)</returns>
+    public static Image? Get(string roomId)
+    {
+        if (Urls.TryGetValue(roomId, out var url)) return url == null ? null : ChatBadges.GetUrl(url);
+        if (Loading.TryAdd(roomId, true))
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var tw = (TwitchPlatform)Streaming.Platforms.First(p => p.Id == "twitch");
+                    Urls[roomId] = await tw.AvatarUrlAsync(roomId, CancellationToken.None);
+                }
+                catch (Exception e) { RunLog.Write($"logo de chaîne {roomId} : {e.Message}"); Urls[roomId] = null; }
+                ChatBadges.RaiseLoaded();
+            });
+        return null;
+    }
+}
+
+/// <summary>Colour emoji: GDI text drawing has no colour glyphs, so each emoji is shown as its Twemoji image (the set Twitch itself uses).</summary>
+static class ChatEmoji
+{
+    /// <param name="el">one text element (grapheme cluster: skin tone, flag, ZWJ sequence...)</param>
+    public static bool Is(string el)
+    {
+        int cp = char.IsHighSurrogate(el[0]) && el.Length > 1 && char.IsLowSurrogate(el[1]) ? char.ConvertToUtf32(el[0], el[1]) : el[0];
+        if (cp >= 0x1F000 && cp <= 0x1FAFF) return true;
+        if (el.Contains('\u20E3')) return true; // keycap
+        if (cp >= 0x2600 && cp <= 0x27BF) return true;
+        bool symbol = cp is 0x2B50 or 0x2B55 or 0x2B1B or 0x2B1C or 0x2934 or 0x2935 or 0x203C or 0x2049 or 0x2122 or 0x2139 or 0x00A9 or 0x00AE or 0x3030 or 0x303D or 0x3297 or 0x3299 or 0x24C2
+            || (cp >= 0x2190 && cp <= 0x21AA) || (cp >= 0x231A && cp <= 0x23FF) || (cp >= 0x25AA && cp <= 0x25FE);
+        return symbol && el.Contains('\uFE0F'); // these are plain text characters unless asked for as emoji
+    }
+
+    public static string Url(string el)
+    {
+        bool zwj = el.Contains('\u200D');
+        var codes = new List<string>();
+        foreach (var r in el.EnumerateRunes())
+            if (zwj || r.Value != 0xFE0F) codes.Add(r.Value.ToString("x"));
+        return $"https://cdn.jsdelivr.net/gh/jdecked/twemoji@15.1.0/assets/72x72/{string.Join("-", codes)}.png";
     }
 }
 
@@ -224,7 +276,7 @@ sealed class ChatView : Control
 
     // ---- layout: the prefix (time, logo, badges, name, label) is drawn by hand, then the text is flowed word by word and emote by emote
 
-    const int Emote = 24;
+    const int Emote = 24, EmojiSize = 20;
     int spaceW, bodyH;
 
     void Metrics()
@@ -236,7 +288,7 @@ sealed class ChatView : Control
 
     (int Width, List<Image?> Badges) Prefix(ChatMessage m)
     {
-        int x = 46 + Logo + 4;
+        int x = 46 + Logo + 4 + (m.SourceRoom != null ? Logo + 4 : 0);
         var imgs = new List<Image?>();
         if (ShowBadges && m.Badges != null)
             foreach (var b in m.Badges) if (ChatBadges.Known(b)) { imgs.Add(ChatBadges.Get(b)); x += Logo + 2; } // room is kept while the image downloads
@@ -282,7 +334,26 @@ sealed class ChatView : Control
                 if (from < word.Length) NewLine();
             }
         }
-        void Words(string s) { foreach (var w in s.Split(' ', StringSplitOptions.RemoveEmptyEntries)) Word(w); }
+        bool emojis = ChatKinds.Shown(m.PlatformId, "emotes");
+        void Words(string s)
+        {
+            foreach (var w in s.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (!emojis || !w.Any(c => c >= 0x2190)) { Word(w); continue; } // no emoji can be in this word
+                var run = new StringBuilder();
+                for (var en = StringInfo.GetTextElementEnumerator(w); en.MoveNext();)
+                {
+                    var el = (string)en.Current!;
+                    if (!ChatEmoji.Is(el)) { run.Append(el); continue; }
+                    if (run.Length > 0) { Word(run.ToString()); run.Clear(); }
+                    var url = ChatEmoji.Url(el);
+                    var img = ChatBadges.GetUrl(url);
+                    if (img == null && ChatBadges.Failed(url)) Word(el); // no image: the plain character
+                    else Place(null, img, EmojiSize, EmojiSize + 2);
+                }
+                if (run.Length > 0) Word(run.ToString());
+            }
+        }
 
         var spans = m.Emotes != null && ChatKinds.Shown(m.PlatformId, "emotes") ? m.Emotes : null;
         int pos = 0;
@@ -357,6 +428,21 @@ sealed class ChatView : Control
         TextRenderer.DrawText(g, m.Time.ToString("HH:mm"), small, new Rectangle(r.X + Pad, top + 1, 38, Logo), Ui.Muted, TextFormatFlags.NoPadding | TextFormatFlags.VerticalCenter);
         PlatformLogos.Draw(g, m.PlatformId, new Rectangle(r.X + 46, top, Logo, Logo));
         int x = r.X + 46 + Logo + 4;
+        if (m.SourceRoom != null) // shared chat: the channel the message comes from, as a round picture right after the platform logo
+        {
+            var rect = new Rectangle(x, top, Logo, Logo);
+            using var circle = new System.Drawing.Drawing2D.GraphicsPath();
+            circle.AddEllipse(rect);
+            var avatar = ChatAvatars.Get(m.SourceRoom);
+            if (avatar != null)
+            {
+                g.SetClip(circle);
+                g.DrawImage(avatar, rect);
+                g.ResetClip();
+            }
+            else using (var ph = new SolidBrush(Ui.Muted)) g.FillEllipse(ph, rect);
+            x += Logo + 4;
+        }
         foreach (var b in badges) { if (b != null) g.DrawImage(b, new Rectangle(x, top, Logo, Logo)); x += Logo + 2; }
         var nameColor = m.Mine ? ColorTranslator.FromHtml("#B79BFF") : ParseColor(m.Color);
         var nameSize = TextRenderer.MeasureText(m.Author, bold, new Size(int.MaxValue, 0), TextFormatFlags.NoPadding);
@@ -378,7 +464,7 @@ sealed class ChatView : Control
             int py = lineTop[p.Line] + (lines[p.Line] - p.H) / 2;
             if (p.Word != null) TextRenderer.DrawText(g, p.Word, body, new Point(r.X + p.X, py), color, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
             else if (p.Image != null && p.Gif) { Animate(p.Image); g.DrawImage(p.Image, new Rectangle(r.X + p.X, py, p.W, p.H)); gifVisible = true; }
-            else if (p.Image != null) g.DrawImage(p.Image, new Rectangle(r.X + p.X, py + 1, p.W, Emote));
+            else if (p.Image != null) g.DrawImage(p.Image, new Rectangle(r.X + p.X, py + 1, p.W, p.H - 2));
         }
     }
 
