@@ -81,9 +81,10 @@ static class ChatBadges
                 try
                 {
                     using var ms = new MemoryStream(await Web.GetByteArrayAsync(url));
-                    Cache[key] = new Bitmap(ms);
+                    using var src = Image.FromStream(ms);
+                    Cache[key] = new Bitmap(src); // a copy: a bitmap read from a closed stream fails when drawn
                 }
-                catch { Cache[key] = null; }
+                catch (Exception e) { RunLog.Write($"badge {key} : {e.Message}"); Cache[key] = null; }
                 Loaded?.Invoke();
             });
         return null;

@@ -83,6 +83,7 @@ sealed class ChatWindow : Form
         {
             var tw = (TwitchPlatform)Streaming.Platforms.First(p => p.Id == "twitch");
             if (tw.Connected && tw.HasScope("chat:read")) ChatBadges.SetUrls(await tw.BadgeUrlsAsync(CancellationToken.None));
+            else RunLog.Write("badges Twitch : compte non connecté ou autorisation chat:read absente (reconnecte le compte)");
         }
         catch (Exception e) { RunLog.Write("badges Twitch : " + e.Message); }
     });
