@@ -24,7 +24,7 @@ Menu **Aide** (ou F1) : guide complet avec une rubrique par fonction (étapes, M
 
 ## Stream Deck
 
-L'action « Ouvrir » (Système) de Stream Deck n'a pas de champ d'arguments : dans l'app, **Outils > Créer les raccourcis Stream Deck de ce profil…** génère trois raccourcis (`bascule`, `lancer`, `fermer`) dans le sous-dossier `Stream Deck` du dossier de l'application (repli : `Documents\Stream Launcher\Stream Deck`), à choisir dans l'action « Ouvrir ». Ligne de commande équivalente :
+L'action « Ouvrir » (Système) de Stream Deck n'a pas de champ d'arguments : l'app crée automatiquement, dans le dossier `Profils` de son dossier d'installation, un sous-dossier par profil avec trois raccourcis (`bascule`, `lancer`, `fermer`) à choisir dans l'action « Ouvrir » (repli : `Documents\Stream Launcher\Profils`). Ils suivent la création, le renommage et la suppression des profils. **Outils > Ouvrir le dossier des raccourcis Stream Deck** ouvre le dossier du profil sélectionné. Ligne de commande équivalente :
 
 ```
 StreamLauncher.exe --profile "Nom du profil"

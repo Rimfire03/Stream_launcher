@@ -108,7 +108,7 @@ class MainForm : Form
         var addBtn = Ui.Btn("＋  Ajouter une étape  ▾", Ui.Kind.Primary, (s, _) => addMenu.Show((Control)s!, new Point(0, ((Control)s!).Height)));
 
         var toolsMenu = new ContextMenuStrip { Font = Ui.Base };
-        toolsMenu.Items.Add("Créer les raccourcis Stream Deck de ce profil…", null, (_, _) => CreateDeckShortcuts());
+        toolsMenu.Items.Add("Ouvrir le dossier des raccourcis Stream Deck", null, (_, _) => SyncDeck(true));
         toolsMenu.Items.Add(new ToolStripSeparator());
         toolsMenu.Items.Add("Identifier les écrans", null, (_, _) => IdentifyScreens());
         toolsMenu.Items.Add("Renommer les écrans…", null, (_, _) => RenameScreens());
@@ -251,6 +251,7 @@ class MainForm : Form
         RebuildProfiles();
         if (lbProf.Items.Count > 0) lbProf.SelectedIndex = 0;
         SetSidebar(cfg.SidebarCollapsed, false);
+        HandleCreated += (_, _) => SyncDeck();
         UpdateHeader();
         Log("Écrans : " + string.Join(" | ", Screen.AllScreens.Select(s =>
             $"{Config.Label(s.DeviceName)} {s.Bounds.Width}x{s.Bounds.Height}{(s.Primary ? " (principal)" : "")}")));
@@ -271,39 +272,21 @@ class MainForm : Form
         if (save) cfg.Save();
     }
 
-    // The Stream Deck "Open" action has no argument field: it opens a file. A .lnk carries the arguments instead.
-    void CreateDeckShortcuts()
+    // Shortcuts live in <app folder>\Profils\<profile>\ and are kept in sync automatically (see Deck).
+    async void SyncDeck(bool openFolder = false)
     {
-        if (Cur is not { } p) { Log("Sélectionne un profil d'abord"); return; }
         try
         {
-            // in the application folder ("Stream Deck" subfolder); Documents if that folder is not writable
-            var exeDir = Path.GetDirectoryName(Environment.ProcessPath)!;
-            var dir = Path.Combine(exeDir, "Stream Deck");
-            try { Directory.CreateDirectory(dir); File.WriteAllText(Path.Combine(dir, ".write-test"), ""); File.Delete(Path.Combine(dir, ".write-test")); }
-            catch (UnauthorizedAccessException)
+            var profiles = cfg.Profiles.ToList();
+            await Task.Run(() => Deck.Sync(profiles));
+            if (openFolder)
             {
-                dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Stream Launcher", "Stream Deck");
-                Directory.CreateDirectory(dir);
-                Log("Dossier de l'application non inscriptible : raccourcis créés dans Documents");
+                var dir = Cur != null ? Deck.FolderOf(Cur) : Deck.Root();
+                Log($"Raccourcis Stream Deck : {dir}");
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(dir) { UseShellExecute = true });
             }
-            var safe = string.Concat(p.Name.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
-            var exe = Environment.ProcessPath!;
-            dynamic shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!)!;
-            foreach (var (suffix, flag) in new[] { (" - bascule", "--profile"), (" - lancer", "--start"), (" - fermer", "--stop") })
-            {
-                dynamic lnk = shell.CreateShortcut(Path.Combine(dir, safe + suffix + ".lnk"));
-                lnk.TargetPath = exe;
-                lnk.Arguments = $"{flag} \"{p.Name}\"";
-                lnk.WorkingDirectory = Path.GetDirectoryName(exe);
-                lnk.IconLocation = exe + ",0";
-                lnk.Description = $"Stream Launcher : {p.Name}";
-                lnk.Save();
-            }
-            Log($"Raccourcis Stream Deck créés dans {dir}");
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(dir) { UseShellExecute = true });
         }
-        catch (Exception e) { Log("ERREUR : " + e.Message); }
+        catch (Exception e) { Log("Raccourcis Stream Deck : " + e.Message); }
     }
 
     void ShowProps() => pg.SelectedObject = CurStep == null ? null : new StepView(CurStep);
@@ -560,6 +543,7 @@ class MainForm : Form
         if (name == null) return;
         cfg.Profiles.Add(new Profile { Name = name });
         cfg.Save();
+        SyncDeck();
         RebuildProfiles();
         lbProf.SelectedIndex = lbProf.Items.Count - 1;
     }
@@ -571,6 +555,7 @@ class MainForm : Form
         if (name == null) return;
         p.Name = name;
         cfg.Save();
+        SyncDeck();
         RebuildProfiles();
     }
 
@@ -580,6 +565,7 @@ class MainForm : Form
         if (MessageBox.Show($"Supprimer le profil « {p.Name} » ?", Text, MessageBoxButtons.YesNo) != DialogResult.Yes) return;
         cfg.Profiles.Remove(p);
         cfg.Save();
+        SyncDeck();
         RebuildProfiles();
         RefreshSteps();
     }
