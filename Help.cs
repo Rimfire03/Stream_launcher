@@ -160,6 +160,8 @@ C'est une bascule : le premier appel lance le profil, le suivant ferme les fenê
 Dans Stream Deck, l'action « Système > Ouvrir » n'a pas de champ pour les arguments. Utilise les raccourcis générés par l'application :
 1. Les raccourcis sont créés automatiquement : dans le dossier « Profils » de l'application (par défaut C:\Program Files (x86)\Stream Launcher\Profils), un sous-dossier par profil contient « nom - bascule », « nom - lancer » et « nom - fermer » (.lnk). Ils sont mis à jour quand tu crées, renommes ou supprimes un profil, et à chaque démarrage. « Outils > Ouvrir le dossier des raccourcis Stream Deck » ouvre le dossier du profil sélectionné.
 2. Dans Stream Deck, glisse « Système > Ouvrir » sur une touche et choisis le raccourci voulu (« bascule » = même touche pour lancer puis fermer).
+3. Si la touche ne fait rien, essaie le fichier .cmd du même nom (même dossier) : certains lanceurs ignorent les arguments d'un raccourci .lnk. Lancer l'exe sans argument ne fait que réafficher la fenêtre de Stream Launcher.
+4. « Outils > Journal des lancements Stream Deck » ouvre le journal : chaque lancement en ligne de commande y est tracé (arguments reçus, étapes, erreurs).
 
 Code de retour : 0 = tout est passé, 1 = au moins une étape en erreur, 2 = profil inconnu (la fermeture renvoie 0).
 

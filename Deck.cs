@@ -53,6 +53,11 @@ static class Deck
                 lnk.IconLocation = exe + ",0";
                 lnk.Description = $"{Marker} {p.Name}";
                 lnk.Save();
+
+                // companion .cmd: some launchers resolve a .lnk to its target and drop the arguments
+                var exeQuoted = exe.Replace("%", "%%");
+                File.WriteAllText(Path.Combine(dir, Safe(p.Name) + suffix + ".cmd"),
+                    $"@echo off\r\nrem {Marker} {p.Name}\r\nstart \"\" \"{exeQuoted}\" {flag} \"{p.Name.Replace("%", "%%")}\"\r\n");
             }
         }
 
@@ -65,6 +70,8 @@ static class Deck
                 dynamic lnk = shell.CreateShortcut(f);
                 if (((string)lnk.Description).StartsWith(Marker)) File.Delete(f);
             }
+            foreach (var f in Directory.GetFiles(dir, "*.cmd"))
+                if (File.ReadLines(f).Take(2).Any(l => l.Contains(Marker))) File.Delete(f);
             if (!Directory.EnumerateFileSystemEntries(dir).Any()) Directory.Delete(dir);
         }
     }

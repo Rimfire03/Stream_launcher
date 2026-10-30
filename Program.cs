@@ -1,15 +1,17 @@
 static class Program
 {
-    // StreamLauncher.exe                    -> GUI (+ tray icon)
+    // StreamLauncher.exe                    -> GUI (+ tray icon); a second launch just brings the open window to the front
     // StreamLauncher.exe --tray             -> GUI started hidden in the tray
-    // StreamLauncher.exe --list-tray       -> prints the notification-area icon names (stdout, when redirected)
+    // StreamLauncher.exe --list-tray        -> prints the notification-area icon names (stdout, when redirected)
     // StreamLauncher.exe --profile "Nom"    -> toggle, headless (Stream Deck): starts the profile, or closes its windows if it is live; exit code 0 ok, 1 step errors, 2 unknown profile
     // StreamLauncher.exe --start "Nom" / --stop "Nom" -> force one direction
+    // Every launch is traced in %LOCALAPPDATA%\StreamLauncher\logs\launcher.log (see RunLog).
     [STAThread]
     static int Main(string[] args)
     {
         ApplicationConfiguration.Initialize();
         var cfg = Config.Load();
+        RunLog.Write($"lancement : {(args.Length == 0 ? "(sans argument)" : string.Join(" ", args))}");
 
         if (args.Contains("--list-tray"))
         {
@@ -22,16 +24,75 @@ static class Program
         {
             int i = Array.IndexOf(args, flag);
             if (i < 0 || i + 1 >= args.Length) continue;
-            var p = cfg.Profiles.FirstOrDefault(x => x.Name.Equals(args[i + 1], StringComparison.OrdinalIgnoreCase));
-            if (p == null) return 2;
+            // the name runs up to the next option: a launcher that forgot the quotes still works
+            var name = string.Join(" ", args.Skip(i + 1).TakeWhile(x => !x.StartsWith("--")));
+            var p = cfg.Profiles.FirstOrDefault(x => x.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+            if (p == null)
+            {
+                RunLog.Write($"profil introuvable : « {name} » (profils : {string.Join(", ", cfg.Profiles.Select(x => x.Name))})");
+                return 2;
+            }
             bool stop = flag == "--stop" || (flag == "--profile" && Live.IsLive(p.Name));
-            if (stop) return Task.Run(() => Live.Close(p.Name, _ => { })).GetAwaiter().GetResult() >= 0 ? 0 : 1;
-            return Task.Run(() => Live.Run(p, new Runner(), CancellationToken.None)).GetAwaiter().GetResult() == 0 ? 0 : 1;
+            try
+            {
+                if (stop)
+                {
+                    RunLog.Write($"[{p.Name}] fermeture du live");
+                    int n = Task.Run(() => Live.Close(p.Name, RunLog.Write)).GetAwaiter().GetResult();
+                    RunLog.Write($"[{p.Name}] {n} fenêtre(s) fermée(s)");
+                    return 0;
+                }
+                RunLog.Write($"[{p.Name}] lancement ({p.Steps.Count} étapes)");
+                int errors = Task.Run(() => Live.Run(p, new Runner { Log = RunLog.Write }, CancellationToken.None)).GetAwaiter().GetResult();
+                RunLog.Write($"[{p.Name}] terminé, {errors} erreur(s)");
+                return errors == 0 ? 0 : 1;
+            }
+            catch (Exception e)
+            {
+                RunLog.Write($"[{p.Name}] ERREUR : {e}");
+                return 1;
+            }
         }
 
         using var mutex = new Mutex(true, "TomLine.StreamLauncher.Gui", out var first);
-        if (!first) return 0;
-        Application.Run(new MainForm(cfg, args.Contains("--tray")));
+        using var showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, "TomLine.StreamLauncher.Show");
+        if (!first)
+        {
+            // already open: bring that window forward instead of exiting silently
+            if (args.Length == 0) RunLog.Write("instance déjà ouverte : fenêtre affichée (aucun argument reçu, voir « Raccourcis Stream Deck » dans l'aide)");
+            showEvent.Set();
+            return 0;
+        }
+
+        var form = new MainForm(cfg, args.Contains("--tray"));
+        new Thread(() =>
+        {
+            while (showEvent.WaitOne())
+                if (form.IsHandleCreated && !form.IsDisposed) form.BeginInvoke(form.ShowMain);
+        }) { IsBackground = true }.Start();
+        Application.Run(form);
         return 0;
+    }
+}
+
+/// <summary>Journal des lancements en ligne de commande (Stream Deck) : la ligne de commande n'a pas de fenêtre pour afficher les erreurs.</summary>
+static class RunLog
+{
+    static readonly object Gate = new();
+    public static string Dir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "StreamLauncher", "logs");
+    public static string FilePath => Path.Combine(Dir, "launcher.log");
+
+    public static void Write(string line)
+    {
+        try
+        {
+            lock (Gate)
+            {
+                Directory.CreateDirectory(Dir);
+                if (File.Exists(FilePath) && new FileInfo(FilePath).Length > 512 * 1024) File.Move(FilePath, FilePath + ".old", true);
+                File.AppendAllText(FilePath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss}  {line}{Environment.NewLine}");
+            }
+        }
+        catch { } // logging must never break a launch
     }
 }

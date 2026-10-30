@@ -109,6 +109,7 @@ class MainForm : Form
 
         var toolsMenu = new ContextMenuStrip { Font = Ui.Base };
         toolsMenu.Items.Add("Ouvrir le dossier des raccourcis Stream Deck", null, (_, _) => SyncDeck(true));
+        toolsMenu.Items.Add("Journal des lancements Stream Deck", null, (_, _) => OpenRunLog());
         toolsMenu.Items.Add(new ToolStripSeparator());
         toolsMenu.Items.Add("Identifier les écrans", null, (_, _) => IdentifyScreens());
         toolsMenu.Items.Add("Renommer les écrans…", null, (_, _) => RenameScreens());
@@ -273,6 +274,12 @@ class MainForm : Form
     }
 
     // Shortcuts live in <app folder>\Profils\<profile>\ and are kept in sync automatically (see Deck).
+    void OpenRunLog()
+    {
+        RunLog.Write("(journal ouvert depuis l'application)");
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("notepad.exe", $"\"{RunLog.FilePath}\"") { UseShellExecute = true });
+    }
+
     async void SyncDeck(bool openFolder = false)
     {
         try
@@ -414,7 +421,7 @@ class MainForm : Form
         base.OnFormClosing(e);
     }
 
-    void ShowMain()
+    public void ShowMain()
     {
         allowShow = true;
         Show();
