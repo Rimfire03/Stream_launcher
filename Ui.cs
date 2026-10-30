@@ -21,7 +21,7 @@ static class Ui
     public static readonly Font Base = new("Segoe UI", 9.5f);
     public static readonly Font Bold = new("Segoe UI", 9.5f, FontStyle.Bold);
     public static readonly Font Small = new("Segoe UI", 8.5f);
-    public static readonly Font Title = new("Segoe UI Semibold", 15f);
+    public static readonly Font Title = new("Segoe UI Semibold", 14f);
     public static readonly Font Mono = new("Consolas", 9f);
 
     public enum Kind { Primary, Secondary, Danger, Ghost }
@@ -30,7 +30,7 @@ static class Ui
     {
         var b = new Button
         {
-            Text = text, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(0, 34),
+            Text = text, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(0, 32),
             FlatStyle = FlatStyle.Flat, Font = Base, Cursor = Cursors.Hand, Padding = new Padding(10, 0, 10, 0), Margin = new Padding(0, 0, 8, 0),
             UseVisualStyleBackColor = false,
         };

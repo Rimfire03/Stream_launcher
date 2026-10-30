@@ -36,21 +36,18 @@ class MainForm : Form
         MinimumSize = new Size(980, 620);
         StartPosition = FormStartPosition.CenterScreen;
 
-        // ---- header band ----
-        var header = new Panel { Dock = DockStyle.Top, Height = 56, BackColor = Ui.Header };
-        var logo = new PictureBox { Image = new Icon(tray.Icon!, 32, 32).ToBitmap(), SizeMode = PictureBoxSizeMode.Zoom, Size = new Size(32, 32), Location = new Point(16, 12) };
-        var brand = new Label { Text = "Stream Launcher", Font = Ui.Title, ForeColor = Color.White, AutoSize = true, Location = new Point(56, 12) };
-        var ver = new Label { Text = Updater.Format(Updater.Current), Font = Ui.Small, ForeColor = Color.FromArgb(170, 165, 195), AutoSize = true, Location = new Point(56 + TextRenderer.MeasureText("Stream Launcher", Ui.Title).Width, 24) };
+        // ---- header band: brand, quick-launch pills, help menu ----
+        var header = new Panel { Dock = DockStyle.Top, Height = 44, BackColor = Ui.Header, Padding = new Padding(250, 0, 0, 0) };
+        var logo = new PictureBox { Image = new Icon(tray.Icon!, 32, 32).ToBitmap(), SizeMode = PictureBoxSizeMode.Zoom, Size = new Size(28, 28), Location = new Point(14, 8) };
+        var brand = new Label { Text = "Stream Launcher", Font = Ui.Title, ForeColor = Color.White, AutoSize = true, Location = new Point(48, 7) };
+        var ver = new Label { Text = Updater.Format(Updater.Current), Font = Ui.Small, ForeColor = Color.FromArgb(170, 165, 195), AutoSize = true, Location = new Point(48 + TextRenderer.MeasureText("Stream Launcher", Ui.Title).Width, 16) };
+        quick.Padding = new Padding(0, 6, 0, 0);
+        quick.WrapContents = false;
+        header.Controls.Add(quick);
         header.Controls.AddRange(new Control[] { logo, brand, ver });
 
-        // ---- quick launch strip ----
-        var quickWrap = new Panel { Dock = DockStyle.Top, Height = 80, BackColor = Ui.Bg, Padding = new Padding(16, 6, 16, 6) };
-        var quickTitle = new Label { Text = "LANCEMENT RAPIDE", Font = Ui.Small, ForeColor = Ui.Muted, Dock = DockStyle.Top, Height = 16 };
-        quickWrap.Controls.Add(quick);
-        quickWrap.Controls.Add(quickTitle);
-
         // ---- profiles sidebar ----
-        var sideTitle = new Label { Text = "PROFILS", Font = Ui.Small, ForeColor = Ui.Muted, Dock = DockStyle.Top, Height = 30, Padding = new Padding(14, 12, 0, 0), BackColor = Ui.Card };
+        var sideTitle = new Label { Text = "PROFILS", Font = Ui.Small, ForeColor = Ui.Muted, Dock = DockStyle.Top, Height = 28, Padding = new Padding(14, 10, 0, 0), BackColor = Ui.Card };
         var profBtns = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 92, Padding = new Padding(10, 8, 10, 10), BackColor = Ui.Card, ColumnCount = 2, RowCount = 2 };
         profBtns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         profBtns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
@@ -78,9 +75,9 @@ class MainForm : Form
 
         var titleBox = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, AutoSize = true, Dock = DockStyle.Left, WrapContents = false, Margin = new Padding(0) };
         titleBox.Controls.AddRange(new Control[] { lblProfile, lblCount });
-        var runBtns = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, WrapContents = false, Padding = new Padding(0, 6, 0, 0) };
+        var runBtns = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, WrapContents = false, Padding = new Padding(0, 4, 0, 0) };
         runBtns.Controls.AddRange(new Control[] { btnRun, btnStop, btnRec });
-        var profileBar = new Panel { Dock = DockStyle.Top, Height = 66, BackColor = Ui.Card, Padding = new Padding(18, 8, 14, 6) };
+        var profileBar = new Panel { Dock = DockStyle.Top, Height = 54, BackColor = Ui.Card, Padding = new Padding(18, 5, 14, 3) };
         profileBar.Controls.Add(runBtns);
         profileBar.Controls.Add(titleBox);
 
@@ -110,7 +107,7 @@ class MainForm : Form
         toolsMenu.Items.Add("Vérifier les mises à jour…", null, (_, _) => CheckUpdate(true));
         var toolsBtn = Ui.Btn("Outils  ▾", Ui.Kind.Secondary, (s, _) => toolsMenu.Show((Control)s!, new Point(0, ((Control)s!).Height)));
 
-        var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 52, BackColor = Ui.Bg, Padding = new Padding(18, 9, 14, 0), WrapContents = false };
+        var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 44, BackColor = Ui.Bg, Padding = new Padding(18, 6, 14, 0), WrapContents = false };
         toolbar.Controls.AddRange(new Control[]
         {
             addBtn, toolsBtn,
@@ -133,16 +130,16 @@ class MainForm : Form
         split2.Panel1.Controls.Add(stepsHolder);
         split2.Panel2.Controls.Add(propsHolder);
         var content = new Panel { Dock = DockStyle.Fill, BackColor = Ui.Bg, Padding = new Padding(0, 0, 0, 0) };
-        var cardFrame = new Panel { Dock = DockStyle.Fill, Padding = new Padding(18, 0, 14, 10), BackColor = Ui.Bg };
+        var cardFrame = new Panel { Dock = DockStyle.Fill, Padding = new Padding(18, 0, 14, 6), BackColor = Ui.Bg };
         cardFrame.Controls.Add(split2);
         content.Controls.Add(cardFrame);
         content.Controls.Add(toolbar);
         content.Controls.Add(profileBar);
 
         // ---- journal ----
-        var logHolder = new Panel { Dock = DockStyle.Bottom, Height = 110, BackColor = Ui.Bg, Padding = new Padding(16, 0, 14, 10) };
-        var logTitle = new Label { Text = "JOURNAL", Font = Ui.Small, ForeColor = Ui.Muted, Dock = DockStyle.Top, Height = 18 };
-        var logCard = new Panel { Dock = DockStyle.Fill, BackColor = Ui.Card, Padding = new Padding(8, 6, 8, 6) };
+        var logHolder = new Panel { Dock = DockStyle.Bottom, Height = 84, BackColor = Ui.Bg, Padding = new Padding(16, 0, 14, 6) };
+        var logTitle = new Label { Text = "JOURNAL", Font = Ui.Small, ForeColor = Ui.Muted, Dock = DockStyle.Top, Height = 16 };
+        var logCard = new Panel { Dock = DockStyle.Fill, BackColor = Ui.Card, Padding = new Padding(8, 4, 8, 4) };
         logCard.Controls.Add(log);
         logHolder.Controls.Add(logCard);
         logHolder.Controls.Add(logTitle);
@@ -152,7 +149,7 @@ class MainForm : Form
         main.Controls.Add(content);
         main.Controls.Add(sidebar);
         // footer, same look as FiltresApp: thin top border, copyright centred, version on the right, status on the left
-        var footer = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 30, BackColor = Ui.Card, Padding = new Padding(16, 0, 16, 0), ColumnCount = 3, RowCount = 1 };
+        var footer = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 26, BackColor = Ui.Card, Padding = new Padding(16, 0, 16, 0), ColumnCount = 3, RowCount = 1 };
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
@@ -165,7 +162,6 @@ class MainForm : Form
         Controls.Add(main);
         Controls.Add(logHolder);
         Controls.Add(footer);
-        Controls.Add(quickWrap);
         Controls.Add(header);
 
         var help = new ToolStripMenuItem("Aide");
@@ -180,10 +176,16 @@ class MainForm : Form
         help.DropDownItems.Add(new ToolStripSeparator());
         help.DropDownItems.Add("Vérifier les mises à jour…", null, (_, _) => CheckUpdate(true));
         help.DropDownItems.Add("À propos…", null, (_, _) => About());
-        var menu = new MenuStrip { BackColor = Ui.Card, Font = Ui.Base };
+        help.ForeColor = Color.White;
+        void DarkText(ToolStripItemCollection items)
+        {
+            foreach (ToolStripItem i in items) { i.ForeColor = Ui.Text; if (i is ToolStripMenuItem m) DarkText(m.DropDownItems); }
+        }
+        DarkText(help.DropDownItems);
+        var menu = new MenuStrip { Dock = DockStyle.Right, LayoutStyle = ToolStripLayoutStyle.HorizontalStackWithOverflow, AutoSize = false, Width = 70, BackColor = Ui.Header, Font = Ui.Base, GripStyle = ToolStripGripStyle.Hidden };
         menu.Items.Add(help);
         MainMenuStrip = menu;
-        Controls.Add(menu);
+        header.Controls.Add(menu);
 
         // ---- step list: right-click menu and drawing ----
         var stepMenu = new ContextMenuStrip { Font = Ui.Base };
@@ -463,6 +465,8 @@ class MainForm : Form
             var prof = p;
             var label = (Live.IsLive(prof.Name) ? "■ Fermer " : "▶ ") + prof.Name;
             var pill = Ui.Btn(label, Live.IsLive(prof.Name) ? Ui.Kind.Danger : Ui.Kind.Secondary, (_, _) => RunProfile(prof));
+            pill.MinimumSize = new Size(0, 28);
+            pill.Margin = new Padding(0, 0, 6, 0);
             quick.Controls.Add(pill);
             menu.Items.Add(label, null, (_, _) => RunProfile(prof));
         }
