@@ -83,9 +83,6 @@ sealed class StreamingDialog : Form
         Add(stars);
         Add(lblStatus);
         Add(lblDict);
-        var dictBtn = new FlowLayoutPanel { AutoSize = true };
-        dictBtn.Controls.Add(Ui.Btn("Actualiser le dictionnaire des jeux", Ui.Kind.Secondary, async (_, _) => await RefreshDict()));
-        Add(dictBtn);
         return p;
     }
 
@@ -162,13 +159,12 @@ sealed class StreamingDialog : Form
         if (p.Connected)
         {
             Say($"{p.Name} connecté : {p.UserName}", false);
-            if (GameDict.Current.Stale) await RefreshDict();
+            await RefreshDict(); // new account: its categories join the dictionary
         }
     }
 
     async Task OnShown()
     {
-        if (Streaming.Connected.Any() && GameDict.Current.Stale) await RefreshDict();
         if (Streaming.Connected.Any() && tbTitle.Text == "") await LoadFromLive();
     }
 
@@ -325,8 +321,8 @@ sealed class StreamingDialog : Form
     void ShowDict()
     {
         var d = GameDict.Current;
-        lblDict.Text = d.Games.Count == 0 ? "Dictionnaire des jeux : vide (se remplit à la connexion)"
-            : $"Dictionnaire des jeux : {d.Games.Count} jeux, mis à jour le {d.Updated:dd/MM/yyyy}";
+        lblDict.Text = d.Games.Count == 0 ? "Dictionnaire des jeux : vide (se remplit à la connexion et à chaque lancement)"
+            : $"Dictionnaire des jeux : {d.Games.Count} jeux, mis à jour le {d.Updated:dd/MM/yyyy HH:mm} (à chaque lancement)";
     }
 
     Task RefreshDict() => Guard(async () =>

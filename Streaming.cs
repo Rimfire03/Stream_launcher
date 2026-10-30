@@ -101,8 +101,6 @@ class GameDict
     static readonly object Gate = new();
     public static GameDict Current => current ??= Json.Load<GameDict>(File_);
 
-    public bool Stale => Games.Count == 0 || DateTime.Now - Updated > TimeSpan.FromDays(7);
-
     public GameEntry? Get(string name)
     {
         lock (Gate) return Games.FirstOrDefault(g => g.Name.Equals(name.Trim(), StringComparison.OrdinalIgnoreCase));

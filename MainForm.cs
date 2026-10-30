@@ -28,6 +28,18 @@ class MainForm : Form
     Profile? Cur => lbProf.SelectedItem as Profile;
     Step? CurStep => lbSteps.SelectedItem as Step;
     readonly System.Windows.Forms.Timer healthTimer = new() { Interval = 5 * 60 * 1000 }; // Twitch / Kick connection check
+    /// <summary>the game dictionary is re-read from the connected platforms at every launch (in the background)</summary>
+    void RefreshGames() => _ = Task.Run(async () =>
+    {
+        try
+        {
+            if (!Streaming.Connected.Any()) return;
+            int n = await Streaming.RefreshGamesAsync();
+            if (IsHandleCreated && !IsDisposed) BeginInvoke(() => Log($"Dictionnaire des jeux à jour : {n} jeux"));
+        }
+        catch (Exception e) { RunLog.Write("dictionnaire des jeux : " + e.Message); }
+    });
+
     void CheckConnections()
     {
         foreach (var p in Streaming.Platforms) _ = p.CheckAsync();
@@ -120,12 +132,6 @@ class MainForm : Form
         var settingsMenu = new ToolStripMenuItem("Paramètres");
         var liveMenu = new ToolStripMenuItem("Live");
         liveMenu.DropDownItems.Add("Éditer le titre, le jeu et les tags…", null, (_, _) => { using var d = new StreamingDialog(); d.ShowDialog(this); });
-        liveMenu.DropDownItems.Add("Actualiser le dictionnaire des jeux", null, async (_, _) =>
-        {
-            if (!Streaming.Connected.Any()) { MessageBox.Show("Connecte d'abord un compte Twitch ou Kick (Live > Éditer…).", Text); return; }
-            try { Log($"Dictionnaire des jeux : {await Streaming.RefreshGamesAsync()} jeux"); }
-            catch (Exception e) { Log("ERREUR dictionnaire des jeux : " + e.Message); }
-        });
         var toolsMenu = new ToolStripMenuItem("Outils");
         toolsMenu.DropDownItems.Add("Ouvrir le dossier des raccourcis Stream Deck", null, (_, _) => SyncDeck(true));
         toolsMenu.DropDownItems.Add("Journal des lancements Stream Deck", null, (_, _) => OpenRunLog());
@@ -253,7 +259,7 @@ class MainForm : Form
         header.Controls.Add(menu);
         healthTimer.Tick += (_, _) => CheckConnections();
         healthTimer.Start();
-        Shown += (_, _) => CheckConnections();
+        Shown += (_, _) => { CheckConnections(); RefreshGames(); };
 
         // ---- step list: right-click menu and drawing ----
         var stepMenu = new ContextMenuStrip { Font = Ui.Base };
