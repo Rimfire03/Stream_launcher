@@ -28,6 +28,7 @@ class MainForm : Form
     Profile? Cur => lbProf.SelectedItem as Profile;
     Step? CurStep => lbSteps.SelectedItem as Step;
     ChatWindow? chatWindow;
+    Button btnToggle = null!;
 
     /// <summary>opens the unified chat (one window); not modal, it stays next to the other windows</summary>
     public void OpenChatWindow()
@@ -175,12 +176,14 @@ class MainForm : Form
         settingsMenu.DropDownItems.Add(new ToolStripSeparator());
         settingsMenu.DropDownItems.Add(screensMenu);
 
+        btnToggle = Ui.Btn("Désactiver", Ui.Kind.Secondary, (_, _) => ToggleStep());
         var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 44, BackColor = Ui.Bg, Padding = new Padding(18, 6, 14, 0), WrapContents = false };
         toolbar.Controls.AddRange(new Control[]
         {
             addBtn,
             Ui.Btn("↑", Ui.Kind.Secondary, (_, _) => MoveStep(-1)),
             Ui.Btn("↓", Ui.Kind.Secondary, (_, _) => MoveStep(1)),
+            btnToggle,
             Ui.Btn("Dupliquer", Ui.Kind.Secondary, (_, _) => DuplicateStep()),
             Ui.Btn("Supprimer", Ui.Kind.Secondary, (_, _) => DeleteStep()),
         });
@@ -278,11 +281,12 @@ class MainForm : Form
         stepMenu.Items.Add("▶  Tester cette étape", null, (_, _) => TestStep(false));
         stepMenu.Items.Add("▶  Tester à partir de cette étape", null, (_, _) => TestStep(true));
         stepMenu.Items.Add(new ToolStripSeparator());
+        var toggleItem = stepMenu.Items.Add("Désactiver cette étape", null, (_, _) => ToggleStep());
         stepMenu.Items.Add("Monter", null, (_, _) => MoveStep(-1));
         stepMenu.Items.Add("Descendre", null, (_, _) => MoveStep(1));
         stepMenu.Items.Add("Dupliquer", null, (_, _) => DuplicateStep());
         stepMenu.Items.Add("Supprimer", null, (_, _) => DeleteStep());
-        stepMenu.Opening += (_, e) => e.Cancel = CurStep == null || cts != null;
+        stepMenu.Opening += (_, e) => { e.Cancel = CurStep == null || cts != null; toggleItem.Text = CurStep is { Enabled: false } ? "Activer cette étape" : "Désactiver cette étape"; };
         lbSteps.ContextMenuStrip = stepMenu;
         lbSteps.MouseDown += (_, e) =>
         {
@@ -419,7 +423,11 @@ class MainForm : Form
         catch (Exception e) { Log("Raccourcis Stream Deck : " + e.Message); }
     }
 
-    void ShowProps() => pg.SelectedObject = CurStep == null ? null : new StepView(CurStep);
+    void ShowProps()
+    {
+        pg.SelectedObject = CurStep == null ? null : new StepView(CurStep);
+        btnToggle.Text = CurStep is { Enabled: false } ? "Activer" : "Désactiver";
+    }
 
     void UpdateHeader()
     {
@@ -441,7 +449,7 @@ class MainForm : Form
         g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
         bool sel = (e.State & DrawItemState.Selected) != 0;
-        using (var bg = new SolidBrush(sel ? Ui.Selected : s.Issue != null ? ColorTranslator.FromHtml("#FDECEA") : Ui.Card)) g.FillRectangle(bg, e.Bounds);
+        using (var bg = new SolidBrush(sel ? Ui.Selected : s.OffReason != null ? Ui.Hover : s.Issue != null ? ColorTranslator.FromHtml("#FDECEA") : Ui.Card)) g.FillRectangle(bg, e.Bounds);
         if (sel) using (var bar = new SolidBrush(Ui.Primary)) g.FillRectangle(bar, e.Bounds.X, e.Bounds.Y, 4, e.Bounds.Height);
         using (var line = new Pen(Ui.Border)) g.DrawLine(line, e.Bounds.X + 14, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
 
@@ -455,13 +463,15 @@ class MainForm : Form
         TextRenderer.DrawText(g, (e.Index + 1).ToString(), Ui.Bold, new Rectangle(e.Bounds.X + 12, e.Bounds.Y, 26, e.Bounds.Height), Ui.Muted, TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter);
 
         var (label, color) = Ui.Badge(s.Type);
+        if (s.OffReason != null) color = Color.FromArgb(150, 148, 165); // switched off: grey
         var badge = new Rectangle(e.Bounds.X + 44, e.Bounds.Y + 9, 76, 18);
         using (var path = Ui.Round(badge, 6)) using (var br = new SolidBrush(color)) g.FillPath(br, path);
         TextRenderer.DrawText(g, label, new Font("Segoe UI", 8f, FontStyle.Bold), badge, Color.White, TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter);
 
         // one line per step: bold summary, then the details in grey, then the delay on the right
         var (main, sub) = Ui.Describe(s);
-        if (s.Issue != null) sub = s.Issue; // red row: the step will be skipped
+        if (s.OffReason != null) sub = s.OffReason; // grey row: disabled, or depends on a disabled step
+        else if (s.Issue != null) sub = s.Issue; // red row: the step will be skipped
         var delay = $"+{s.DelayMs} ms";
         int right = e.Bounds.Right - 14;
         var delaySize = TextRenderer.MeasureText(delay, Ui.Small);
@@ -469,10 +479,10 @@ class MainForm : Form
         int textLeft = badge.Right + 12, textWidth = right - delaySize.Width - 12 - textLeft;
         var fl = TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.Left | TextFormatFlags.VerticalCenter;
         int mainWidth = Math.Min(TextRenderer.MeasureText(main, Ui.Bold).Width + 4, textWidth);
-        TextRenderer.DrawText(g, main, Ui.Bold, new Rectangle(textLeft, e.Bounds.Y, mainWidth, e.Bounds.Height), (s.Issue != null ? Ui.Danger : Ui.Text), fl);
+        TextRenderer.DrawText(g, main, Ui.Bold, new Rectangle(textLeft, e.Bounds.Y, mainWidth, e.Bounds.Height), (s.OffReason != null ? Ui.Muted : s.Issue != null ? Ui.Danger : Ui.Text), fl);
         int subLeft = textLeft + mainWidth + 10;
         if (textWidth - mainWidth - 10 > 40)
-            TextRenderer.DrawText(g, sub, Ui.Small, new Rectangle(subLeft, e.Bounds.Y, textLeft + textWidth - subLeft, e.Bounds.Height), s.Issue != null ? Ui.Danger : Ui.Muted, fl);
+            TextRenderer.DrawText(g, sub, Ui.Small, new Rectangle(subLeft, e.Bounds.Y, textLeft + textWidth - subLeft, e.Bounds.Height), s.OffReason == null && s.Issue != null ? Ui.Danger : Ui.Muted, fl);
     }
 
     void DrawProfile(object? sender, DrawItemEventArgs e)
@@ -490,6 +500,16 @@ class MainForm : Form
         TextRenderer.DrawText(g, live ? "en direct" : $"{p.Steps.Count} étape{(p.Steps.Count > 1 ? "s" : "")}", Ui.Small,
             new Rectangle(e.Bounds.X + 16, e.Bounds.Y + 25, e.Bounds.Width - 50, 18), live ? Ui.LiveGreen : Ui.Muted, fl);
         if (live) using (var br = new SolidBrush(Ui.LiveGreen)) g.FillEllipse(br, e.Bounds.Right - 28, e.Bounds.Y + 17, 11, 11);
+    }
+
+    static Step Enabled(Step s) { s.Enabled = true; return s; } // a step tested on its own runs even when disabled
+
+    void ToggleStep()
+    {
+        if (Cur == null || CurStep is not { } s) return;
+        s.Enabled = !s.Enabled;
+        cfg.Save();
+        RefreshSteps();
     }
 
     void DuplicateStep()
@@ -728,7 +748,8 @@ class MainForm : Form
         if (Cur != null)
         {
             var issues = Checks.Analyze(Cur.Steps);
-            for (int i = 0; i < issues.Length; i++) Cur.Steps[i].Issue = issues[i];
+            var off = Checks.Skipped(Cur.Steps);
+            for (int i = 0; i < issues.Length; i++) { Cur.Steps[i].Issue = off[i] == null ? issues[i] : null; Cur.Steps[i].OffReason = off[i]; }
             lbSteps.Items.AddRange(Cur.Steps.ToArray<object>());
         }
         if (sel >= lbSteps.Items.Count) sel = lbSteps.Items.Count - 1;
@@ -817,7 +838,7 @@ class MainForm : Form
     {
         if (Cur is not { } p || CurStep is not { } s) return;
         int i = lbSteps.SelectedIndex;
-        RunProfile(new Profile { Name = "Test : " + s, Steps = fromHere ? p.Steps.Skip(i).ToList() : new List<Step> { s } }, live: false);
+        RunProfile(new Profile { Name = "Test : " + s, Steps = fromHere ? p.Steps.Skip(i).ToList() : new List<Step> { Enabled(s.Clone()) } }, live: false);
     }
 
 

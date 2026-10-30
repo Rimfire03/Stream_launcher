@@ -11,6 +11,7 @@ using System.Text.Json.Serialization;
 
 class Step
 {
+    [Browsable(false)] public bool Enabled { get; set; } = true; // false: the step is skipped, with the steps that depend on it (see Checks.Skipped)
     [DisplayName("Type d'étape"), Category("Délais")] public StepType Type { get; set; }
     [DisplayName("Attente avant (ms)"), Category("Délais"), Description("Attente avant l'étape (ms)")] public int DelayMs { get; set; } = 500;
     [DisplayName("Délai maximum (ms)"), Category("Délais"), Description("Délai max pour trouver la fenêtre / l'élément (ms)")] public int TimeoutMs { get; set; } = 15000;
@@ -64,6 +65,9 @@ class Step
 
     /// <summary>why this step will be skipped (missing executable...), set by <see cref="Checks.Analyze"/>; not saved</summary>
     [JsonIgnore, Browsable(false)] public string? Issue { get; set; }
+
+    /// <summary>why this step is switched off (disabled itself, or depends on a disabled one), set by <see cref="Checks.Skipped"/>; not saved</summary>
+    [JsonIgnore, Browsable(false)] public string? OffReason { get; set; }
 
     public Step Clone() => (Step)MemberwiseClone();
 

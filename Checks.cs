@@ -26,13 +26,40 @@ static class Checks
         return false;
     }
 
+    /// <returns>for each step, null when it runs, else why it is switched off: disabled by the user, or depending on a disabled step
+    /// (a step aimed at the windows of a disabled Launch step's application, or at the window of a disabled Browser step)</returns>
+    public static string?[] Skipped(IReadOnlyList<Step> steps)
+    {
+        var res = new string?[steps.Count];
+        var enabledProcs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var disabledProcs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var s in steps.Where(s => s.Type == StepType.Launch))
+        {
+            var proc = Path.GetFileNameWithoutExtension(Environment.ExpandEnvironmentVariables(s.Exe.Trim().Trim('"')));
+            (s.Enabled ? enabledProcs : disabledProcs).Add(proc);
+        }
+        disabledProcs.ExceptWith(enabledProcs); // another enabled step still launches this application
+        int lastBrowser = -1;
+        for (int i = 0; i < steps.Count; i++)
+        {
+            var s = steps[i];
+            if (!s.Enabled) res[i] = "Désactivée";
+            else if (s.Type != StepType.Launch && s.Type != StepType.Browser && s.OnLastWindow && lastBrowser >= 0 && res[lastBrowser] != null)
+                res[i] = $"Désactivée : l'étape Navigateur n° {lastBrowser + 1} est désactivée";
+            else if (s.Type != StepType.Launch && s.Process != "" && disabledProcs.Contains(s.Process))
+                res[i] = $"Désactivée : {s.Process} n'est pas lancée";
+            if (s.Type == StepType.Browser) lastBrowser = i;
+        }
+        return res;
+    }
+
     /// <returns>for each step, null when fine, else why it is skipped: the missing executable, or a step aimed at that application's windows</returns>
     public static string?[] Analyze(IReadOnlyList<Step> steps)
     {
         var res = new string?[steps.Count];
         var missing = new HashSet<string>(StringComparer.OrdinalIgnoreCase); // process names of the missing executables
         for (int i = 0; i < steps.Count; i++)
-            if (steps[i].Type == StepType.Launch && !ExeExists(steps[i].Exe))
+            if (steps[i].Enabled && steps[i].Type == StepType.Launch && !ExeExists(steps[i].Exe))
             {
                 res[i] = "Introuvable : " + steps[i].Exe;
                 missing.Add(Path.GetFileNameWithoutExtension(Environment.ExpandEnvironmentVariables(steps[i].Exe.Trim().Trim('"'))));

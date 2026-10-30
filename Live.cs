@@ -40,7 +40,7 @@ static class Live
         finally
         {
             Directory.CreateDirectory(Dir);
-            var keep = p.Steps.Where(s => s.Type == StepType.Launch && s.KeepOpen && !string.IsNullOrWhiteSpace(s.Exe))
+            var keep = p.Steps.Where(s => s.Enabled && s.Type == StepType.Launch && s.KeepOpen && !string.IsNullOrWhiteSpace(s.Exe))
                 .Select(s => Path.GetFileNameWithoutExtension(s.Exe)).ToArray();
             var state = new State(DateTime.Now, before, runner.Touched.Select(t => new WinRef((long)t.H, t.Pid)).ToArray(), keep, runner.KeepWindows.Select(h => (long)h).ToArray());
             File.WriteAllText(FileOf(p.Name), JsonSerializer.Serialize(state));

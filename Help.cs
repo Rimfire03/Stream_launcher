@@ -41,6 +41,10 @@ Réglages communs à toutes les étapes :
 - DelayMs : attente avant l'étape (en millisecondes).
 - TimeoutMs : temps maximum pour trouver la fenêtre ou l'élément. Passé ce délai l'étape est en erreur, le profil continue avec l'étape suivante."),
 
+        new("Désactiver une étape", @"Bouton « Désactiver » (ou clic droit > « Désactiver cette étape ») : l'étape est ignorée au lancement et s'affiche en gris. Les étapes qui en dépendent sont désactivées automatiquement, sans changer leurs propres réglages :
+- une étape Lancer désactivée désactive les étapes Placer, Action fenêtre, Clic et Icône du tray visant le même processus (sauf si une autre étape Lancer active démarre cette application) ;
+- une étape Navigateur désactivée désactive les étapes qui ciblent « la fenêtre du navigateur » ouverte par elle.
+Le motif s'affiche sur chaque ligne grise. Réactive l'étape (bouton « Activer ») pour tout rétablir. « Tester cette étape » lance l'étape même si elle est désactivée."),
         new("Étape Lancer (applications)", @"Lance une application, un document ou une URL.
 
 Propriétés (catégorie « Lancement ») :

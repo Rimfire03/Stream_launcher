@@ -25,11 +25,17 @@ class Runner
         int errors = 0;
         using var uia = new UIA3Automation();
         var issues = Checks.Analyze(p.Steps); // missing executables are skipped, with the steps aimed at their windows
+        var off = Checks.Skipped(p.Steps); // disabled steps, and the ones that depend on them
         for (int i = 0; i < p.Steps.Count; i++)
         {
             ct.ThrowIfCancellationRequested();
             var s = p.Steps[i];
             Log($"[{i + 1}/{p.Steps.Count}] {s}");
+            if (off[i] != null)
+            {
+                Log("  " + off[i] + " : étape ignorée");
+                continue;
+            }
             if (issues[i] != null)
             {
                 Log("  " + issues[i] + " : étape ignorée");
