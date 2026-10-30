@@ -28,7 +28,7 @@ static class Ui
 
     public static Button Btn(string text, Kind kind, EventHandler onClick)
     {
-        var b = new Button
+        var b = new RoundButton
         {
             Text = text, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(0, 32),
             FlatStyle = FlatStyle.Flat, Font = Base, Cursor = Cursors.Hand, Padding = new Padding(10, 0, 10, 0), Margin = new Padding(0, 0, 8, 0),
@@ -158,4 +158,43 @@ class StepView : ICustomTypeDescriptor
     public object? GetEditor(Type editorBaseType) => TypeDescriptor.GetEditor(s, editorBaseType, true);
     public EventDescriptorCollection GetEvents() => EventDescriptorCollection.Empty;
     public EventDescriptorCollection GetEvents(Attribute[]? attributes) => EventDescriptorCollection.Empty;
+}
+
+
+/// <summary>Flat button with rounded corners (anti-aliased), same colours and hover as a flat <see cref="Button"/>.</summary>
+sealed class RoundButton : Button
+{
+    const int Radius = 8;
+    bool hover, down;
+
+    public RoundButton()
+    {
+        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+    }
+
+    protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); base.OnMouseEnter(e); }
+    protected override void OnMouseLeave(EventArgs e) { hover = down = false; Invalidate(); base.OnMouseLeave(e); }
+    protected override void OnMouseDown(MouseEventArgs e) { down = true; Invalidate(); base.OnMouseDown(e); }
+    protected override void OnMouseUp(MouseEventArgs e) { down = false; Invalidate(); base.OnMouseUp(e); }
+    protected override void OnEnabledChanged(EventArgs e) { Invalidate(); base.OnEnabledChanged(e); }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        g.Clear(Parent?.BackColor ?? Ui.Bg);
+        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        var fill = !Enabled ? Color.FromArgb(235, BackColor) : down ? FlatAppearance.MouseDownBackColor.IsEmpty ? FlatAppearance.MouseOverBackColor : FlatAppearance.MouseDownBackColor : hover ? FlatAppearance.MouseOverBackColor : BackColor;
+        var r = new Rectangle(0, 0, Width - 1, Height - 1);
+        using (var path = Ui.Round(r, Radius))
+        {
+            using (var br = new SolidBrush(fill)) g.FillPath(br, path);
+            if (FlatAppearance.BorderSize > 0) using (var pen = new Pen(FlatAppearance.BorderColor)) g.DrawPath(pen, path);
+        }
+        var color = Enabled ? ForeColor : Color.FromArgb(150, ForeColor);
+        var textSize = TextRenderer.MeasureText(Text, Font, new Size(int.MaxValue, 0), TextFormatFlags.NoPadding);
+        int imgW = Image != null ? Image.Width + 6 : 0;
+        int x = Math.Max(Padding.Left, (Width - textSize.Width - imgW) / 2);
+        if (Image != null) g.DrawImage(Image, x, (Height - Image.Height) / 2);
+        TextRenderer.DrawText(g, Text, Font, new Rectangle(x + imgW, 0, Width - x - imgW, Height), color, TextFormatFlags.NoPadding | TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+    }
 }
