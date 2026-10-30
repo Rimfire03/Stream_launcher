@@ -132,9 +132,9 @@ L'ordre d'exécution est : profil, collection, scène. Chaque champ peut rester 
 Si la scène n'existe pas, l'étape échoue tout de suite avec le message d'OBS ; si OBS est injoignable (fermé, WebSocket désactivé), elle réessaie puis échoue au bout du délai maximum."),
         new("Twitch et Kick (titre, jeu, tags)", @"Menu « Live > Éditer le titre, le jeu et les tags… » : change le titre, le jeu et les tags de ta chaîne sur Twitch et sur Kick en même temps (mêmes valeurs sur les deux).
 
-Connexion (une fois par plateforme) : dans la fenêtre, clique « Connecter ». La première fois, l'application demande les identifiants d'une application que tu crées toi-même (gratuit) ; la fenêtre explique les étapes :
-- Twitch : dev.twitch.tv/console/apps, URL de redirection http://localhost, type de client « Public ». Seul l'identifiant client est nécessaire. Tu saisis ensuite le code affiché dans la page Twitch.
-- Kick : Paramètres > Développeur sur kick.com, URL de redirection http://localhost:43117/callback, droits channel:read et channel:write. L'identifiant et le secret client sont nécessaires. Tu autorises ensuite l'application dans la page Kick.
+Connexion (une fois par plateforme) : dans la fenêtre, clique « Connecter ». Twitch : rien à configurer, l'application Stream Launcher est déjà intégrée ; tu saisis seulement le code affiché dans la page Twitch qui s'ouvre (bouton « Identifiants… » : pour utiliser ta propre application Twitch, facultatif).
+Kick : l'application demande les identifiants d'une application que tu crées toi-même (gratuit) ; la fenêtre explique les étapes :
+- Paramètres > Développeur sur kick.com, URL de redirection http://localhost:43117/callback, droits channel:read et channel:write. L'identifiant et le secret client sont nécessaires. Tu autorises ensuite l'application dans la page Kick.
 Les jetons et le secret sont enregistrés chiffrés (Windows, ton compte uniquement), jamais en clair.
 
 Indicateur de connexion : en haut à droite, un point par plateforme : vert = connexion opérationnelle, orange = vérification en cours, rouge = erreur (passe la souris pour lire le détail), gris = non connecté. L'état est vérifié au démarrage puis toutes les 5 minutes, et à chaque envoi. Clique sur un point pour ouvrir la fenêtre.
