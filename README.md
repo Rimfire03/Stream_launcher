@@ -38,7 +38,7 @@ C'est une **bascule** : le 1er appel lance le profil, le suivant ferme toutes le
 
 ## Installation
 
-L'assistant MSI propose le dossier de destination (défaut : `C:\Program Files (x86)\Stream Launcher`). Les mises à jour automatiques réinstallent dans le dossier choisi la première fois.
+Au lancement, l'assistant MSI cherche la dernière version stable publiée (`releases/latest`, branche `main`) et, si elle est plus récente que le MSI utilisé, propose de la télécharger (action personnalisée `installer\CheckLatest.js`, ignorée sans réseau ou en installation silencieuse). Il affiche ensuite le CLUF, puis propose le dossier de destination (défaut : `C:\Program Files (x86)\Stream Launcher`). Les mises à jour automatiques réinstallent dans le dossier choisi la première fois.
 
 ## Build
 
@@ -69,7 +69,7 @@ Menu **Live > Éditer le titre, le jeu et les tags…** : mêmes titre, jeu et t
 - **Connexion sans configuration** : les versions publiées embarquent les applications Twitch et Kick de Stream Launcher. Twitch : flux « device code » (identifiant client public, code à saisir sur twitch.tv). Kick : OAuth 2.1 PKCE avec retour sur `http://localhost:43117/callback` (port à garder libre), droits `channel:read` et `channel:write`.
 - **Jetons chiffrés** (DPAPI, compte Windows courant) dans `%LOCALAPPDATA%\StreamLauncher\streaming-auth.bin`. Ils ne sont transmis qu'à Twitch et à Kick.
 - **Voyants de connexion** en haut à droite : vert (opérationnelle), orange (vérification), rouge (erreur, détail au survol), gris (non connecté). Vérifiés au démarrage, toutes les 5 minutes et à chaque envoi.
-- **Favoris** (combos titre + jeu + tags) appliqués en 1 clic, **historique** des 15 derniers lives (`streaming.json`), **dictionnaire des jeux** mis à jour dynamiquement (`games.json`) : relu à chaque lancement de l'application (catégories des plateformes connectées), complété à chaque recherche.
+- **Favoris** (combos titre + jeu + tags) créés, modifiables et appliqués en 1 clic, **historique** des 15 derniers lives (`streaming.json`), **dictionnaire des jeux** mis à jour dynamiquement (`games.json`) : relu à chaque lancement de l'application (catégories des plateformes connectées), complété à chaque recherche.
 - Étape **Scène OBS Studio** : profil, collection de scènes puis scène (serveur WebSocket d'OBS 28+).
 
 ## Canaux de mise à jour et branches

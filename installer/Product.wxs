@@ -20,6 +20,18 @@
     <Property Id="STARTMENU_SHORTCUT" Value="1" />
     <Property Id="DESKTOP_SHORTCUT" Value="1" />
 
+    <!-- Au lancement de l'assistant : cherche la dernière version stable publiée (releases/latest, donc main) et, si elle est plus récente
+         que ce MSI, propose de la télécharger (UpdateAvailableDlg). Sans réseau ou en installation silencieuse : ignoré. -->
+    <Property Id="UPDATEAVAILABLE" Secure="yes" />
+    <Property Id="LATEST_VERSION" Secure="yes" />
+    <Property Id="LATEST_URL" Secure="yes" />
+    <Binary Id="CheckLatestJs" SourceFile="$(sys.SOURCEFILEDIR)CheckLatest.js" />
+    <CustomAction Id="CheckLatestVersion" BinaryRef="CheckLatestJs" JScriptCall="CheckLatest" Execute="immediate" Return="ignore" />
+    <CustomAction Id="OpenLatestDownload" Directory="SystemFolder" ExeCommand="cmd.exe /c start &quot;&quot; &quot;[LATEST_URL]&quot;" Return="asyncNoWait" />
+    <InstallUISequence>
+      <Custom Action="CheckLatestVersion" After="FindRelatedProducts" Condition="NOT Installed AND UILevel &gt; 4" />
+    </InstallUISequence>
+
     <CustomAction Id="SetProfilsDir" Property="PROFILSDIR" Value="[INSTALLFOLDER]Profils" />
     <InstallExecuteSequence>
       <Custom Action="SetProfilsDir" After="CostFinalize" />
@@ -81,10 +93,33 @@
       <Level Value="0" Condition="NOT DESKTOP_SHORTCUT" />
     </Feature>
 
-    <!-- Assistant : accueil, choix du dossier, installation (sans page de licence). -->
+    <!-- Assistant : accueil, [version plus récente disponible], licence (CLUF), choix du dossier, raccourcis, installation. -->
     <WixVariable Id="WixUILicenseRtf" Value="$(LicenseRtf)" />
     <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
     <UI>
+      <Dialog Id="UpdateAvailableDlg" Width="370" Height="270" Title="!(loc.InstallDirDlg_Title)">
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="WixUI_Bmp_Banner" />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Une version plus récente est disponible" />
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="Stream Launcher [LATEST_VERSION] est publiée." />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+        <Control Id="Info" Type="Text" X="25" Y="62" Width="325" Height="70" NoPrefix="yes" Text="Vous êtes sur le point d'installer la version [ProductVersion], mais la version [LATEST_VERSION] est disponible. Il est conseillé de télécharger la dernière version." />
+        <Control Id="Download" Type="PushButton" X="25" Y="140" Width="200" Height="21" Text="Télécharger la dernière version et quitter">
+          <Publish Event="DoAction" Value="OpenLatestDownload" Order="1" />
+          <Publish Event="EndDialog" Value="Exit" Order="2" />
+        </Control>
+        <Control Id="Hint" Type="Text" X="25" Y="170" Width="325" Height="40" NoPrefix="yes" Text="Ou continuez avec la version [ProductVersion] : l'application proposera elle-même la mise à jour à son premier démarrage." />
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
+          <Publish Event="NewDialog" Value="WelcomeDlg" />
+        </Control>
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="Continuer">
+          <Publish Event="NewDialog" Value="LicenseAgreementDlg" />
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg" />
+        </Control>
+      </Dialog>
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="UpdateAvailableDlg" Order="3" Condition="NOT Installed AND UPDATEAVAILABLE = &quot;1&quot;" />
       <Dialog Id="ShortcutsDlg" Width="370" Height="270" Title="!(loc.InstallDirDlg_Title)">
         <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="WixUI_Bmp_Banner" />
         <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Raccourcis" />

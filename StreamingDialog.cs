@@ -97,6 +97,8 @@ sealed class StreamingDialog : Form
         lvFav.DoubleClick += async (_, _) => await ApplyFavorite();
         var fb = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, Padding = new Padding(0, 8, 0, 0) };
         fb.Controls.Add(Ui.Btn("Appliquer en 1 clic", Ui.Kind.Primary, async (_, _) => await ApplyFavorite()));
+        fb.Controls.Add(Ui.Btn("Modifier…", Ui.Kind.Secondary, (_, _) => EditFavorite(false)));
+        fb.Controls.Add(Ui.Btn("Nouveau…", Ui.Kind.Secondary, (_, _) => EditFavorite(true)));
         fb.Controls.Add(Ui.Btn("Dans le formulaire", Ui.Kind.Secondary, (_, _) => FavoriteToForm()));
         fb.Controls.Add(Ui.Btn("Supprimer", Ui.Kind.Secondary, (_, _) => RemoveFavorite()));
         fav.Controls.Add(lvFav);
@@ -261,6 +263,21 @@ sealed class StreamingDialog : Form
         return ApplyForm();
     }
 
+    /// <summary>edits the selected favourite, or creates a new one, in a small form</summary>
+    void EditFavorite(bool create)
+    {
+        if (!create && SelectedFavorite == null) return;
+        int index = create ? -1 : lvFav.SelectedIndices[0];
+        using var d = new FavoriteDialog(create ? new LiveInfo() : store.Favorites[index], create);
+        if (d.ShowDialog(this) != DialogResult.OK) return;
+        if (create) store.Favorites.Add(d.Result); else store.Favorites[index] = d.Result;
+        store.Save();
+        FillFavs();
+        int sel = create ? store.Favorites.Count - 1 : index;
+        lvFav.Items[sel].Selected = true;
+        Say(create ? "Favori ajouté." : "Favori modifié.", false);
+    }
+
     void RemoveFavorite()
     {
         if (lvFav.SelectedItems.Count == 0) return;
@@ -367,6 +384,47 @@ sealed class StreamingDialog : Form
     }
 
     static bool HasId(GameEntry g, Platform p) => p.Id == "twitch" ? g.TwitchId != null : g.KickId != null;
+}
+
+/// <summary>Edit one favourite: title, game and tags.</summary>
+sealed class FavoriteDialog : Form
+{
+    public LiveInfo Result { get; private set; } = new();
+
+    public FavoriteDialog(LiveInfo f, bool create)
+    {
+        Text = create ? "Nouveau favori" : "Modifier le favori";
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        MaximizeBox = MinimizeBox = false;
+        StartPosition = FormStartPosition.CenterParent;
+        ClientSize = new Size(520, 270);
+        Font = Ui.Base;
+        var title = new TextBox { Left = 16, Top = 36, Width = 488, MaxLength = 140, Text = f.Title };
+        var game = new TextBox { Left = 16, Top = 92, Width = 488, Text = f.GameName, AutoCompleteMode = AutoCompleteMode.SuggestAppend, AutoCompleteSource = AutoCompleteSource.CustomSource };
+        var names = new AutoCompleteStringCollection();
+        names.AddRange(GameDict.Current.Find("", 2000).Select(g => g.Name).ToArray());
+        game.AutoCompleteCustomSource = names;
+        var tags = new TextBox { Left = 16, Top = 148, Width = 488, Text = string.Join(", ", f.Tags) };
+        Controls.AddRange(new Control[]
+        {
+            new Label { Left = 16, Top = 14, AutoSize = true, Text = "Titre", Font = Ui.Bold }, title,
+            new Label { Left = 16, Top = 70, AutoSize = true, Text = "Jeu", Font = Ui.Bold }, game,
+            new Label { Left = 16, Top = 126, AutoSize = true, Text = "Tags (séparés par des virgules ; 10 au plus, lettres et chiffres)", Font = Ui.Bold }, tags,
+        });
+        var ok = Ui.Btn("Enregistrer", Ui.Kind.Primary, (_, _) =>
+        {
+            if (title.Text.Trim() == "") { MessageBox.Show("Le titre est obligatoire.", Text); return; }
+            Result = new LiveInfo { Title = title.Text.Trim(), GameName = game.Text.Trim(), Tags = Streaming.NormalizeTags(tags.Text) };
+            DialogResult = DialogResult.OK;
+        });
+        ok.Left = 16; ok.Top = 214;
+        var cancel = Ui.Btn("Annuler", Ui.Kind.Secondary, (_, _) => DialogResult = DialogResult.Cancel);
+        cancel.Left = 140; cancel.Top = 214;
+        Controls.Add(ok);
+        Controls.Add(cancel);
+        AcceptButton = ok;
+        CancelButton = cancel;
+    }
 }
 
 /// <summary>Shows what the user has to do (code to enter / page to authorize) while the platform sign-in runs.</summary>

@@ -143,7 +143,7 @@ Titre, jeu, tags : « Appliquer sur les plateformes » envoie les trois valeurs 
 
 Jeux : le dictionnaire des jeux se met à jour tout seul. Il est relu à chaque lancement de l'application (et à chaque nouvelle connexion) à partir des catégories des plateformes connectées, et chaque recherche tapée dans le champ y ajoute les jeux trouvés. Il est enregistré dans %LOCALAPPDATA%\StreamLauncher\games.json. Sous le champ, « Pris en charge : Twitch ✔ Kick ✔ » indique où le jeu est connu.
 
-Favoris : un favori est un combo titre + jeu + tags, qui vont toujours ensemble. « ★ Ajouter aux favoris » enregistre ce qui est dans le formulaire. Dans l'onglet « Favoris », « Appliquer en 1 clic » (ou double-clic) envoie tout de suite le combo à toutes les plateformes ; « Dans le formulaire » ne fait que le copier pour le modifier.
+Favoris : un favori est un combo titre + jeu + tags, qui vont toujours ensemble. « ★ Ajouter aux favoris » enregistre ce qui est dans le formulaire ; « Nouveau… » en crée un directement. Dans l'onglet « Favoris », « Appliquer en 1 clic » (ou double-clic) envoie tout de suite le combo à toutes les plateformes ; « Modifier… » change son titre, son jeu ou ses tags ; « Dans le formulaire » ne fait que le copier ; « Supprimer » le retire.
 
 Historique : les 15 derniers lives (titre, jeu, tags), enregistrés quand tu appliques des valeurs ou que tu lances un live. « Importer mes lives Twitch (VOD) » ajoute les titres de tes dernières diffusions Twitch (Twitch ne donne pas le jeu). Kick ne fournit pas d'historique. « ★ Mettre en favoris » ajoute ce combo aux favoris ; « Appliquer » renvoie ce live.
 
@@ -208,7 +208,7 @@ Autres options :
 
 Au quotidien, l'icône de la zone de notification (clic droit) permet aussi de lancer chaque profil."),
 
-        new("Installation et mises à jour", @"Installation : l'assistant MSI affiche d'abord le contrat de licence (CLUF) à accepter, puis propose le dossier de destination (par défaut C:\Program Files (x86)\Stream Launcher) et les icônes du menu Démarrer et du bureau. Le dossier d'installation reste inscriptible : profiles.json y est enregistré.
+        new("Installation et mises à jour", @"Installation : au lancement de l'assistant MSI, la dernière version publiée est cherchée sur GitHub ; si elle est plus récente que l'installateur utilisé, l'assistant le signale et propose de la télécharger (ou de continuer avec cette version). Sans connexion ou en installation silencieuse, cette vérification est ignorée. L'assistant affiche ensuite le contrat de licence (CLUF) à accepter, puis propose le dossier de destination (par défaut C:\Program Files (x86)\Stream Launcher) et les icônes du menu Démarrer et du bureau. Le dossier d'installation reste inscriptible : profiles.json y est enregistré.
 
 Mises à jour : au démarrage, et via le bouton « Mises à jour » ou le menu Aide, l'application compare sa version (format Va.b.c, par exemple V0.1.10) à la dernière release GitHub. Si une version plus récente existe, elle télécharge l'installateur, vérifie qu'il est signé par TomLine prod&co, l'installe (Windows demande une validation administrateur) puis redémarre l'application.
 
