@@ -15,6 +15,7 @@ sealed class StreamingDialog : Form
     readonly System.Windows.Forms.Timer searchTimer = new() { Interval = 400 };
     CancellationTokenSource? searchCts;
     bool busy;
+    readonly FlowLayoutPanel perPlatform = new() { AutoSize = true, WrapContents = true }; // "Appliquer seulement sur Twitch / Kick"
 
     public StreamingDialog()
     {
@@ -78,6 +79,7 @@ sealed class StreamingDialog : Form
         actions.Controls.Add(Ui.Btn("Appliquer sur les plateformes", Ui.Kind.Primary, async (_, _) => await ApplyForm()));
         actions.Controls.Add(Ui.Btn("Charger depuis le live", Ui.Kind.Secondary, async (_, _) => await LoadFromLive()));
         Add(actions);
+        Add(perPlatform);
         var stars = new FlowLayoutPanel { AutoSize = true, WrapContents = true };
         stars.Controls.Add(Ui.Btn("★ Ajouter aux favoris (titre + jeu + tags)", Ui.Kind.Secondary, (_, _) => AddFavorite()));
         Add(stars);
@@ -145,6 +147,14 @@ sealed class StreamingDialog : Form
             if (p.Connected) row.Controls.Add(Ui.Btn("Tester", Ui.Kind.Ghost, async (_, _) => { await plat.CheckAsync(); Say(plat.StateText, plat.State == Health.Error); }));
             accounts.Controls.Add(row);
         }
+        perPlatform.Controls.Clear();
+        foreach (var p in Streaming.Platforms)
+        {
+            var plat = p;
+            var b = Ui.Btn($"Appliquer seulement sur {p.Name}", Ui.Kind.Secondary, async (_, _) => await ApplyForm(new[] { plat }));
+            b.Enabled = p.Connected;
+            perPlatform.Controls.Add(b);
+        }
     }
 
     async Task Connect(Platform p)
@@ -197,21 +207,22 @@ sealed class StreamingDialog : Form
 
     void Report(List<(Platform P, string? Warning, Exception? Error)> results)
     {
-        Say(string.Join("\n", results.Select(r => r.Error != null ? $"✖ {r.P.Name} : {r.Error.Message}" : r.Warning != null ? $"⚠ {r.P.Name} : appliqué, mais {r.Warning}" : $"✔ {r.P.Name} : appliqué")),
+        Say(string.Join("\n", results.Select(r => r.Error != null ? "✖ " + (r.Error.Message.StartsWith(r.P.Name) ? r.Error.Message : $"{r.P.Name} : {r.Error.Message}") : r.Warning != null ? $"⚠ {r.P.Name} : appliqué, mais {r.Warning}" : $"✔ {r.P.Name} : appliqué")),
             results.Any(r => r.Error != null));
     }
 
     // ---- apply ----
 
-    Task ApplyForm() => Guard(async () =>
+    Task ApplyForm(IEnumerable<Platform>? only = null) => Guard(async () =>
     {
         if (NeedConnection()) return;
+        if (only != null && !only.Any(p => p.Connected)) { Say("Ce compte n'est pas connecté.", true); return; }
         var title = tbTitle.Text.Trim();
         var game = tbGame.Text.Trim();
         var tags = Streaming.NormalizeTags(tbTags.Text);
         tbTags.Text = string.Join(", ", tags);
         Say("Envoi…", false);
-        var res = await Streaming.ApplyAsync(title == "" ? null : title, game == "" ? null : game, tags);
+        var res = await Streaming.ApplyAsync(title == "" ? null : title, game == "" ? null : game, tags, only);
         Report(res);
         var ok = res.Where(r => r.Error == null).Select(r => r.P.Name).ToList();
         if (ok.Count > 0 && title != "")
@@ -339,7 +350,7 @@ sealed class StreamingDialog : Form
     {
         var d = GameDict.Current;
         lblDict.Text = d.Games.Count == 0 ? "Dictionnaire des jeux : vide (se remplit à la connexion et à chaque lancement)"
-            : $"Dictionnaire des jeux : {d.Games.Count} jeux, mis à jour le {d.Updated:dd/MM/yyyy HH:mm} (à chaque lancement)";
+            : $"Dictionnaire des jeux : {d.Games.Count} jeux" + (d.Updated.Year > 2000 ? $", mis à jour le {d.Updated:dd/MM/yyyy HH:mm}" : "") + " (à chaque lancement)";
     }
 
     Task RefreshDict() => Guard(async () =>

@@ -139,7 +139,7 @@ Les jetons sont enregistrés chiffrés (Windows, ton compte uniquement), jamais 
 
 Indicateur de connexion : en haut à droite, un point par plateforme : vert = connexion opérationnelle, orange = vérification en cours, rouge = erreur (passe la souris pour lire le détail), gris = non connecté. L'état est vérifié au démarrage puis toutes les 5 minutes, et à chaque envoi. Clique sur un point pour ouvrir la fenêtre.
 
-Titre, jeu, tags : « Appliquer sur les plateformes » envoie les trois valeurs ; « Charger depuis le live » lit les valeurs actuelles. Les tags : 10 au plus, lettres et chiffres seulement (les espaces et symboles sont retirés). Si un jeu n'existe pas sur une plateforme, le titre et les tags sont quand même appliqués et un avertissement le signale.
+Titre, jeu, tags : « Appliquer sur les plateformes » envoie les trois valeurs ; « Charger depuis le live » lit les valeurs actuelles. « Appliquer seulement sur Twitch » et « Appliquer seulement sur Kick » envoient la mise à jour à une seule plateforme (par exemple pour renvoyer là où l'envoi a échoué, sans toucher à l'autre). Les tags : 10 au plus, lettres et chiffres seulement (les espaces et symboles sont retirés). Si un jeu n'existe pas sur une plateforme, le titre et les tags sont quand même appliqués et un avertissement le signale.
 
 Jeux : le dictionnaire des jeux se met à jour tout seul. Il est relu à chaque lancement de l'application (et à chaque nouvelle connexion) à partir des catégories des plateformes connectées, et chaque recherche tapée dans le champ y ajoute les jeux trouvés. Il est enregistré dans %LOCALAPPDATA%\StreamLauncher\games.json. Sous le champ, « Pris en charge : Twitch ✔ Kick ✔ » indique où le jeu est connu.
 

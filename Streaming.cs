@@ -558,10 +558,10 @@ static class Streaming
 
     /// <summary>same title, game and tags on every connected platform; null fields stay unchanged</summary>
     /// <returns>one line per platform (done, warning or error)</returns>
-    public static async Task<List<(Platform P, string? Warning, Exception? Error)>> ApplyAsync(string? title, string? game, List<string>? tags, CancellationToken ct = default)
+    public static async Task<List<(Platform P, string? Warning, Exception? Error)>> ApplyAsync(string? title, string? game, List<string>? tags, IEnumerable<Platform>? only = null, CancellationToken ct = default)
     {
         var results = new List<(Platform, string?, Exception?)>();
-        foreach (var p in Connected)
+        foreach (var p in (only ?? Platforms).Where(x => x.Connected)) // "only": the retry after a failure targets just the platforms that failed
         {
             try
             {
