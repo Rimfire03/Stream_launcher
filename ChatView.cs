@@ -71,20 +71,26 @@ static class ChatBadges
 
     public static bool Known(string key) => urls.ContainsKey(key);
 
+    /// <summary>true when the image could not be downloaded (so the caller falls back to text)</summary>
+    public static bool Failed(string url) => Cache.TryGetValue(url, out var i) && i == null;
+
     /// <returns>the badge image, or null while it is being downloaded (the view is repainted when it arrives)</returns>
-    public static Image? Get(string key)
+    public static Image? Get(string key) => urls.TryGetValue(key, out var url) ? GetUrl(url) : null;
+
+    /// <returns>the image at this url (badge or emote), or null while it downloads or when it failed (see <see cref="Failed"/>)</returns>
+    public static Image? GetUrl(string url)
     {
-        if (Cache.TryGetValue(key, out var img)) return img;
-        if (urls.TryGetValue(key, out var url) && Loading.TryAdd(key, true))
+        if (Cache.TryGetValue(url, out var img)) return img;
+        if (Loading.TryAdd(url, true))
             _ = Task.Run(async () =>
             {
                 try
                 {
                     using var ms = new MemoryStream(await Web.GetByteArrayAsync(url));
                     using var src = Image.FromStream(ms);
-                    Cache[key] = new Bitmap(src); // a copy: a bitmap read from a closed stream fails when drawn
+                    Cache[url] = new Bitmap(src); // a copy: a bitmap read from a closed stream fails when drawn
                 }
-                catch (Exception e) { RunLog.Write($"badge {key} : {e.Message}"); Cache[key] = null; }
+                catch (Exception e) { RunLog.Write($"image {url} : {e.Message}"); Cache[url] = null; }
                 Loaded?.Invoke();
             });
         return null;
@@ -107,8 +113,14 @@ sealed class ChatView : ListBox
         ForeColor = ColorTranslator.FromHtml("#EFEFF1");
         DoubleBuffered = true;
         SetStyle(ControlStyles.ResizeRedraw, true);
-        ChatBadges.Loaded += () => { if (IsHandleCreated && !IsDisposed) BeginInvoke(() => { Remeasure(); Invalidate(); }); };
+        ChatBadges.Loaded += () =>
+        {
+            if (!IsHandleCreated || IsDisposed || Interlocked.Exchange(ref pending, 1) == 1) return; // several images often arrive together: one pass
+            BeginInvoke(() => { Interlocked.Exchange(ref pending, 0); Remeasure(); Invalidate(); });
+        };
     }
+
+    int pending;
 
     public bool ShowBadges { get; set; } = true;
 
@@ -123,7 +135,17 @@ sealed class ChatView : ListBox
         for (int i = 0; i < Items.Count; i++) { var o = Items[i]; Items[i] = o; }
     }
 
-    // ---- layout: the prefix (time, logo, badges, name, label) is drawn by hand; the text gets leading spaces so that its first line starts after it
+    // ---- layout: the prefix (time, logo, badges, name, label) is drawn by hand, then the text is flowed word by word and emote by emote
+
+    const int Emote = 24;
+    int spaceW, bodyH;
+
+    void Metrics()
+    {
+        if (spaceW > 0) return;
+        spaceW = Math.Max(3, TextRenderer.MeasureText("a a", body, new Size(int.MaxValue, 0), TextFormatFlags.NoPadding).Width - TextRenderer.MeasureText("aa", body, new Size(int.MaxValue, 0), TextFormatFlags.NoPadding).Width);
+        bodyH = TextRenderer.MeasureText("Ag", body, new Size(int.MaxValue, 0), TextFormatFlags.NoPadding).Height;
+    }
 
     (int Width, List<Image?> Badges) Prefix(ChatMessage m)
     {
@@ -136,10 +158,61 @@ sealed class ChatView : ListBox
         return (x, imgs);
     }
 
-    string Indented(ChatMessage m, int prefixWidth)
+    /// <summary>one word or one emote, placed in a row (x, and the line it sits on)</summary>
+    sealed record Piece(string? Word, Image? Image, int X, int Line, int W, int H);
+
+    /// <returns>the pieces, the height of each line, and the row height</returns>
+    (List<Piece> Pieces, List<int> Lines, int Height) Flow(ChatMessage m, int prefixWidth, int width)
     {
-        int space = Math.Max(1, TextRenderer.MeasureText("a a", body, new Size(int.MaxValue, 0), TextFormatFlags.NoPadding).Width - TextRenderer.MeasureText("aa", body, new Size(int.MaxValue, 0), TextFormatFlags.NoPadding).Width);
-        return new string(' ', (prefixWidth - Pad) / space + 1) + m.Text;
+        Metrics();
+        int left = Pad, right = Math.Max(left + 60, width - Pad);
+        var pieces = new List<Piece>();
+        var lines = new List<int> { bodyH };
+        int line = 0, x = prefixWidth;
+
+        void NewLine() { line++; lines.Add(bodyH); x = left; }
+        void Place(string? word, Image? img, int w, int h)
+        {
+            if (x + w > right && x > (line == 0 ? prefixWidth : left)) NewLine();
+            pieces.Add(new Piece(word, img, x, line, w, h));
+            lines[line] = Math.Max(lines[line], h);
+            x += w + spaceW;
+        }
+        int Measure(string s) => TextRenderer.MeasureText(s, body, new Size(int.MaxValue, 0), TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width;
+        void Word(string word)
+        {
+            int w = Measure(word);
+            if (w <= right - left) { Place(word, null, w, bodyH); return; }
+            // longer than a whole line: cut it
+            int from = 0;
+            while (from < word.Length)
+            {
+                int n = word.Length - from;
+                while (n > 1 && Measure(word.Substring(from, n)) > right - Math.Max(x, left)) n--;
+                var part = word.Substring(from, n);
+                Place(part, null, Measure(part), bodyH);
+                from += n;
+                if (from < word.Length) NewLine();
+            }
+        }
+        void Words(string s) { foreach (var w in s.Split(' ', StringSplitOptions.RemoveEmptyEntries)) Word(w); }
+
+        var spans = m.Emotes != null && ChatKinds.Shown(m.PlatformId, "emotes") ? m.Emotes : null;
+        int pos = 0;
+        if (spans != null)
+            foreach (var sp in spans)
+            {
+                if (sp.Start < pos || sp.Start + sp.Length > m.Text.Length) continue;
+                Words(m.Text[pos..sp.Start]);
+                var img = ChatBadges.GetUrl(sp.Url);
+                if (img == null && ChatBadges.Failed(sp.Url)) Words(m.Text.Substring(sp.Start, sp.Length)); // no image: show the name
+                else Place(null, img, img == null ? Emote : Math.Max(8, (int)Math.Round(Emote * (double)img.Width / img.Height)), Emote + 2);
+                pos = sp.Start + sp.Length;
+            }
+        Words(m.Text[pos..]);
+
+        int height = 6 + lines.Sum(l => l + 1);
+        return (pieces, lines, Math.Max(Logo + 8, height));
     }
 
     protected override void OnMeasureItem(MeasureItemEventArgs e)
@@ -147,8 +220,7 @@ sealed class ChatView : ListBox
         if (e.Index < 0 || e.Index >= Items.Count) return;
         var m = (ChatMessage)Items[e.Index];
         var (px, _) = Prefix(m);
-        var size = TextRenderer.MeasureText(Indented(m, px), body, new Size(Math.Max(100, ClientSize.Width - Pad * 2), 0), Flags);
-        e.ItemHeight = Math.Max(Logo + 8, size.Height + 6);
+        e.ItemHeight = Flow(m, px, ClientSize.Width).Height;
     }
 
     protected override void OnDrawItem(DrawItemEventArgs e)
@@ -167,21 +239,35 @@ sealed class ChatView : ListBox
         using (var bg = new SolidBrush(special ? Color.FromArgb(40, accent) : m.Mine ? ColorTranslator.FromHtml("#17141F") : BackColor)) g.FillRectangle(bg, r);
         if (special) using (var bar = new SolidBrush(accent)) g.FillRectangle(bar, r.X, r.Y, 3, r.Height);
 
-        TextRenderer.DrawText(g, m.Time.ToString("HH:mm"), small, new Rectangle(r.X + Pad, r.Y + 4, 38, Logo), Ui.Muted, TextFormatFlags.NoPadding | TextFormatFlags.VerticalCenter);
-        PlatformLogos.Draw(g, m.PlatformId, new Rectangle(r.X + 46, r.Y + 3, Logo, Logo));
         var (px, badges) = Prefix(m);
+        var (pieces, lines, _) = Flow(m, px, ClientSize.Width);
+        int top = r.Y + 3 + (lines[0] - bodyH) / 2; // the prefix is centred on the first line when an emote makes it taller
+
+        TextRenderer.DrawText(g, m.Time.ToString("HH:mm"), small, new Rectangle(r.X + Pad, top + 1, 38, Logo), Ui.Muted, TextFormatFlags.NoPadding | TextFormatFlags.VerticalCenter);
+        PlatformLogos.Draw(g, m.PlatformId, new Rectangle(r.X + 46, top, Logo, Logo));
         int x = r.X + 46 + Logo + 4;
-        foreach (var b in badges) { if (b != null) g.DrawImage(b, new Rectangle(x, r.Y + 3, Logo, Logo)); x += Logo + 2; }
+        foreach (var b in badges) { if (b != null) g.DrawImage(b, new Rectangle(x, top, Logo, Logo)); x += Logo + 2; }
         var nameColor = m.Mine ? ColorTranslator.FromHtml("#B79BFF") : ParseColor(m.Color);
         var nameSize = TextRenderer.MeasureText(m.Author, bold, new Size(int.MaxValue, 0), TextFormatFlags.NoPadding);
-        TextRenderer.DrawText(g, m.Author, bold, new Rectangle(x, r.Y + 3, nameSize.Width + 2, Logo + 2), nameColor, TextFormatFlags.NoPadding | TextFormatFlags.VerticalCenter);
+        TextRenderer.DrawText(g, m.Author, bold, new Rectangle(x, top, nameSize.Width + 2, Logo + 2), nameColor, TextFormatFlags.NoPadding | TextFormatFlags.VerticalCenter);
         x += nameSize.Width + 6;
         if (m.Extra != null)
         {
             var exSize = TextRenderer.MeasureText(m.Extra, bold, new Size(int.MaxValue, 0), TextFormatFlags.NoPadding);
-            TextRenderer.DrawText(g, m.Extra, bold, new Rectangle(x, r.Y + 3, exSize.Width + 2, Logo + 2), accent == Color.Transparent ? ForeColor : accent, TextFormatFlags.NoPadding | TextFormatFlags.VerticalCenter);
+            TextRenderer.DrawText(g, m.Extra, bold, new Rectangle(x, top, exSize.Width + 2, Logo + 2), accent == Color.Transparent ? ForeColor : accent, TextFormatFlags.NoPadding | TextFormatFlags.VerticalCenter);
         }
-        TextRenderer.DrawText(g, Indented(m, px), body, new Rectangle(r.X + Pad, r.Y + 3, r.Width - Pad * 2, r.Height - 3), m.System ? ColorTranslator.FromHtml("#E0A030") : ForeColor, Flags);
+
+        var color = m.System ? ColorTranslator.FromHtml("#E0A030") : ForeColor;
+        var lineTop = new int[lines.Count];
+        int y = r.Y + 3;
+        for (int i = 0; i < lines.Count; i++) { lineTop[i] = y; y += lines[i] + 1; }
+        g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+        foreach (var p in pieces)
+        {
+            int py = lineTop[p.Line] + (lines[p.Line] - p.H) / 2;
+            if (p.Word != null) TextRenderer.DrawText(g, p.Word, body, new Point(r.X + p.X, py), color, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+            else if (p.Image != null) g.DrawImage(p.Image, new Rectangle(r.X + p.X, py + 1, p.W, Emote));
+        }
     }
 
     static Color ParseColor(string? html)

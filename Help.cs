@@ -155,11 +155,11 @@ Historique : les 15 derniers lives (titre, jeu, tags), enregistrés quand tu app
 Sur Kick, la recherche de jeux par mot-clé utilise une partie de l'API que Kick marque comme obsolète ; le dictionnaire reste utilisable si elle disparaît."),
         new("Chat unifié", @"Bouton « Chat » (barre du profil) (ou étape « Ouvrir le chat unifié » d'un profil, ou StreamLauncher.exe --chat) : une seule fenêtre avec le chat de Twitch, Kick et YouTube. Chaque message porte le logo de sa plateforme ; sur Twitch, les badges (diffuseur, modérateur, abonné…) s'affichent devant le pseudo.
 
-Les trois boutons ronds en haut allument ou éteignent une plateforme (le point indique l'état : vert = lecture en cours). Ce que tu écris dans la zone du bas part sur toutes les plateformes allumées. « Au premier plan » garde la fenêtre au-dessus des autres.
+Les emotes de Twitch et de Kick s'affichent en images dans le texte (les emotes tierces BTTV, 7TV et FFZ restent du texte). Si une image ne peut pas être chargée, son nom s'affiche. Les trois boutons ronds en haut allument ou éteignent une plateforme (le point indique l'état : vert = lecture en cours). Ce que tu écris dans la zone du bas part sur toutes les plateformes allumées. « Au premier plan » garde la fenêtre au-dessus des autres.
 
 ⚙ Réglages :
 - Son : un son est joué à l'arrivée d'un message après un silence (délai réglable, en secondes), quelle que soit la plateforme. Son par défaut intégré ; tu peux choisir ton propre fichier .wav. Une liste de pseudos exclus ne déclenche jamais le son.
-- Une page par plateforme : choisis ce qui s'affiche en plus du texte (Twitch : points de chaîne, bits, messages mis en avant, abonnements et raids, GIF ; Kick : points de chaîne, abonnements, abonnements offerts ; YouTube : Super Chat, Super Stickers, nouveaux membres). Un type décoché est masqué.
+- Une page par plateforme : choisis ce qui s'affiche en plus du texte (Twitch : badges, emotes en images, points de chaîne, bits, messages mis en avant, abonnements et raids, GIF ; Kick : emotes en images, points de chaîne, abonnements, abonnements offerts ; YouTube : Super Chat, Super Stickers, nouveaux membres). Un type décoché est masqué.
 
 Limites :
 - Twitch : reconnecte ton compte une fois (nouvelles autorisations de lecture et d'écriture du chat). Une récompense de points de chaîne sans message n'est pas visible dans le chat Twitch.

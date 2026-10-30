@@ -13,7 +13,10 @@ using System.Text.RegularExpressions;
 /// <param name="Extra">short label shown before the text for special messages ("100 bits", "Raid"...)</param>
 /// <param name="Badges">Twitch badges as "set/version" (broadcaster/1, subscriber/12...)</param>
 record ChatMessage(DateTime Time, string PlatformId, string Author, string Text, string? Color = null, bool Mine = false, bool System = false,
-    string Kind = "message", string? Extra = null, string[]? Badges = null);
+    string Kind = "message", string? Extra = null, string[]? Badges = null, EmoteSpan[]? Emotes = null);
+
+/// <summary>an emote inside the text of a message: UTF-16 position and length of its name, and the image url</summary>
+readonly record struct EmoteSpan(int Start, int Length, string Url);
 
 /// <summary>what a platform can show besides plain messages: (kind, label in the settings)</summary>
 static class ChatKinds
@@ -22,13 +25,13 @@ static class ChatKinds
     {
         ["twitch"] = new[]
         {
-            ("badges", "Badges des utilisateurs"), ("highlight", "Messages mis en avant"), ("bits", "Cheers (bits)"),
+            ("badges", "Badges des utilisateurs"), ("emotes", "Emotes (images)"), ("highlight", "Messages mis en avant"), ("bits", "Cheers (bits)"),
             ("reward", "Messages de récompense de points de chaîne"), ("sub", "Abonnements et réabonnements"),
             ("gift", "Abonnements offerts"), ("raid", "Raids"), ("gif", "Messages avec un lien GIF"),
         },
         ["kick"] = new[]
         {
-            ("reward", "Récompenses de points"), ("sub", "Abonnements"), ("gift", "Abonnements offerts"), ("gif", "Messages avec un lien GIF"),
+            ("emotes", "Emotes (images)"), ("reward", "Récompenses de points"), ("sub", "Abonnements"), ("gift", "Abonnements offerts"), ("gif", "Messages avec un lien GIF"),
         },
         ["youtube"] = new[]
         {
@@ -196,7 +199,9 @@ sealed class TwitchChatSource : ChatSource
         int at = rest.IndexOf(" :", StringComparison.Ordinal);
         var text = at >= 0 ? rest[(at + 2)..] : "";
         var badges = Tag("badges") == "" ? null : Tag("badges").Split(',', StringSplitOptions.RemoveEmptyEntries);
-        if (text.StartsWith("\u0001ACTION ") && text.EndsWith("\u0001")) text = "/me " + text[8..^1];
+        int shift = 0;
+        if (text.StartsWith("\u0001ACTION ") && text.EndsWith("\u0001")) { text = "/me " + text[8..^1]; shift = 4; }
+        var emotes = TwitchEmotes(Tag("emotes"), text, shift);
 
         if (cmd == "USERNOTICE")
         {
@@ -217,7 +222,31 @@ sealed class TwitchChatSource : ChatSource
         else if (Tag("custom-reward-id") != "") { k = "reward"; ex = "Récompense"; }
         else if (Tag("msg-id") == "highlighted-message") { k = "highlight"; ex = "Mis en avant"; }
         else if (ChatKinds.GifLink.IsMatch(text)) k = "gif";
-        return new ChatMessage(DateTime.Now, "twitch", name, text, color, Kind: k, Extra: ex, Badges: badges);
+        return new ChatMessage(DateTime.Now, "twitch", name, text, color, Kind: k, Extra: ex, Badges: badges, Emotes: emotes);
+    }
+
+    /// <summary>the "emotes" tag ("25:0-4,12-16/1902:6-10": id, then first-last positions in code points) as spans of the text</summary>
+    static EmoteSpan[]? TwitchEmotes(string tag, string text, int shift)
+    {
+        if (tag == "") return null;
+        var idx = new List<int>(); // code point number -> UTF-16 index
+        for (int i = 0; i < text.Length; i += char.IsSurrogatePair(text, i) ? 2 : 1) idx.Add(i);
+        var spans = new List<EmoteSpan>();
+        foreach (var part in tag.Split('/', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var kv = part.Split(':', 2);
+            if (kv.Length != 2) continue;
+            foreach (var range in kv[1].Split(',', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var ab = range.Split('-');
+                if (ab.Length != 2 || !int.TryParse(ab[0], out var a) || !int.TryParse(ab[1], out var b)) continue;
+                a += shift; b += shift;
+                if (a < 0 || b < a || b >= idx.Count) continue;
+                int start = idx[a], end = b + 1 < idx.Count ? idx[b + 1] : text.Length;
+                spans.Add(new EmoteSpan(start, end - start, $"https://static-cdn.jtvnw.net/emoticons/v2/{kv[0]}/default/dark/2.0"));
+            }
+        }
+        return spans.Count == 0 ? null : spans.OrderBy(x => x.Start).ToArray();
     }
 }
 
@@ -285,7 +314,7 @@ sealed class KickChatSource : ChatSource
         return ((KickPlatform)P).SendChatAsync(text, ct);
     }
 
-    static readonly Regex Emote = new(@"\[emote:\d+:([^\]]+)\]", RegexOptions.Compiled);
+    static readonly Regex Emote = new(@"\[emote:(\d+):([^\]]+)\]", RegexOptions.Compiled);
 
     public static ChatMessage? ParseMessage(string data)
     {
@@ -295,8 +324,20 @@ sealed class KickChatSource : ChatSource
             var r = doc.RootElement;
             var sender = r.GetProperty("sender");
             var color = sender.TryGetProperty("identity", out var id) && id.TryGetProperty("color", out var c) ? c.GetString() : null;
-            var text = Emote.Replace(r.GetProperty("content").GetString() ?? "", "$1");
-            return new ChatMessage(DateTime.Now, "kick", sender.GetProperty("username").GetString() ?? "?", text, color, Kind: ChatKinds.GifLink.IsMatch(text) ? "gif" : "message");
+            var content = r.GetProperty("content").GetString() ?? "";
+            var sb = new System.Text.StringBuilder();
+            var spans = new List<EmoteSpan>();
+            int pos = 0;
+            foreach (Match m in Emote.Matches(content)) // "[emote:37226:KEKW]" becomes "KEKW", remembered as an image
+            {
+                sb.Append(content, pos, m.Index - pos);
+                spans.Add(new EmoteSpan(sb.Length, m.Groups[2].Length, $"https://files.kick.com/emotes/{m.Groups[1].Value}/fullsize"));
+                sb.Append(m.Groups[2].Value);
+                pos = m.Index + m.Length;
+            }
+            sb.Append(content, pos, content.Length - pos);
+            var text = sb.ToString();
+            return new ChatMessage(DateTime.Now, "kick", sender.GetProperty("username").GetString() ?? "?", text, color, Kind: ChatKinds.GifLink.IsMatch(text) ? "gif" : "message", Emotes: spans.Count == 0 ? null : spans.ToArray());
         }
         catch { return null; }
     }
