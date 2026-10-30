@@ -11,8 +11,22 @@ if ($Publish -and $Dev -and $branch -ne 'dev') { throw "-Dev se publie depuis la
 if ($Publish -and -not $Dev -and $branch -ne 'main') { throw "release stable depuis main (branche actuelle : $branch ; utiliser -Dev pour le canal dev)" }
 $root = Split-Path $PSScriptRoot -Parent
 $dist = Join-Path $root 'dist'
-dotnet publish "$root\StreamLauncher.csproj" -c Release -o $dist
-if ($LASTEXITCODE -ne 0) { throw 'publish echoue' }
+# Identifiants Kick : lus dans le depot prive TomLine-signing-keys (kick/Stream-Launcher-Kick.md), ecrits dans KickSecrets.g.cs
+# (ignore par git) le temps du build seulement ; ils ne sont jamais commites dans ce depot.
+$kickFile = Join-Path $root 'KickSecrets.g.cs'
+try {
+    $b64 = gh api repos/Rimfire03/TomLine-signing-keys/contents/kick/Stream-Launcher-Kick.md --jq .content
+    if ($LASTEXITCODE -ne 0) { throw 'lecture du depot TomLine-signing-keys impossible (gh auth ?)' }
+    $md = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(($b64 -join '')))
+    $kid = [regex]::Match($md, 'Identifiant client \| `([^`]+)`').Groups[1].Value
+    $ksecret = [regex]::Match($md, 'Secret client \| `([^`]+)`').Groups[1].Value
+    if (-not $kid -or -not $ksecret) { throw 'identifiants Kick introuvables dans le depot prive' }
+    Set-Content $kickFile -Encoding utf8 -Value "static partial class BuiltIn { static partial void Load() { KickId = `"$kid`"; KickSecret = `"$ksecret`"; } }"
+    dotnet publish "$root\StreamLauncher.csproj" -c Release -o $dist
+    if ($LASTEXITCODE -ne 0) { throw 'publish echoue' }
+} finally {
+    Remove-Item $kickFile -Force -ErrorAction SilentlyContinue
+}
 
 $cert = Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Subject -like 'CN=TomLine prod&co*' -and $_.HasPrivateKey } | Sort-Object NotAfter -Descending | Select-Object -First 1
 if (-not $cert) { throw 'certificat TomLine introuvable' }

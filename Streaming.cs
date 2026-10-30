@@ -182,10 +182,13 @@ abstract class Platform
 
     /// <summary>application id built into Stream Launcher for this platform (a public id, not a secret); empty when the user must bring their own</summary>
     protected virtual string DefaultClientId => "";
+    protected virtual string DefaultClientSecret => "";
     /// <summary>the id in use: the one the user entered, else the built-in one</summary>
     public string ClientId => Auth.ClientId != "" ? Auth.ClientId : DefaultClientId;
     public string UserName => Auth.UserName;
-    public bool Configured => ClientId != "" && (!NeedsSecret || Auth.ClientSecret != "");
+    /// <summary>the secret in use: the one the user entered, else the built-in one</summary>
+    protected string Secret => Auth.ClientSecret != "" ? Auth.ClientSecret : DefaultClientSecret;
+    public bool Configured => ClientId != "" && (!NeedsSecret || Secret != "");
     public bool Connected => Auth.Refresh != "" || Auth.Access != "";
 
     public void SetCredentials(string clientId, string secret)
@@ -429,6 +432,8 @@ sealed class KickPlatform : Platform
     public const string RedirectUri = "http://localhost:43117/callback"; // to declare as-is in the Kick application settings
     const string Scope = "channel:read channel:write";
 
+    protected override string DefaultClientId => BuiltIn.KickId;
+    protected override string DefaultClientSecret => BuiltIn.KickSecret;
     public override string Id => "kick";
     public override string Name => "Kick";
     public override bool NeedsSecret => true;
@@ -446,7 +451,7 @@ sealed class KickPlatform : Platform
         listener.Start();
 
         info("Autorise l'application dans la page Kick qui s'ouvre…\n\n(en attente de ton autorisation)");
-        OpenBrowser($"{OAuth}/authorize?client_id={Uri.EscapeDataString(Auth.ClientId)}&response_type=code&redirect_uri={Uri.EscapeDataString(RedirectUri)}" +
+        OpenBrowser($"{OAuth}/authorize?client_id={Uri.EscapeDataString(ClientId)}&response_type=code&redirect_uri={Uri.EscapeDataString(RedirectUri)}" +
             $"&scope={Uri.EscapeDataString(Scope)}&code_challenge={challenge}&code_challenge_method=S256&state={state}");
 
         using var reg = ct.Register(listener.Stop);
@@ -471,7 +476,7 @@ sealed class KickPlatform : Platform
 
         using var r = await Http.PostAsync(OAuth + "/token", new FormUrlEncodedContent(new Dictionary<string, string>
         {
-            ["grant_type"] = "authorization_code", ["code"] = code, ["client_id"] = Auth.ClientId, ["client_secret"] = Auth.ClientSecret,
+            ["grant_type"] = "authorization_code", ["code"] = code, ["client_id"] = ClientId, ["client_secret"] = Secret,
             ["redirect_uri"] = RedirectUri, ["code_verifier"] = verifier,
         }), ct);
         Store(await ReadAsync("Kick", r, ct));
@@ -485,7 +490,7 @@ sealed class KickPlatform : Platform
     {
         using var r = await Http.PostAsync(OAuth + "/token", new FormUrlEncodedContent(new Dictionary<string, string>
         {
-            ["grant_type"] = "refresh_token", ["refresh_token"] = Auth.Refresh, ["client_id"] = Auth.ClientId, ["client_secret"] = Auth.ClientSecret,
+            ["grant_type"] = "refresh_token", ["refresh_token"] = Auth.Refresh, ["client_id"] = ClientId, ["client_secret"] = Secret,
         }), ct);
         Store(await ReadAsync("Kick", r, ct));
     }

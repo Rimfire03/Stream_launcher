@@ -3,3 +3,5 @@ obj/
 dist/
 profiles.json
 profiles.json.bak
+# identifiants Kick injectes pendant la release (depot prive TomLine-signing-keys)
+KickSecrets.g.cs
