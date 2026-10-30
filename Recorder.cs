@@ -8,7 +8,8 @@ class Recorder : IDisposable
 
     readonly List<Step> steps;
     readonly Action changed;
-    readonly UIA3Automation uia = new();
+    // created lazily inside the worker task (MTA): an instance made on the UI thread (STA) would need that thread to pump while the hook waits, and always time out
+    UIA3Automation? uia;
     readonly Native.HookProc proc; // kept in a field so the GC does not collect the delegate
     readonly IntPtr hook;
     DateTime last = DateTime.MinValue;
@@ -47,7 +48,7 @@ class Recorder : IDisposable
         {
             var t = Task.Run(() =>
             {
-                var el = uia.FromPoint(new System.Drawing.Point(pt.X, pt.Y));
+                var el = (uia ??= new UIA3Automation()).FromPoint(new System.Drawing.Point(pt.X, pt.Y));
                 return (el?.Properties.Name.ValueOrDefault ?? "", el?.Properties.AutomationId.ValueOrDefault ?? "");
             });
             if (t.Wait(300)) (name, id) = t.Result;
@@ -89,6 +90,6 @@ class Recorder : IDisposable
     public void Dispose()
     {
         Native.UnhookWindowsHookEx(hook);
-        uia.Dispose();
+        uia?.Dispose();
     }
 }

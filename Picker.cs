@@ -94,7 +94,8 @@ class TrayPicker : IDisposable
 
     readonly Control sync;
     readonly Action<string, bool> found;
-    readonly FlaUI.UIA3.UIA3Automation uia = new();
+    // created lazily inside the worker task (MTA): an instance made on the UI thread (STA) would need that thread to pump while the hook waits, and always time out
+    FlaUI.UIA3.UIA3Automation? uia;
     readonly Native.HookProc proc;
     readonly IntPtr hook;
     bool done;
@@ -124,7 +125,7 @@ class TrayPicker : IDisposable
                     // the hook runs before the app gets the click: the element is still under the cursor
                     var t = Task.Run(() =>
                     {
-                        var el = uia.FromPoint(new System.Drawing.Point(pt.X, pt.Y));
+                        var el = (uia ??= new FlaUI.UIA3.UIA3Automation()).FromPoint(new System.Drawing.Point(pt.X, pt.Y));
                         var c = el?.ClassName ?? "";
                         return c.Contains("TaskListButton") || c == "ToggleButton" ? null : el?.Name;
                     });
@@ -146,6 +147,6 @@ class TrayPicker : IDisposable
     public void Dispose()
     {
         Native.UnhookWindowsHookEx(hook);
-        uia.Dispose();
+        uia?.Dispose();
     }
 }
