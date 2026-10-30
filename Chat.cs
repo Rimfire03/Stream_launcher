@@ -277,7 +277,19 @@ sealed class TwitchChatSource : ChatSource
                 _ => ("", ""),
             };
             if (kind == "") return null; // announcements, rituals...
-            var sys = Tag("system-msg");
+            var plan = Tag("msg-param-sub-plan") switch { "Prime" => "Prime", "2000" => "niveau 2", "3000" => "niveau 3", _ => "niveau 1" };
+            var recipient = Tag("msg-param-recipient-display-name");
+            var sys = Tag("msg-id") switch // Twitch sends system-msg in English only: rebuild it in French from the tags
+            {
+                "sub" => $"s'abonne ({plan})",
+                "resub" => $"se réabonne ({plan}), {Tag("msg-param-cumulative-months")} mois au total" + (Tag("msg-param-should-share-streak") == "1" ? $", série de {Tag("msg-param-streak-months")} mois" : ""),
+                "extendsub" => $"prolonge son abonnement ({plan})",
+                "subgift" => $"offre un abonnement ({plan}) à {recipient}",
+                "submysterygift" => $"offre {Tag("msg-param-mass-gift-count")} abonnements ({plan}) à la communauté",
+                "giftpaidupgrade" or "anongiftpaidupgrade" => "continue l'abonnement offert",
+                "raid" => $"raid avec {Tag("msg-param-viewerCount")} spectateurs",
+                _ => Tag("system-msg"),
+            };
             return new ChatMessage(DateTime.Now, "twitch", name, (sys + (text != "" ? " : " + text : "")).Trim(), color, Kind: kind, Extra: extra, Badges: badges);
         }
 
