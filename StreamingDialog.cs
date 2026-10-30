@@ -134,7 +134,7 @@ sealed class StreamingDialog : Form
             var row = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 0, 0, 4) };
             row.Controls.Add(new Label
             {
-                Text = $"{p.Name} : " + (p.Connected ? $"connecté ({p.UserName})" : p.Configured ? "non connecté" : "identifiants à saisir")
+                Text = $"{p.Name} : " + (p.Connected ? $"connecté ({p.UserName})" : p.Configured ? "non connecté" : "indisponible (version de développement)")
                     + (p.Connected ? p.State switch { Health.Ok => "  ✔ opérationnel", Health.Error => "  ✖ erreur", Health.Checking => "  …", _ => "" } : ""),
                 Font = Ui.Bold, AutoSize = false, Width = 285, Height = 24, Margin = new Padding(0, 8, 8, 0),
                 ForeColor = StatusPill.ColorOf(p.State),
@@ -144,7 +144,6 @@ sealed class StreamingDialog : Form
                 ? Ui.Btn("Déconnecter", Ui.Kind.Secondary, (_, _) => { plat.Disconnect(); RebuildAccounts(); ShowGameInfo(); })
                 : Ui.Btn("Connecter", Ui.Kind.Primary, async (_, _) => await Connect(plat)));
             if (p.Connected) row.Controls.Add(Ui.Btn("Tester", Ui.Kind.Ghost, async (_, _) => { await plat.CheckAsync(); Say(plat.StateText, plat.State == Health.Error); }));
-            row.Controls.Add(Ui.Btn("Identifiants…", Ui.Kind.Ghost, (_, _) => { using var d = new CredentialsDialog(plat); d.ShowDialog(this); RebuildAccounts(); }));
             accounts.Controls.Add(row);
         }
     }
@@ -153,8 +152,8 @@ sealed class StreamingDialog : Form
     {
         if (!p.Configured)
         {
-            using var c = new CredentialsDialog(p);
-            if (c.ShowDialog(this) != DialogResult.OK) return;
+            Say($"{p.Name} n'est pas disponible dans cette version : elle ne contient pas les identifiants de l'application (version de développement). Utilise la version publiée.", true);
+            return;
         }
         using var login = new LoginDialog(p);
         login.ShowDialog(this);
@@ -372,52 +371,6 @@ sealed class StreamingDialog : Form
     }
 
     static bool HasId(GameEntry g, Platform p) => p.Id == "twitch" ? g.TwitchId != null : g.KickId != null;
-}
-
-/// <summary>Client id (and secret for Kick) of the application the user registered on the platform.</summary>
-sealed class CredentialsDialog : Form
-{
-    public CredentialsDialog(Platform p)
-    {
-        Text = $"Identifiants {p.Name}";
-        FormBorderStyle = FormBorderStyle.FixedDialog;
-        MaximizeBox = MinimizeBox = false;
-        StartPosition = FormStartPosition.CenterParent;
-        ClientSize = new Size(520, p.NeedsSecret ? 420 : 360);
-        Font = Ui.Base;
-
-        bool kick = p.NeedsSecret;
-        var help = new Label
-        {
-            Left = 16, Top = 12, Width = 488, Height = 190, AutoSize = false,
-            Text = kick
-                ? "Les versions publiées de Stream Launcher contiennent leur application Kick : tu n'as rien à saisir. Ce réglage sert aux versions de développement, ou à utiliser TON application Kick (facultatif). Pour la créer :\r\n\r\n1. Sur kick.com : Paramètres > Développeur, crée une application.\r\n2. URL de redirection : " + KickPlatform.RedirectUri + "\r\n3. Active les droits « channel:read » et « channel:write ».\r\n4. Copie ici l'identifiant client et le secret client.\r\n\r\nLe secret est enregistré chiffré (Windows, ton compte uniquement)."
-                : "Stream Launcher utilise déjà son application Twitch : tu n'as rien à saisir. Ce réglage sert seulement à utiliser TON application à la place (facultatif). Pour la créer (gratuit) :\r\n\r\n1. Sur dev.twitch.tv/console/apps : « Enregistrer votre application ».\r\n2. URL de redirection OAuth : http://localhost\r\n3. Catégorie : Application Integration. Type de client : Public.\r\n4. Copie ici l'identifiant client.\r\n\r\nAucun secret n'est nécessaire.",
-        };
-        var link = new LinkLabel { Left = 16, Top = 208, AutoSize = true, Text = kick ? "Ouvrir la page développeur de Kick" : "Ouvrir la console développeur de Twitch" };
-        link.LinkClicked += (_, _) => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(kick ? "https://kick.com/settings/developer" : "https://dev.twitch.tv/console/apps") { UseShellExecute = true });
-        var id = new TextBox { Left = 16, Top = 262, Width = 488, Text = p.ClientId };
-        var secret = new TextBox { Left = 16, Top = 318, Width = 488, UseSystemPasswordChar = true, Visible = kick };
-        Controls.AddRange(new Control[]
-        {
-            help, link,
-            new Label { Left = 16, Top = 242, AutoSize = true, Text = "Identifiant client", Font = Ui.Bold }, id,
-            new Label { Left = 16, Top = 298, AutoSize = true, Text = "Secret client", Font = Ui.Bold, Visible = kick }, secret,
-        });
-        var ok = Ui.Btn("Enregistrer", Ui.Kind.Primary, (_, _) =>
-        {
-            if (id.Text.Trim() == "" || (kick && secret.Text.Trim() == "")) { MessageBox.Show("Renseigne tous les champs.", Text); return; }
-            p.SetCredentials(id.Text, secret.Text);
-            DialogResult = DialogResult.OK;
-        });
-        ok.Left = 16; ok.Top = ClientSize.Height - 48;
-        var cancel = Ui.Btn("Annuler", Ui.Kind.Secondary, (_, _) => DialogResult = DialogResult.Cancel);
-        cancel.Left = 140; cancel.Top = ClientSize.Height - 48;
-        Controls.Add(ok);
-        Controls.Add(cancel);
-        AcceptButton = ok;
-        CancelButton = cancel;
-    }
 }
 
 /// <summary>Shows what the user has to do (code to enter / page to authorize) while the platform sign-in runs.</summary>

@@ -184,20 +184,13 @@ abstract class Platform
     /// <summary>application id built into Stream Launcher for this platform (a public id, not a secret); empty when the user must bring their own</summary>
     protected virtual string DefaultClientId => "";
     protected virtual string DefaultClientSecret => "";
-    /// <summary>the id in use: the one the user entered, else the built-in one</summary>
-    public string ClientId => Auth.ClientId != "" ? Auth.ClientId : DefaultClientId;
+    /// <summary>the built-in application id</summary>
+    public string ClientId => DefaultClientId;
     public string UserName => Auth.UserName;
-    /// <summary>the secret in use: the one the user entered, else the built-in one</summary>
-    protected string Secret => Auth.ClientSecret != "" ? Auth.ClientSecret : DefaultClientSecret;
+    /// <summary>the built-in application secret (injected at release time, see BuiltIn)</summary>
+    protected string Secret => DefaultClientSecret;
     public bool Configured => ClientId != "" && (!NeedsSecret || Secret != "");
     public bool Connected => Auth.Refresh != "" || Auth.Access != "";
-
-    public void SetCredentials(string clientId, string secret)
-    {
-        Auth.ClientId = clientId.Trim();
-        Auth.ClientSecret = secret.Trim();
-        Secrets.Save();
-    }
 
     public void Disconnect()
     {
@@ -221,7 +214,7 @@ abstract class Platform
     /// <summary>asks the platform for the channel: proves that the token and the network work</summary>
     public async Task CheckAsync()
     {
-        if (!Connected) { Mark(Health.Off, Configured ? $"{Name} : non connecté" : $"{Name} : identifiants à saisir"); return; }
+        if (!Connected) { Mark(Health.Off, Configured ? $"{Name} : non connecté" : $"{Name} : indisponible dans cette version (version de développement)"); return; }
         Mark(Health.Checking, $"{Name} : vérification…");
         try
         {

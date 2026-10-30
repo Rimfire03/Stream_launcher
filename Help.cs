@@ -135,7 +135,7 @@ Si la scène n'existe pas, l'étape échoue tout de suite avec le message d'OBS 
 Connexion (une fois par plateforme) : dans la fenêtre, clique « Connecter », puis autorise Stream Launcher dans la page de la plateforme qui s'ouvre. Rien à configurer : les versions publiées contiennent déjà les applications Twitch et Kick de Stream Launcher.
 - Twitch : la page Twitch affiche un code à saisir (l'application te le montre).
 - Kick : tu autorises l'application dans la page Kick ; le retour se fait sur http://localhost:43117/callback, ce port doit donc être libre sur ton PC. Droits demandés : channel:read et channel:write (lire et modifier les informations de la chaîne), rien d'autre.
-Si une connexion expire (rouge), reconnecte le compte. Le bouton « Identifiants… » sert à utiliser ta propre application Twitch ou Kick (facultatif), et aux versions de développement compilées sans identifiants Kick.
+Si une connexion expire (rouge), reconnecte le compte. Une version compilée à la main (développement) ne contient pas les identifiants Kick : Kick y est indisponible, utilise la version publiée.
 Les jetons sont enregistrés chiffrés (Windows, ton compte uniquement), jamais en clair, et ne quittent jamais ton PC sauf pour parler à Twitch ou Kick.
 
 Indicateur de connexion : en haut à droite, un point par plateforme : vert = connexion opérationnelle, orange = vérification en cours, rouge = erreur (passe la souris pour lire le détail), gris = non connecté. L'état est vérifié au démarrage puis toutes les 5 minutes, et à chaque envoi. Clique sur un point pour ouvrir la fenêtre.

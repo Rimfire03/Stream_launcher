@@ -46,7 +46,7 @@ L'assistant MSI propose le dossier de destination (défaut : `C:\Program Files (
 powershell -File tools\Build-Release.ps1
 ```
 
-Produit `dist\StreamLauncher-Va.b.c-win-x64.msi` signé (certificat global TomLine). Les identifiants de l'application Kick sont lus dans le dépôt privé `TomLine-signing-keys` (`kick/Stream-Launcher-Kick.md`) et injectés pendant le build (`KickSecrets.g.cs`, ignoré par git, supprimé après) : ils ne sont jamais commités. Un build local (`dotnet build`) n'a pas ces identifiants ; Kick demande alors les siens (Live > Éditer… > Identifiants…). La compilation du lanceur Stream Deck (`assets\LaunchStub.exe`) se refait avec `tools\Build-Stub.ps1`. Le CLUF de l'installateur est `installer\CLUF.txt`. Avec `-Publish`, seul le MSI est joint à la release ; la mise à jour automatique le télécharge, vérifie la signature et l'installe (invite UAC).
+Produit `dist\StreamLauncher-Va.b.c-win-x64.msi` signé (certificat global TomLine). Les identifiants de l'application Kick sont lus dans le dépôt privé `TomLine-signing-keys` (`kick/Stream-Launcher-Kick.md`) et injectés pendant le build (`KickSecrets.g.cs`, ignoré par git, supprimé après) : ils ne sont jamais commités. Un build local (`dotnet build`) n'a pas ces identifiants : Kick y est indisponible. La compilation du lanceur Stream Deck (`assets\LaunchStub.exe`) se refait avec `tools\Build-Stub.ps1`. Le CLUF de l'installateur est `installer\CLUF.txt`. Avec `-Publish`, seul le MSI est joint à la release ; la mise à jour automatique le télécharge, vérifie la signature et l'installe (invite UAC).
 
 ## Limites connues
 
@@ -66,7 +66,7 @@ Stream Launcher est gratuit. Si il vous est utile, vous pouvez soutenir son dév
 
 Menu **Live > Éditer le titre, le jeu et les tags…** : mêmes titre, jeu et tags envoyés à Twitch et à Kick.
 
-- **Connexion sans configuration** : les versions publiées embarquent les applications Twitch et Kick de Stream Launcher. Twitch : flux « device code » (identifiant client public, code à saisir sur twitch.tv). Kick : OAuth 2.1 PKCE avec retour sur `http://localhost:43117/callback` (port à garder libre), droits `channel:read` et `channel:write`. Le bouton « Identifiants… » permet d'utiliser sa propre application.
+- **Connexion sans configuration** : les versions publiées embarquent les applications Twitch et Kick de Stream Launcher. Twitch : flux « device code » (identifiant client public, code à saisir sur twitch.tv). Kick : OAuth 2.1 PKCE avec retour sur `http://localhost:43117/callback` (port à garder libre), droits `channel:read` et `channel:write`.
 - **Jetons chiffrés** (DPAPI, compte Windows courant) dans `%LOCALAPPDATA%\StreamLauncher\streaming-auth.bin`. Ils ne sont transmis qu'à Twitch et à Kick.
 - **Voyants de connexion** en haut à droite : vert (opérationnelle), orange (vérification), rouge (erreur, détail au survol), gris (non connecté). Vérifiés au démarrage, toutes les 5 minutes et à chaque envoi.
 - **Favoris** (combos titre + jeu + tags) appliqués en 1 clic, **historique** des 15 derniers lives (`streaming.json`), **dictionnaire des jeux** mis à jour dynamiquement (`games.json`) : rempli à la connexion avec les catégories des plateformes, actualisé tous les 7 jours, complété à chaque recherche.
