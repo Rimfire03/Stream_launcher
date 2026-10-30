@@ -427,7 +427,7 @@ sealed class KickPlatform : Platform
     static string OAuth => Environment.GetEnvironmentVariable("STREAMLAUNCHER_KICK_AUTH") ?? "https://id.kick.com/oauth";
     public const int CallbackPort = 43117;
     public const string RedirectUri = "http://localhost:43117/callback"; // to declare as-is in the Kick application settings
-    const string Scope = "user:read channel:read channel:write";
+    const string Scope = "channel:read channel:write";
 
     public override string Id => "kick";
     public override string Name => "Kick";
