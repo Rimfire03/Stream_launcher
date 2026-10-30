@@ -10,7 +10,7 @@
     <ApplicationIcon>assets\app.ico</ApplicationIcon>
     <Product>Stream Launcher</Product>
     <Company>TomLine prod&amp;co</Company>
-    <Version>0.1.43</Version>
+    <Version>0.1.44</Version>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
@@ -23,6 +23,7 @@
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
     <EmbeddedResource Include="assets\LaunchStub.exe" LogicalName="LaunchStub.exe" />
     <EmbeddedResource Include="assets\chat-default.wav" LogicalName="chat-default.wav" />
+    <EmbeddedResource Include="assets\platform-*.png" LogicalName="%(Filename)%(Extension)" />
     <Compile Remove="tools\**" />
   </ItemGroup>
 </Project>

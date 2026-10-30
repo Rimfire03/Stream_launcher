@@ -14,23 +14,33 @@ static class PlatformLogos
         _ => Color.Gray,
     };
 
+    static readonly Dictionary<string, Bitmap?> Glyphs = new();
+
+    // the official glyphs (Simple Icons, CC0) are black on transparent; they are tinted at draw time
+    static Bitmap? Glyph(string id)
+    {
+        if (Glyphs.TryGetValue(id, out var b)) return b;
+        using var s = typeof(PlatformLogos).Assembly.GetManifestResourceStream($"platform-{id}.png");
+        return Glyphs[id] = s == null ? null : new Bitmap(s);
+    }
+
     public static void Draw(Graphics g, string id, Rectangle r, bool on = true)
     {
-        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-        var back = on ? ColorOf(id) : ColorTranslator.FromHtml("#4B4A57");
-        var glyph = on ? (id == "kick" ? Color.Black : Color.White) : ColorTranslator.FromHtml("#8A8799");
-        using (var path = Ui.Round(r, Math.Max(3, r.Width / 4))) using (var br = new SolidBrush(back)) g.FillPath(br, path);
-        using var gb = new SolidBrush(glyph);
-        if (id == "youtube")
+        var glyph = Glyph(id);
+        var color = on ? ColorOf(id) : ColorTranslator.FromHtml("#8A8799");
+        if (glyph == null) { using var br = new SolidBrush(color); g.FillEllipse(br, r); return; }
+        var m = new System.Drawing.Imaging.ColorMatrix(new[]
         {
-            float w = r.Width, h = r.Height;
-            g.FillPolygon(gb, new[] { new PointF(r.X + w * 0.38f, r.Y + h * 0.28f), new PointF(r.X + w * 0.38f, r.Y + h * 0.72f), new PointF(r.X + w * 0.75f, r.Y + h * 0.5f) });
-        }
-        else
-        {
-            using var f = new Font("Segoe UI", r.Width * 0.42f, FontStyle.Bold, GraphicsUnit.Pixel);
-            TextRenderer.DrawText(g, id == "twitch" ? "T" : id == "kick" ? "K" : "i", f, r, glyph, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
-        }
+            new float[] { 0, 0, 0, 0, 0 }, new float[] { 0, 0, 0, 0, 0 }, new float[] { 0, 0, 0, 0, 0 }, new float[] { 0, 0, 0, 1, 0 },
+            new float[] { color.R / 255f, color.G / 255f, color.B / 255f, 0, 1 },
+        });
+        using var ia = new System.Drawing.Imaging.ImageAttributes();
+        ia.SetColorMatrix(m);
+        var old = (g.InterpolationMode, g.PixelOffsetMode);
+        g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+        g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
+        g.DrawImage(glyph, r, 0, 0, glyph.Width, glyph.Height, GraphicsUnit.Pixel, ia);
+        (g.InterpolationMode, g.PixelOffsetMode) = old;
     }
 }
 
