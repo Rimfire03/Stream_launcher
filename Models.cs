@@ -101,6 +101,8 @@ class Config
     public List<Profile> Profiles { get; set; } = new();
     /// <summary>profile list folded to a thin strip</summary>
     public bool SidebarCollapsed { get; set; }
+    /// <summary>update channel: "main" (stable releases) or "dev" (pre-releases built from the dev branch)</summary>
+    public string UpdateChannel { get; set; } = "main";
     /// <summary>device name (\\.\DISPLAY2) -> custom name</summary>
     public Dictionary<string, string> ScreenNames { get; set; } = new();
 

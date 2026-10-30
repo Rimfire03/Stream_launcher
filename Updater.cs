@@ -18,23 +18,36 @@ static class Updater
     static bool TryParse(string tag, out Version v)
     {
         v = new Version();
-        var p = tag.TrimStart('V', 'v').Split('.');
+        var p = tag.TrimStart('V', 'v').Split('-')[0].Split('.'); // "V0.1.19-dev" -> 0.1.19
         if (p.Length != 3 || !p.All(x => int.TryParse(x, out _))) return false;
         v = new Version(int.Parse(p[0]), int.Parse(p[1]), int.Parse(p[2]));
         return true;
     }
 
+    public static bool IsDev => Config.Current.UpdateChannel == "dev";
+
+    /// <summary>Newest release of the chosen channel: stable = "latest" (no pre-release); dev = newest release of any kind, pre-releases included.</summary>
     /// <returns>(version, url) of a newer release, or null if up to date</returns>
     public static async Task<(Version Ver, string Url)?> CheckAsync()
     {
-        using var doc = JsonDocument.Parse(await Http.GetStringAsync($"https://api.github.com/repos/{Repo}/releases/latest"));
-        var root = doc.RootElement;
-        if (!TryParse(root.GetProperty("tag_name").GetString() ?? "", out var latest) || latest <= new Version(Current.Major, Current.Minor, Math.Max(Current.Build, 0)))
-            return null;
-        foreach (var a in root.GetProperty("assets").EnumerateArray())
-            if (a.GetProperty("name").GetString() is { } n && n.EndsWith(".msi", StringComparison.OrdinalIgnoreCase))
-                return (latest, a.GetProperty("browser_download_url").GetString()!);
-        return null;
+        var api = $"https://api.github.com/repos/{Repo}/releases";
+        using var doc = JsonDocument.Parse(await Http.GetStringAsync(IsDev ? api + "?per_page=20" : api + "/latest"));
+        var releases = IsDev ? doc.RootElement.EnumerateArray().ToList() : new List<JsonElement> { doc.RootElement };
+        var current = new Version(Current.Major, Current.Minor, Math.Max(Current.Build, 0));
+
+        (Version Ver, string Url)? best = null;
+        foreach (var r in releases)
+        {
+            if (r.TryGetProperty("draft", out var d) && d.GetBoolean()) continue;
+            if (!TryParse(r.GetProperty("tag_name").GetString() ?? "", out var v) || v <= current || (best != null && v <= best.Value.Ver)) continue;
+            foreach (var a in r.GetProperty("assets").EnumerateArray())
+                if (a.GetProperty("name").GetString() is { } n && n.EndsWith(".msi", StringComparison.OrdinalIgnoreCase))
+                {
+                    best = (v, a.GetProperty("browser_download_url").GetString()!);
+                    break;
+                }
+        }
+        return best;
     }
 
     /// <summary>Downloads the new MSI, checks its signature, then (once this process has exited) installs it and restarts the app.</summary>

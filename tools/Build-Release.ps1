@@ -3,8 +3,12 @@
 # la mise à jour automatique télécharge ce MSI).
 # Pour changer de version : modifier <Version> dans StreamLauncher.csproj (ex. 1.2.0 -> V1.2.0).
 # Prérequis MSI : wix 4.0.6 + extensions Util et UI (wix extension add -g WixToolset.UI.wixext/4.0.6 ; voir aussi le dépôt filtres).
-param([switch]$Publish)
+param([switch]$Publish, [switch]$Dev)
 $ErrorActionPreference = 'Stop'
+# canal : main = release stable ; -Dev = pre-release (tag Va.b.c-dev) pour les testeurs du canal dev, depuis la branche dev
+$branch = (git -C (Split-Path $PSScriptRoot -Parent) rev-parse --abbrev-ref HEAD).Trim()
+if ($Publish -and $Dev -and $branch -ne 'dev') { throw "-Dev se publie depuis la branche dev (branche actuelle : $branch)" }
+if ($Publish -and -not $Dev -and $branch -ne 'main') { throw "release stable depuis main (branche actuelle : $branch ; utiliser -Dev pour le canal dev)" }
 $root = Split-Path $PSScriptRoot -Parent
 $dist = Join-Path $root 'dist'
 dotnet publish "$root\StreamLauncher.csproj" -c Release -o $dist
@@ -32,7 +36,8 @@ if ($LASTEXITCODE -ne 0 -or -not (Test-Path $msi)) { throw 'wix build echoue' }
 Sign $msi
 
 if ($Publish) {
-    gh release create "V$ver" $msi --repo Rimfire03/Stream_launcher --title "V$ver" --generate-notes
+    if ($Dev) { gh release create "V$ver-dev" $msi --repo Rimfire03/Stream_launcher --title "V$ver (dev)" --generate-notes --prerelease --target dev }
+    else { gh release create "V$ver" $msi --repo Rimfire03/Stream_launcher --title "V$ver" --generate-notes }
     if ($LASTEXITCODE -ne 0) { throw 'gh release echoue' }
-    "Release V$ver publiee"
+    "Release V$ver$(if ($Dev) { '-dev' }) publiee"
 }

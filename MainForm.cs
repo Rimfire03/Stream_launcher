@@ -115,6 +115,23 @@ class MainForm : Form
         toolsMenu.Items.Add("Renommer les écrans…", null, (_, _) => RenameScreens());
         toolsMenu.Items.Add("Lister les icônes de la zone de notification", null, (_, _) => ListTray());
         toolsMenu.Items.Add(new ToolStripSeparator());
+        var channel = new ToolStripMenuItem("Canal de mise à jour");
+        var stable = new ToolStripMenuItem("Stable (main) : versions testées") { Checked = !Updater.IsDev };
+        var dev = new ToolStripMenuItem("Dev : versions de test, plus récentes mais instables") { Checked = Updater.IsDev };
+        void SetChannel(string c)
+        {
+            if (c == cfg.UpdateChannel) return;
+            if (c == "dev" && MessageBox.Show("Le canal dev reçoit des versions de test, plus récentes mais pouvant contenir des bogues. Continuer ?", Text, MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+            cfg.UpdateChannel = c;
+            cfg.Save();
+            stable.Checked = c == "main";
+            dev.Checked = c == "dev";
+            CheckUpdate(true);
+        }
+        stable.Click += (_, _) => SetChannel("main");
+        dev.Click += (_, _) => SetChannel("dev");
+        channel.DropDownItems.AddRange(new ToolStripItem[] { stable, dev });
+        toolsMenu.Items.Add(channel);
         var startup = new ToolStripMenuItem("Démarrer avec Windows (dans la zone de notification)") { Checked = Autostart.Enabled, CheckOnClick = true };
         startup.CheckedChanged += (_, _) => Autostart.Set(startup.Checked);
         toolsMenu.Items.Add(startup);
@@ -392,7 +409,7 @@ class MainForm : Form
             if (up is not { } u)
             {
                 lblFootLeft.Text = "Application à jour";
-                if (manual) MessageBox.Show("Version à jour : " + Updater.Format(Updater.Current), Text);
+                if (manual) MessageBox.Show("Version à jour : " + Updater.Format(Updater.Current) + (Updater.IsDev ? " (canal dev)" : ""), Text);
                 return;
             }
             Log($"Mise à jour disponible : {Updater.Format(u.Ver)}");
