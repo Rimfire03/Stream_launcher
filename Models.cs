@@ -19,7 +19,7 @@ class Step
     [DisplayName("Arguments"), Category("Lancement")] public string Args { get; set; } = "";
     [DisplayName("Ne pas relancer si déjà lancée"), Category("Lancement"), Description("Ne pas relancer si un processus du même nom tourne déjà"), TypeConverter(typeof(FrBool))] public bool SkipIfRunning { get; set; } = true;
 
-    [DisplayName("Garder ouverte à l'arrêt du live"), Category("Lancement"), Description("Si oui, les fenêtres de cette application ne sont pas fermées quand on arrête le live"), TypeConverter(typeof(FrBool))] public bool KeepOpen { get; set; }
+    [DisplayName("Garder ouverte à l'arrêt du live"), Category("Arrêt du live"), Description("Si oui, les fenêtres de cette application ne sont pas fermées quand on arrête le live"), TypeConverter(typeof(FrBool))] public bool KeepOpen { get; set; }
 
     [DisplayName("Serveur WebSocket"), Category("OBS Studio"), Description("Adresse du serveur WebSocket d'OBS (Outils > Réglages du serveur WebSocket dans OBS). Par défaut localhost:4455.")] public string ObsHost { get; set; } = "localhost:4455";
     [DisplayName("Mot de passe WebSocket"), Category("OBS Studio"), Description("Mot de passe du serveur WebSocket d'OBS (laisser vide s'il n'y en a pas). Enregistré en clair dans profiles.json."), PasswordPropertyText(true)] public string ObsPassword { get; set; } = "";
