@@ -58,3 +58,9 @@ Produit `dist\StreamLauncher-Va.b.c-win-x64.msi` signé (certificat global TomLi
 Stream Launcher est gratuit. Si il vous est utile, vous pouvez soutenir son développement :
 
 <a href="https://buymeacoffee.com/slide598b" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50"></a>
+
+## Canaux de mise à jour et branches
+
+- **main** : versions stables (releases GitHub `Va.b.c`). Canal par défaut.
+- **dev** : versions de test, publiées en pré-release GitHub (tag `Va.b.c-dev`) depuis la branche `dev` avec `tools\Build-Release.ps1 -Publish -Dev`. Le script refuse de publier depuis une autre branche.
+- Le choix se fait dans **Outils > Canal de mise à jour** (enregistré dans `profiles.json`). Revenir de dev à stable ne rétrograde pas : l'application attend la prochaine version stable plus récente.

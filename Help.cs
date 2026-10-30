@@ -177,6 +177,8 @@ Au quotidien, l'icône de la zone de notification (clic droit) permet aussi de l
 
 Mises à jour : au démarrage, et via le bouton « Mises à jour » ou le menu Aide, l'application compare sa version (format Va.b.c, par exemple V0.1.10) à la dernière release GitHub. Si une version plus récente existe, elle télécharge l'installateur, vérifie qu'il est signé par TomLine prod&co, l'installe (Windows demande une validation administrateur) puis redémarre l'application.
 
+Canal de mise à jour (Outils > Canal de mise à jour) : « Stable » (par défaut) ne propose que les versions publiées depuis la branche main. « Dev » propose aussi les versions de test publiées depuis la branche dev (pré-releases GitHub, tag Va.b.c-dev) : plus récentes mais pouvant contenir des bogues. Revenir de dev à stable ne rétrograde pas l'application : elle attend la prochaine version stable plus récente.
+
 Fermer la fenêtre réduit l'application dans la zone de notification ; « Quitter » est dans le menu de son icône."),
 
         new("Dépannage", @"- Une application lancée en administrateur ne reçoit pas les clics de Stream Launcher lancé normalement : lance aussi Stream Launcher en administrateur.
