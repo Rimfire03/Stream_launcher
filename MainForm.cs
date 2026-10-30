@@ -51,6 +51,8 @@ class MainForm : Form
             Btn("↑", (_, _) => MoveStep(-1)),
             Btn("↓", (_, _) => MoveStep(1)),
             Btn("Supprimer l'étape", (_, _) => DeleteStep()),
+            Btn("Identifier les écrans", (_, _) => IdentifyScreens()),
+            Btn("Renommer les écrans…", (_, _) => RenameScreens()),
             Btn("Mises à jour", (_, _) => CheckUpdate(true)),
         });
         var split2 = new SplitContainer { Dock = DockStyle.Fill, SplitterDistance = 520 };
@@ -146,6 +148,68 @@ class MainForm : Form
         log.AppendText($"[{DateTime.Now:HH:mm:ss}] {msg}\r\n");
     }
 
+    // full-screen number overlay on each monitor (the DISPLAYn names used by the Monitor field); click or 5 s to close
+    void IdentifyScreens()
+    {
+        foreach (var s in Screen.AllScreens)
+        {
+            var num = new string(s.DeviceName.Where(char.IsDigit).ToArray());
+            var f = new Form
+            {
+                FormBorderStyle = FormBorderStyle.None, TopMost = true, ShowInTaskbar = false, StartPosition = FormStartPosition.Manual,
+                Bounds = s.Bounds, BackColor = Color.Black, Opacity = 0.85,
+            };
+            f.Paint += (_, e) =>
+            {
+                var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                using var big = new Font("Segoe UI", f.Height / 3f, FontStyle.Bold, GraphicsUnit.Pixel);
+                using var small = new Font("Segoe UI", f.Height / 25f, GraphicsUnit.Pixel);
+                e.Graphics.DrawString(num, big, Brushes.White, f.ClientRectangle, sf);
+                e.Graphics.DrawString($"{Config.Label(s.DeviceName)}  {s.Bounds.Width}x{s.Bounds.Height}{(s.Primary ? "  (principal)" : "")}", small, Brushes.LightGray,
+                    new Rectangle(0, f.Height * 3 / 4, f.Width, f.Height / 5), sf);
+            };
+            f.Click += (_, _) => f.Close();
+            f.KeyDown += (_, _) => f.Close();
+            var t = new System.Windows.Forms.Timer { Interval = 5000 };
+            t.Tick += (_, _) => { t.Dispose(); f.Close(); };
+            f.FormClosed += (_, _) => t.Dispose();
+            f.Show();
+            t.Start();
+        }
+        Log("Écrans : " + string.Join(" | ", Screen.AllScreens.Select(s => $"{Config.Label(s.DeviceName)}{(s.Primary ? " (principal)" : "")}")));
+    }
+
+    void RenameScreens()
+    {
+        var screens = Screen.AllScreens;
+        using var f = new Form { Text = "Renommer les écrans", FormBorderStyle = FormBorderStyle.FixedDialog, StartPosition = FormStartPosition.CenterParent, MaximizeBox = false, MinimizeBox = false, ClientSize = new Size(480, 20 + screens.Length * 32 + 50) };
+        var boxes = new List<TextBox>();
+        for (int i = 0; i < screens.Length; i++)
+        {
+            var s = screens[i];
+            f.Controls.Add(new Label { Text = $"{s.DeviceName} {s.Bounds.Width}x{s.Bounds.Height}{(s.Primary ? " *" : "")}", Left = 10, Top = 16 + i * 32, Width = 220 });
+            var tb = new TextBox { Left = 235, Top = 12 + i * 32, Width = 235, Text = cfg.ScreenNames.GetValueOrDefault(s.DeviceName, "") };
+            boxes.Add(tb);
+            f.Controls.Add(tb);
+        }
+        var ok = new Button { Text = "OK", Left = 310, Top = 20 + screens.Length * 32, DialogResult = DialogResult.OK };
+        var show = new Button { Text = "Identifier", Left = 10, Top = 20 + screens.Length * 32, AutoSize = true };
+        show.Click += (_, _) => IdentifyScreens();
+        var cancel = new Button { Text = "Annuler", Left = 395, Top = 20 + screens.Length * 32, DialogResult = DialogResult.Cancel };
+        f.Controls.AddRange(new Control[] { ok, cancel, show });
+        f.AcceptButton = ok;
+        f.CancelButton = cancel;
+        if (f.ShowDialog(this) != DialogResult.OK) return;
+        for (int i = 0; i < screens.Length; i++)
+        {
+            var name = boxes[i].Text.Trim();
+            if (name == "") cfg.ScreenNames.Remove(screens[i].DeviceName);
+            else cfg.ScreenNames[screens[i].DeviceName] = name;
+        }
+        cfg.Save();
+        RefreshSteps();
+    }
+
     // ---- profiles ----
 
     void RebuildProfiles()
@@ -164,6 +228,7 @@ class MainForm : Form
             menu.Items.Add("▶ " + prof.Name, null, (_, _) => RunProfile(prof));
         }
         menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add("Identifier les écrans", null, (_, _) => IdentifyScreens());
         menu.Items.Add("Ouvrir", null, (_, _) => ShowMain());
         menu.Items.Add("Arrêter l'exécution", null, (_, _) => cts?.Cancel());
         menu.Items.Add("Quitter", null, (_, _) => { exiting = true; Close(); });

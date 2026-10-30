@@ -47,9 +47,9 @@ class Step
         StepType.Launch => $"Lancer {Exe} {Args}".TrimEnd(),
         StepType.Place => Zone switch
         {
-            Zone.Manuel => $"Placer {Process} '{Title}' → {Monitor} {X},{Y} {W}x{H}{(Maximize ? " max" : "")}",
-            Zone.Grille => $"Placer {Process} '{Title}' → {Monitor} grille {Cols}x{Rows} case {Col},{Row} ({SpanCols}x{SpanRows})",
-            _ => $"Placer {Process} '{Title}' → {Monitor} zone {Zone}",
+            Zone.Manuel => $"Placer {Process} '{Title}' → {Config.Label(Monitor)} {X},{Y} {W}x{H}{(Maximize ? " max" : "")}",
+            Zone.Grille => $"Placer {Process} '{Title}' → {Config.Label(Monitor)} grille {Cols}x{Rows} case {Col},{Row} ({SpanCols}x{SpanRows})",
+            _ => $"Placer {Process} '{Title}' → {Config.Label(Monitor)} zone {Zone}",
         },
         _ => Mode == ClickMode.Element
             ? $"Clic {Button}{(Double ? " x2" : "")} sur « {ElementName} » ({Process})"
@@ -57,12 +57,17 @@ class Step
     };
 }
 
+// Steps store the Windows device name (\\.\DISPLAYn, stable under renaming); the grid shows "Custom name (device)".
 class MonitorConverter : StringConverter
 {
     public override bool GetStandardValuesSupported(ITypeDescriptorContext? c) => true;
     public override bool GetStandardValuesExclusive(ITypeDescriptorContext? c) => false;
     public override StandardValuesCollection GetStandardValues(ITypeDescriptorContext? c) =>
         new(Screen.AllScreens.Select(s => s.DeviceName).ToArray());
+    public override object? ConvertTo(ITypeDescriptorContext? c, System.Globalization.CultureInfo? ci, object? v, Type t) =>
+        t == typeof(string) && v is string s ? Config.Label(s) : base.ConvertTo(c, ci, v, t);
+    public override object? ConvertFrom(ITypeDescriptorContext? c, System.Globalization.CultureInfo? ci, object v) =>
+        v is string s ? Config.Resolve(s) : base.ConvertFrom(c, ci, v);
 }
 
 class Profile
@@ -75,6 +80,24 @@ class Profile
 class Config
 {
     public List<Profile> Profiles { get; set; } = new();
+    /// <summary>device name (\\.\DISPLAY2) -> custom name</summary>
+    public Dictionary<string, string> ScreenNames { get; set; } = new();
+
+    [JsonIgnore] public static Config Current { get; private set; } = new();
+
+    public static string Label(string device) =>
+        Current.ScreenNames.TryGetValue(device, out var n) && n != "" ? $"{n} ({device})" : device;
+
+    /// <summary>accepts a device name, a custom name, or a "Custom (device)" label</summary>
+    public static string Resolve(string input)
+    {
+        input = input.Trim();
+        foreach (var s in Screen.AllScreens)
+            if (input.Equals(s.DeviceName, StringComparison.OrdinalIgnoreCase) || input.Equals(Label(s.DeviceName), StringComparison.OrdinalIgnoreCase) ||
+                (Current.ScreenNames.TryGetValue(s.DeviceName, out var n) && input.Equals(n, StringComparison.OrdinalIgnoreCase)))
+                return s.DeviceName;
+        return input;
+    }
 
     static string FilePath => Path.Combine(Path.GetDirectoryName(Environment.ProcessPath)!, "profiles.json");
     static readonly JsonSerializerOptions Opt = new()
@@ -84,7 +107,9 @@ class Config
         Converters = { new JsonStringEnumConverter() },
     };
 
-    public static Config Load()
+    public static Config Load() => Current = LoadFile();
+
+    static Config LoadFile()
     {
         if (!File.Exists(FilePath)) return new();
         try { return JsonSerializer.Deserialize<Config>(File.ReadAllText(FilePath), Opt) ?? new(); }

@@ -123,7 +123,7 @@ static class Native
 
     public static void Move(IntPtr h, Step s)
     {
-        var scr = Screen.AllScreens.FirstOrDefault(x => x.DeviceName == s.Monitor) ?? Screen.PrimaryScreen!;
+        var scr = Screen.AllScreens.FirstOrDefault(x => x.DeviceName == Config.Resolve(s.Monitor)) ?? Screen.PrimaryScreen!;
         if (IsIconic(h) || IsZoomed(h)) ShowWindow(h, 9);
 
         if (s.Zone == Zone.Manuel)
