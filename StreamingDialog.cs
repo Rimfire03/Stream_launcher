@@ -4,7 +4,7 @@ sealed class StreamingDialog : Form
     readonly StreamingStore store = StreamingStore.Current;
     readonly TextBox tbTitle = new() { Dock = DockStyle.Top, Font = Ui.Base, MaxLength = 140 };
     readonly TextBox tbGame = new() { Dock = DockStyle.Top, Font = Ui.Base, AutoCompleteMode = AutoCompleteMode.SuggestAppend, AutoCompleteSource = AutoCompleteSource.CustomSource };
-    readonly TextBox tbTags = new() { Dock = DockStyle.Top, Font = Ui.Base };
+    readonly TagEditor tbTags = new() { Dock = DockStyle.Top };
     readonly Label lblCount = new() { AutoSize = true, Font = Ui.Small, ForeColor = Ui.Muted };
     readonly Label lblGameInfo = new() { AutoSize = true, Font = Ui.Small, ForeColor = Ui.Muted };
     readonly Label lblStatus = new() { AutoSize = true, Font = Ui.Base, MaximumSize = new Size(540, 0), Padding = new Padding(0, 6, 0, 0) };
@@ -73,7 +73,7 @@ sealed class StreamingDialog : Form
         Add(new Label { Text = "Jeu (le dictionnaire se complète tout seul pendant la saisie)", Font = Ui.Bold, AutoSize = true });
         Add(tbGame);
         Add(lblGameInfo);
-        Add(new Label { Text = "Tags (séparés par des virgules ; 10 au plus, lettres et chiffres)", Font = Ui.Bold, AutoSize = true });
+        Add(new Label { Text = "Tags (Entrée, virgule ou espace pour ajouter, × pour retirer ; 10 au plus ; ↓ pour les suggestions)", Font = Ui.Bold, AutoSize = true });
         Add(tbTags);
 
         var actions = new FlowLayoutPanel { AutoSize = true, WrapContents = true, Margin = new Padding(0, 8, 0, 0) };
@@ -433,12 +433,12 @@ sealed class FavoriteDialog : Form
         var names = new AutoCompleteStringCollection();
         names.AddRange(GameDict.Current.Find("", 2000).Select(g => g.Name).ToArray());
         game.AutoCompleteCustomSource = names;
-        var tags = new TextBox { Left = 16, Top = 148, Width = 488, Text = string.Join(", ", f.Tags) };
+        var tags = new TagEditor { Left = 16, Top = 148, Width = 488, Text = string.Join(", ", f.Tags) };
         Controls.AddRange(new Control[]
         {
             new Label { Left = 16, Top = 14, AutoSize = true, Text = "Titre", Font = Ui.Bold }, title,
             new Label { Left = 16, Top = 70, AutoSize = true, Text = "Jeu", Font = Ui.Bold }, game,
-            new Label { Left = 16, Top = 126, AutoSize = true, Text = "Tags (séparés par des virgules ; 10 au plus, lettres et chiffres)", Font = Ui.Bold }, tags,
+            new Label { Left = 16, Top = 126, AutoSize = true, Text = "Tags (Entrée ou virgule pour ajouter, × pour retirer ; 10 au plus)", Font = Ui.Bold }, tags,
         });
         var ok = Ui.Btn("Enregistrer", Ui.Kind.Primary, (_, _) =>
         {
