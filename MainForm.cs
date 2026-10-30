@@ -221,8 +221,7 @@ class MainForm : Form
             if (i == tipIndex) return;
             tipIndex = i;
             var (m, sub) = i >= 0 ? Ui.Describe((Step)lbSteps.Items[i]) : ("", "");
-            stepTip.SetToolTip(lbSteps, i >= 0 ? m + "
-" + sub : "");
+            stepTip.SetToolTip(lbSteps, i >= 0 ? m + Environment.NewLine + sub : "");
         };
         lbSteps.DrawItem += DrawStep;
         lbProf.DrawItem += DrawProfile;
