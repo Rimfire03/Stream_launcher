@@ -129,7 +129,7 @@ Propriétés (catégorie « OBS Studio ») :
 L'ordre d'exécution est : profil, collection, scène. Chaque champ peut rester vide (par exemple pour ne changer que de collection).
 
 Si la scène n'existe pas, l'étape échoue tout de suite avec le message d'OBS ; si OBS est injoignable (fermé, WebSocket désactivé), elle réessaie puis échoue au bout du délai maximum."),
-        new("Twitch, Kick et YouTube (titre, jeu, tags)", @"Menu « Live > Éditer le titre, le jeu et les tags… » : change le titre, le jeu et les tags de ta chaîne sur Twitch, Kick et YouTube en même temps (mêmes valeurs partout).
+        new("Twitch, Kick et YouTube (titre, jeu, tags)", @"Bouton « Infos du live » (barre du profil) : change le titre, le jeu et les tags de ta chaîne sur Twitch, Kick et YouTube en même temps (mêmes valeurs partout).
 
 Connexion (une fois par plateforme) : dans la fenêtre, clique « Connecter », puis autorise Stream Launcher dans la page de la plateforme qui s'ouvre. Rien à configurer : les versions publiées contiennent déjà les applications Twitch et Kick de Stream Launcher.
 - Twitch : la page Twitch affiche un code à saisir (l'application te le montre).
@@ -149,7 +149,7 @@ Favoris : un favori est un combo titre + jeu + tags, qui vont toujours ensemble.
 Historique : les 15 derniers lives (titre, jeu, tags), enregistrés quand tu appliques des valeurs ou que tu lances un live. « Importer mes derniers lives » ajoute les titres de tes dernières diffusions Twitch (VOD) et YouTube (Twitch et YouTube ne donnent pas le jeu). Kick ne fournit pas d'historique. « ★ Mettre en favoris » ajoute ce combo aux favoris ; « Appliquer » renvoie ce live.
 
 Sur Kick, la recherche de jeux par mot-clé utilise une partie de l'API que Kick marque comme obsolète ; le dictionnaire reste utilisable si elle disparaît."),
-        new("Chat unifié", @"Menu « Live > Chat unifié… » (ou étape « Ouvrir le chat unifié » d'un profil, ou StreamLauncher.exe --chat) : une seule fenêtre avec le chat de Twitch, Kick et YouTube. Chaque message porte le logo de sa plateforme ; sur Twitch, les badges (diffuseur, modérateur, abonné…) s'affichent devant le pseudo.
+        new("Chat unifié", @"Bouton « Chat » (barre du profil) (ou étape « Ouvrir le chat unifié » d'un profil, ou StreamLauncher.exe --chat) : une seule fenêtre avec le chat de Twitch, Kick et YouTube. Chaque message porte le logo de sa plateforme ; sur Twitch, les badges (diffuseur, modérateur, abonné…) s'affichent devant le pseudo.
 
 Les trois boutons ronds en haut allument ou éteignent une plateforme (le point indique l'état : vert = lecture en cours). Ce que tu écris dans la zone du bas part sur toutes les plateformes allumées. « Au premier plan » garde la fenêtre au-dessus des autres.
 

@@ -115,7 +115,8 @@ class MainForm : Form
         titleBox.Controls.AddRange(new Control[] { lblProfile, lblCount });
         var runBtns = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, WrapContents = false, Padding = new Padding(0, 4, 0, 0) };
         var btnChat = Ui.Btn("💬  Chat", Ui.Kind.Secondary, (_, _) => OpenChatWindow());
-        runBtns.Controls.AddRange(new Control[] { btnChat, btnRun, btnStop });
+        var btnInfo = Ui.Btn("✎  Infos du live", Ui.Kind.Secondary, (_, _) => { using var d = new StreamingDialog(); d.ShowDialog(this); });
+        runBtns.Controls.AddRange(new Control[] { btnInfo, btnChat, btnRun, btnStop });
         var profileBar = new Panel { Dock = DockStyle.Top, Height = 54, BackColor = Ui.Card, Padding = new Padding(18, 5, 14, 3) };
         profileBar.Controls.Add(runBtns);
         profileBar.Controls.Add(titleBox);
@@ -143,9 +144,6 @@ class MainForm : Form
 
         // header menus: Paramètres (application settings), Outils (helpers), Aide
         var settingsMenu = new ToolStripMenuItem("Paramètres");
-        var liveMenu = new ToolStripMenuItem("Live");
-        liveMenu.DropDownItems.Add("Chat unifié…", null, (_, _) => OpenChatWindow());
-        liveMenu.DropDownItems.Add("Éditer le titre, le jeu et les tags…", null, (_, _) => { using var d = new StreamingDialog(); d.ShowDialog(this); });
         var toolsMenu = new ToolStripMenuItem("Outils");
         toolsMenu.DropDownItems.Add("Ouvrir le dossier des raccourcis Stream Deck", null, (_, _) => SyncDeck(true));
         toolsMenu.DropDownItems.Add("Journal des lancements Stream Deck", null, (_, _) => OpenRunLog());
@@ -255,10 +253,10 @@ class MainForm : Form
         {
             foreach (ToolStripItem i in items) { i.ForeColor = Ui.Text; if (i is ToolStripMenuItem m) DarkText(m.DropDownItems); }
         }
-        foreach (var m in new[] { liveMenu, settingsMenu, toolsMenu }) { m.ForeColor = Color.White; DarkText(m.DropDownItems); }
+        foreach (var m in new[] { settingsMenu, toolsMenu }) { m.ForeColor = Color.White; DarkText(m.DropDownItems); }
         DarkText(help.DropDownItems);
         var menu = new MenuStrip { Dock = DockStyle.Right, LayoutStyle = ToolStripLayoutStyle.HorizontalStackWithOverflow, AutoSize = false, Width = 330, BackColor = Ui.Header, Font = Ui.Base, GripStyle = ToolStripGripStyle.Hidden };
-        menu.Items.AddRange(new ToolStripItem[] { liveMenu, settingsMenu, toolsMenu, help });
+        menu.Items.AddRange(new ToolStripItem[] { settingsMenu, toolsMenu, help });
         MainMenuStrip = menu;
         // connection indicators: one dot per platform, next to the menus (click = open the live editor)
         var tipPills = new ToolTip { InitialDelay = 300 };
