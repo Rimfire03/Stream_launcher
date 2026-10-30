@@ -313,7 +313,7 @@ sealed class TwitchPlatform : Platform
 {
     static string Api => Environment.GetEnvironmentVariable("STREAMLAUNCHER_TWITCH_API") ?? "https://api.twitch.tv/helix";
     static string OAuth => Environment.GetEnvironmentVariable("STREAMLAUNCHER_TWITCH_AUTH") ?? "https://id.twitch.tv/oauth2";
-    const string Scope = "channel:manage:broadcast chat:read chat:edit"; // chat:* = unified chat window (IRC)
+    const string Scope = "channel:manage:broadcast chat:read chat:edit channel:read:redemptions"; // chat:* = unified chat window (IRC), redemptions = channel point rewards (EventSub)
 
     protected override string DefaultClientId => "gwjqrmds3c2ewc58x51mnr99v2d74z"; // Stream Launcher's Twitch application (public client)
     public override string Id => "twitch";
@@ -371,6 +371,15 @@ sealed class TwitchPlatform : Platform
 
     protected override async Task RefreshAsync(CancellationToken ct) =>
         Store(await PostFormAsync(OAuth + "/token", new() { ["grant_type"] = "refresh_token", ["refresh_token"] = Auth.Refresh, ["client_id"] = ClientId }, ct));
+
+    /// <summary>asks Twitch to push the channel point reward redemptions of the channel to this EventSub WebSocket session</summary>
+    public Task SubscribeRedemptionsAsync(string sessionId, CancellationToken ct) => SendAsync(HttpMethod.Post, "/eventsub/subscriptions", new
+    {
+        type = "channel.channel_points_custom_reward_redemption.add",
+        version = "1",
+        condition = new { broadcaster_user_id = Auth.UserId },
+        transport = new { method = "websocket", session_id = sessionId },
+    }, ct);
 
     async Task<JsonElement> SendAsync(HttpMethod method, string path, object? body, CancellationToken ct)
     {

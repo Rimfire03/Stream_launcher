@@ -162,7 +162,7 @@ Les emotes de Twitch et de Kick s'affichent en images dans le texte (les emotes 
 - Une page par plateforme : choisis ce qui s'affiche en plus du texte (Twitch : badges, emotes en images, points de chaîne, bits, messages mis en avant, abonnements et raids, GIF ; Kick : emotes en images, points de chaîne, abonnements, abonnements offerts ; YouTube : Super Chat, Super Stickers, nouveaux membres). Un type décoché est masqué.
 
 Limites :
-- Twitch : reconnecte ton compte une fois (nouvelles autorisations de lecture et d'écriture du chat). Une récompense de points de chaîne sans message n'est pas visible dans le chat Twitch.
+- Twitch : reconnecte ton compte une fois (nouvelles autorisations de lecture et d'écriture du chat). Les récompenses de points de chaîne (avec ou sans message) arrivent par EventSub, qui demande un droit en plus (channel:read:redemptions) : reconnecte ton compte Twitch une fois ; sans ce droit, seules les récompenses avec message passent.
 - Kick : la lecture passe par la connexion publique du site (non officielle, peut cesser de fonctionner si Kick la modifie). Pour écrire, l'application Kick doit avoir l'autorisation « Écrire dans le flux du chat », puis reconnecte le compte.
 - YouTube : lecture espacée (une requête toutes les 10 s au minimum) pour ménager le quota quotidien ; l'envoi est limité à 200 caractères. Le chat n'existe que pendant une diffusion en cours."),
         new("Retrouver une fenêtre", @"Les étapes Placer, Action fenêtre et Clic doivent retrouver la bonne fenêtre. Critères (catégorie « Fenêtre cible ») :

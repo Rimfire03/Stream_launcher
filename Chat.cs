@@ -130,8 +130,10 @@ abstract class ChatSource : IDisposable
 sealed class TwitchChatSource : ChatSource
 {
     static string Url => Environment.GetEnvironmentVariable("STREAMLAUNCHER_TWITCH_IRC") ?? "wss://irc-ws.chat.twitch.tv:443";
+    static string EventSubUrl => Environment.GetEnvironmentVariable("STREAMLAUNCHER_TWITCH_EVENTSUB") ?? "wss://eventsub.wss.twitch.tv/ws";
     ClientWebSocket? ws;
     string channel = "";
+    volatile bool redemptions; // true while EventSub delivers the reward redemptions (then the IRC lines of rewards are dropped: they would show twice)
 
     public override string PlatformId => "twitch";
     public override bool CanSend => ws is { State: WebSocketState.Open } && P.HasScope("chat:edit");
@@ -148,6 +150,9 @@ sealed class TwitchChatSource : ChatSource
         using var socket = new ClientWebSocket();
         await socket.ConnectAsync(new Uri(Url), ct);
         ws = socket;
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        if (twitch.HasScope("channel:read:redemptions")) _ = RedemptionsAsync(twitch, linked.Token);
+        else Emit(new ChatMessage(DateTime.Now, "twitch", "Stream Launcher", "Reconnecte Twitch (Paramètres du live) pour afficher les récompenses de points de chaîne : nouveau droit à accepter.", System: true));
         try
         {
             await SendTextAsync(socket, "CAP REQ :twitch.tv/tags twitch.tv/commands", ct);
@@ -163,11 +168,63 @@ sealed class TwitchChatSource : ChatSource
                     if (line.StartsWith("PING")) { await SendTextAsync(socket, "PONG :tmi.twitch.tv", ct); continue; }
                     if (line.Contains("Login authentication failed")) throw new InvalidOperationException("authentification refusée (reconnecte Twitch)");
                     if (line.Contains(" 366 ") || line.Contains(" JOIN ")) { SetStatus("Connecté (#" + login + ")", true); continue; }
-                    if (ParseIrc(line) is { } m) Emit(m);
+                    if (ParseIrc(line) is { } m && !(redemptions && m.Kind == "reward")) Emit(m);
                 }
             }
         }
-        finally { ws = null; }
+        finally { ws = null; redemptions = false; linked.Cancel(); }
+    }
+
+    /// <summary>channel point rewards (with or without a message) come from EventSub; reconnects by itself while the chat is open</summary>
+    async Task RedemptionsAsync(TwitchPlatform twitch, CancellationToken ct)
+    {
+        int delay = 3;
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                using var socket = new ClientWebSocket();
+                await socket.ConnectAsync(new Uri(EventSubUrl), ct);
+                while (true)
+                {
+                    var frame = await ReceiveTextAsync(socket, ct);
+                    if (frame == null) break;
+                    using var doc = JsonDocument.Parse(frame);
+                    var root = doc.RootElement;
+                    switch (root.GetProperty("metadata").GetProperty("message_type").GetString())
+                    {
+                        case "session_welcome":
+                            await twitch.SubscribeRedemptionsAsync(root.GetProperty("payload").GetProperty("session").GetProperty("id").GetString()!, ct);
+                            redemptions = true;
+                            delay = 3;
+                            break;
+                        case "notification":
+                            if (ParseRedemption(root.GetProperty("payload").GetProperty("event")) is { } m) Emit(m);
+                            break;
+                        case "session_reconnect": case "revocation": goto reconnect;
+                    }
+                }
+                reconnect:;
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { break; }
+            catch (Exception e) { RunLog.Write("récompenses Twitch (EventSub) : " + e.Message); }
+            redemptions = false;
+            try { await Task.Delay(TimeSpan.FromSeconds(delay), ct); } catch (OperationCanceledException) { break; }
+            delay = Math.Min(delay * 2, 60);
+        }
+    }
+
+    public static ChatMessage? ParseRedemption(JsonElement e)
+    {
+        try
+        {
+            var reward = e.GetProperty("reward");
+            var text = $"{reward.GetProperty("title").GetString()} ({reward.GetProperty("cost").GetInt32()})";
+            var input = e.TryGetProperty("user_input", out var ui) ? ui.GetString() ?? "" : "";
+            if (input != "") text += " : " + input;
+            return new ChatMessage(DateTime.Now, "twitch", e.GetProperty("user_name").GetString() ?? "?", text, Kind: "reward", Extra: "Récompense");
+        }
+        catch { return null; }
     }
 
     public override async Task SendAsync(string text, CancellationToken ct)
