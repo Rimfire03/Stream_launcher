@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using System.Collections.Concurrent;
 
 /// <summary>Draws the platform logo (same drawing for the on/off buttons and for each chat line).</summary>
@@ -66,6 +67,7 @@ static class ChatBadges
     static readonly ConcurrentDictionary<string, bool> Loading = new();
     static Dictionary<string, string> urls = new();
     public static event Action? Loaded;
+    public static void RaiseLoaded() => Loaded?.Invoke();
 
     public static void SetUrls(Dictionary<string, string> map) { urls = map; Loaded?.Invoke(); }
 
@@ -92,6 +94,61 @@ static class ChatBadges
                 }
                 catch (Exception e) { RunLog.Write($"image {url} : {e.Message}"); Cache[url] = null; }
                 Loaded?.Invoke();
+            });
+        return null;
+    }
+}
+
+/// <summary>Animated GIFs linked in messages (direct .gif, Giphy and Tenor pages): resolved to an image url, downloaded once, kept animated.</summary>
+static class ChatGifs
+{
+    static readonly HttpClient Web = new() { Timeout = TimeSpan.FromSeconds(15), DefaultRequestHeaders = { { "User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) StreamLauncher" } } };
+    sealed record Gif(Image Image, MemoryStream Stream); // GDI+ needs the stream to stay open as long as the image lives
+    static readonly ConcurrentDictionary<string, Gif?> Cache = new();
+    static readonly ConcurrentDictionary<string, bool> Loading = new();
+    const int MaxBytes = 12_000_000;
+
+    static readonly Regex Direct = new(@"https?://\S+?\.gif(?:\?\S*)?(?=\s|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    static readonly Regex Giphy = new(@"https?://(?:www\.)?giphy\.com/(?:gifs|stickers)/(?:[^\s/?]*-)?(?<id>[A-Za-z0-9]+)(?=[/?\s]|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    static readonly Regex TenorPage = new(@"https?://(?:www\.)?tenor\.com/\S+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    static readonly Regex TenorMedia = new(@"https://(?:media|c)\d*\.tenor\.com/[^""'\s<>]+?\.gif", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <returns>the link of the GIF in the text (an image, or a Giphy/Tenor page), or null</returns>
+    public static string? Find(string text)
+    {
+        var m = Direct.Match(text);
+        if (m.Success) return m.Value;
+        m = Giphy.Match(text);
+        if (m.Success) return $"https://i.giphy.com/media/{m.Groups["id"].Value}/giphy.gif";
+        m = TenorPage.Match(text);
+        return m.Success ? m.Value : null;
+    }
+
+    public static bool Failed(string url) => Cache.TryGetValue(url, out var g) && g == null;
+
+    /// <returns>the animated image, or null while it downloads (the view is told through <see cref="ChatBadges.Loaded"/>) or when it failed</returns>
+    public static Image? Get(string url)
+    {
+        if (Cache.TryGetValue(url, out var g)) return g?.Image;
+        if (Loading.TryAdd(url, true))
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var src = url;
+                    if (TenorPage.IsMatch(url) && !url.Contains("media.tenor.com", StringComparison.OrdinalIgnoreCase)) // page: its html names the image
+                    {
+                        var mm = TenorMedia.Match(await Web.GetStringAsync(url));
+                        if (!mm.Success) throw new InvalidOperationException("pas d'image GIF dans la page");
+                        src = mm.Value;
+                    }
+                    var bytes = await Web.GetByteArrayAsync(src);
+                    if (bytes.Length > MaxBytes) throw new InvalidOperationException("GIF trop gros");
+                    var ms = new MemoryStream(bytes);
+                    Cache[url] = new Gif(Image.FromStream(ms), ms);
+                }
+                catch (Exception e) { RunLog.Write($"gif {url} : {e.Message}"); Cache[url] = null; }
+                ChatBadges.RaiseLoaded();
             });
         return null;
     }
@@ -189,7 +246,7 @@ sealed class ChatView : Control
     }
 
     /// <summary>one word or one emote, placed in a row (x, and the line it sits on)</summary>
-    sealed record Piece(string? Word, Image? Image, int X, int Line, int W, int H);
+    sealed record Piece(string? Word, Image? Image, int X, int Line, int W, int H, bool Gif = false);
 
     /// <returns>the pieces, the height of each line, and the row height</returns>
     (List<Piece> Pieces, List<int> Lines, int Height) Flow(ChatMessage m, int prefixWidth, int width)
@@ -201,10 +258,10 @@ sealed class ChatView : Control
         int line = 0, x = prefixWidth;
 
         void NewLine() { line++; lines.Add(bodyH); x = left; }
-        void Place(string? word, Image? img, int w, int h)
+        void Place(string? word, Image? img, int w, int h, bool gif = false)
         {
             if (x + w > right && x > (line == 0 ? prefixWidth : left)) NewLine();
-            pieces.Add(new Piece(word, img, x, line, w, h));
+            pieces.Add(new Piece(word, img, x, line, w, h, gif));
             lines[line] = Math.Max(lines[line], h);
             x += w + spaceW;
         }
@@ -241,14 +298,38 @@ sealed class ChatView : Control
             }
         Words(m.Text[pos..]);
 
+        // a GIF link: the animation is shown under the text (the link stays readable)
+        if (m.Kind == "gif" && ChatGifs.Find(m.Text) is { } gifUrl && ChatGifs.Get(gifUrl) is { } gif)
+        {
+            double s = Math.Min(1.0, Math.Min(Math.Min(280.0, right - left) / gif.Width, 200.0 / gif.Height));
+            if (x > (line == 0 ? prefixWidth : left)) NewLine();
+            Place(null, gif, Math.Max(8, (int)(gif.Width * s)), Math.Max(8, (int)(gif.Height * s)), gif: true);
+        }
+
         int height = 6 + lines.Sum(l => l + 1);
         return (pieces, lines, Math.Max(Logo + 8, height));
+    }
+
+    // ---- animated GIFs: ImageAnimator moves the frames on, the view repaints while one is on screen
+    readonly HashSet<Image> animated = new();
+    bool gifVisible;
+    int framePending;
+
+    void Animate(Image img)
+    {
+        if (!ImageAnimator.CanAnimate(img) || !animated.Add(img)) return;
+        ImageAnimator.Animate(img, (_, _) =>
+        {
+            if (!gifVisible || !IsHandleCreated || IsDisposed || Interlocked.Exchange(ref framePending, 1) == 1) return;
+            BeginInvoke(() => { Interlocked.Exchange(ref framePending, 0); ImageAnimator.UpdateFrames(); Invalidate(); });
+        });
     }
 
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
         g.Clear(BackColor);
+        gifVisible = false;
         int y = -offset;
         for (int i = 0; i < items.Count && y < ClientSize.Height; i++)
         {
@@ -296,6 +377,7 @@ sealed class ChatView : Control
         {
             int py = lineTop[p.Line] + (lines[p.Line] - p.H) / 2;
             if (p.Word != null) TextRenderer.DrawText(g, p.Word, body, new Point(r.X + p.X, py), color, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+            else if (p.Image != null && p.Gif) { Animate(p.Image); g.DrawImage(p.Image, new Rectangle(r.X + p.X, py, p.W, p.H)); gifVisible = true; }
             else if (p.Image != null) g.DrawImage(p.Image, new Rectangle(r.X + p.X, py + 1, p.W, Emote));
         }
     }
