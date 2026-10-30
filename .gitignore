@@ -1,0 +1,5 @@
+bin/
+obj/
+dist/
+profiles.json
+profiles.json.bak

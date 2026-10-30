@@ -1,0 +1,375 @@
+class MainForm : Form
+{
+    readonly Config cfg;
+    readonly NotifyIcon tray = new() { Icon = SystemIcons.Application, Text = "Stream Launcher" };
+    readonly ListBox lbProf = new() { Dock = DockStyle.Fill, IntegralHeight = false };
+    readonly ListBox lbSteps = new() { Dock = DockStyle.Fill, IntegralHeight = false, HorizontalScrollbar = true };
+    readonly PropertyGrid pg = new() { Dock = DockStyle.Fill };
+    readonly TextBox log = new() { Dock = DockStyle.Bottom, Height = 110, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical };
+    readonly FlowLayoutPanel quick = new() { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(4) };
+    readonly Button btnRun, btnStop, btnRec;
+    bool allowShow, exiting, refreshing;
+    CancellationTokenSource? cts;
+    Recorder? rec;
+    Form? recBar;
+
+    Profile? Cur => lbProf.SelectedItem as Profile;
+    Step? CurStep => lbSteps.SelectedItem as Step;
+
+    public MainForm(Config cfg, bool startHidden)
+    {
+        this.cfg = cfg;
+        allowShow = !startHidden;
+        Text = "Stream Launcher " + Updater.Format(Updater.Current);
+        Size = new Size(1100, 720);
+        StartPosition = FormStartPosition.CenterScreen;
+
+        // left: profiles
+        var profBtns = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true };
+        profBtns.Controls.AddRange(new Control[]
+        {
+            Btn("Nouveau", (_, _) => NewProfile()),
+            Btn("Renommer", (_, _) => RenameProfile()),
+            Btn("Supprimer", (_, _) => DeleteProfile()),
+        });
+        var split = new SplitContainer { Dock = DockStyle.Fill, SplitterDistance = 210, FixedPanel = FixedPanel.Panel1 };
+        split.Panel1.Controls.Add(lbProf);
+        split.Panel1.Controls.Add(profBtns);
+
+        // right: toolbar + steps + properties
+        btnRun = Btn("▶ Lancer", (_, _) => { if (Cur != null) RunProfile(Cur); });
+        btnStop = Btn("■ Stop", (_, _) => cts?.Cancel());
+        btnStop.Enabled = false;
+        btnRec = Btn("● Enregistrer les clics", (_, _) => ToggleRec());
+        var bar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true };
+        bar.Controls.AddRange(new Control[]
+        {
+            btnRun, btnStop, btnRec,
+            Btn("Importer fenêtres ouvertes…", (_, _) => ImportWindows()),
+            Btn("+ Application…", (_, _) => AddApp()),
+            Btn("+ Clic", (_, _) => AddStep(new Step { Type = StepType.Click })),
+            Btn("↑", (_, _) => MoveStep(-1)),
+            Btn("↓", (_, _) => MoveStep(1)),
+            Btn("Supprimer l'étape", (_, _) => DeleteStep()),
+            Btn("Mises à jour", (_, _) => CheckUpdate(true)),
+        });
+        var split2 = new SplitContainer { Dock = DockStyle.Fill, SplitterDistance = 520 };
+        split2.Panel1.Controls.Add(lbSteps);
+        split2.Panel2.Controls.Add(pg);
+        split.Panel2.Controls.Add(split2);
+        split.Panel2.Controls.Add(bar);
+
+        Controls.Add(split);
+        Controls.Add(log);
+        Controls.Add(quick);
+
+        lbProf.SelectedIndexChanged += (_, _) => RefreshSteps();
+        lbSteps.SelectedIndexChanged += (_, _) => { if (!refreshing) pg.SelectedObject = CurStep; };
+        pg.PropertyValueChanged += (_, _) => { RefreshSteps(); cfg.Save(); };
+
+        tray.Visible = true;
+        tray.DoubleClick += (_, _) => ShowMain();
+
+        RebuildProfiles();
+        if (lbProf.Items.Count > 0) lbProf.SelectedIndex = 0;
+        Log("Écrans : " + string.Join(" | ", Screen.AllScreens.Select(s =>
+            $"{s.DeviceName} {s.Bounds.Width}x{s.Bounds.Height} @{s.Bounds.X},{s.Bounds.Y}{(s.Primary ? " (principal)" : "")}")));
+        HandleCreated += (_, _) => BeginInvoke(() => CheckUpdate(false));
+    }
+
+    async void CheckUpdate(bool manual)
+    {
+        try
+        {
+            var up = await Updater.CheckAsync();
+            if (up is not { } u)
+            {
+                if (manual) MessageBox.Show("Version à jour : " + Updater.Format(Updater.Current), Text);
+                return;
+            }
+            Log($"Mise à jour disponible : {Updater.Format(u.Ver)}");
+            if (!manual && !allowShow) { tray.ShowBalloonTip(5000, "Stream Launcher", $"Mise à jour {Updater.Format(u.Ver)} disponible (ouvrir l'app pour l'installer)", ToolTipIcon.Info); return; }
+            if (MessageBox.Show($"Installer {Updater.Format(u.Ver)} (actuelle : {Updater.Format(Updater.Current)}) ?\nL'application va redémarrer.", Text, MessageBoxButtons.YesNo) != DialogResult.Yes) return;
+            await Updater.DownloadAndRestartAsync(u.Url);
+            exiting = true;
+            Close();
+        }
+        catch (Exception e) { if (manual) Log("ERREUR mise à jour : " + e.Message); }
+    }
+
+    // keeps the form hidden at startup when launched with --tray
+    protected override void SetVisibleCore(bool value)
+    {
+        if (!allowShow && !IsHandleCreated) CreateHandle();
+        base.SetVisibleCore(allowShow && value);
+    }
+
+    protected override void OnFormClosing(FormClosingEventArgs e)
+    {
+        if (!exiting && e.CloseReason == CloseReason.UserClosing)
+        {
+            e.Cancel = true;
+            Hide();
+            return;
+        }
+        StopRec();
+        tray.Visible = false;
+        tray.Dispose();
+        base.OnFormClosing(e);
+    }
+
+    void ShowMain()
+    {
+        allowShow = true;
+        Show();
+        WindowState = FormWindowState.Normal;
+        Activate();
+    }
+
+    static Button Btn(string text, EventHandler onClick)
+    {
+        var b = new Button { Text = text, AutoSize = true };
+        b.Click += onClick;
+        return b;
+    }
+
+    void Log(string msg)
+    {
+        if (InvokeRequired) { BeginInvoke(() => Log(msg)); return; }
+        log.AppendText($"[{DateTime.Now:HH:mm:ss}] {msg}\r\n");
+    }
+
+    // ---- profiles ----
+
+    void RebuildProfiles()
+    {
+        int sel = lbProf.SelectedIndex;
+        lbProf.Items.Clear();
+        lbProf.Items.AddRange(cfg.Profiles.ToArray<object>());
+        if (sel >= 0 && sel < lbProf.Items.Count) lbProf.SelectedIndex = sel;
+
+        quick.Controls.Clear();
+        var menu = new ContextMenuStrip();
+        foreach (var p in cfg.Profiles)
+        {
+            var prof = p;
+            quick.Controls.Add(Btn("▶ " + prof.Name, (_, _) => RunProfile(prof)));
+            menu.Items.Add("▶ " + prof.Name, null, (_, _) => RunProfile(prof));
+        }
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add("Ouvrir", null, (_, _) => ShowMain());
+        menu.Items.Add("Arrêter l'exécution", null, (_, _) => cts?.Cancel());
+        menu.Items.Add("Quitter", null, (_, _) => { exiting = true; Close(); });
+        tray.ContextMenuStrip = menu;
+    }
+
+    void NewProfile()
+    {
+        var name = Prompt("Nom du profil", "Nouveau profil");
+        if (name == null) return;
+        cfg.Profiles.Add(new Profile { Name = name });
+        cfg.Save();
+        RebuildProfiles();
+        lbProf.SelectedIndex = lbProf.Items.Count - 1;
+    }
+
+    void RenameProfile()
+    {
+        if (Cur is not { } p) return;
+        var name = Prompt("Nouveau nom", p.Name);
+        if (name == null) return;
+        p.Name = name;
+        cfg.Save();
+        RebuildProfiles();
+    }
+
+    void DeleteProfile()
+    {
+        if (Cur is not { } p) return;
+        if (MessageBox.Show($"Supprimer le profil « {p.Name} » ?", Text, MessageBoxButtons.YesNo) != DialogResult.Yes) return;
+        cfg.Profiles.Remove(p);
+        cfg.Save();
+        RebuildProfiles();
+        RefreshSteps();
+    }
+
+    static string? Prompt(string title, string def)
+    {
+        using var f = new Form { Text = title, FormBorderStyle = FormBorderStyle.FixedDialog, StartPosition = FormStartPosition.CenterParent, ClientSize = new Size(320, 80), MaximizeBox = false, MinimizeBox = false };
+        var tb = new TextBox { Text = def, Left = 10, Top = 10, Width = 300 };
+        var ok = new Button { Text = "OK", Left = 150, Top = 42, DialogResult = DialogResult.OK };
+        var cancel = new Button { Text = "Annuler", Left = 235, Top = 42, DialogResult = DialogResult.Cancel };
+        f.Controls.AddRange(new Control[] { tb, ok, cancel });
+        f.AcceptButton = ok;
+        f.CancelButton = cancel;
+        return f.ShowDialog() == DialogResult.OK && tb.Text.Trim() != "" ? tb.Text.Trim() : null;
+    }
+
+    // ---- steps ----
+
+    void RefreshSteps(int select = -2)
+    {
+        refreshing = true;
+        int sel = select == -2 ? lbSteps.SelectedIndex : select;
+        lbSteps.Items.Clear();
+        if (Cur != null) lbSteps.Items.AddRange(Cur.Steps.ToArray<object>());
+        if (sel >= lbSteps.Items.Count) sel = lbSteps.Items.Count - 1;
+        if (sel >= 0) lbSteps.SelectedIndex = sel;
+        refreshing = false;
+        pg.SelectedObject = CurStep;
+    }
+
+    void AddStep(Step s)
+    {
+        if (Cur is not { } p) return;
+        p.Steps.Add(s);
+        cfg.Save();
+        RefreshSteps(p.Steps.Count - 1);
+    }
+
+    void AddApp()
+    {
+        using var d = new OpenFileDialog { Filter = "Applications (*.exe)|*.exe|Tous les fichiers|*.*" };
+        if (d.ShowDialog() == DialogResult.OK) AddStep(new Step { Type = StepType.Launch, Exe = d.FileName });
+    }
+
+    void MoveStep(int dir)
+    {
+        if (Cur is not { } p || lbSteps.SelectedIndex < 0) return;
+        int i = lbSteps.SelectedIndex, j = i + dir;
+        if (j < 0 || j >= p.Steps.Count) return;
+        (p.Steps[i], p.Steps[j]) = (p.Steps[j], p.Steps[i]);
+        cfg.Save();
+        RefreshSteps(j);
+    }
+
+    void DeleteStep()
+    {
+        if (Cur is not { } p || CurStep is not { } s) return;
+        int i = lbSteps.SelectedIndex;
+        p.Steps.Remove(s);
+        cfg.Save();
+        RefreshSteps(i);
+    }
+
+    void ImportWindows()
+    {
+        if (Cur is not { } p) return;
+        using var d = new ImportDialog();
+        if (d.ShowDialog(this) != DialogResult.OK) return;
+        p.Steps.AddRange(d.Result);
+        cfg.Save();
+        RefreshSteps(p.Steps.Count - 1);
+    }
+
+    // ---- run ----
+
+    async void RunProfile(Profile p)
+    {
+        if (cts != null) return;
+        cts = new CancellationTokenSource();
+        SetBusy(true);
+        if (Visible) WindowState = FormWindowState.Minimized; // stay out of the way of the clicks
+        Log($"=== {p.Name} ===");
+        var token = cts.Token;
+        try
+        {
+            int err = await Task.Run(() => new Runner { Log = Log }.Run(p, token));
+            Log(err == 0 ? "Terminé" : $"Terminé avec {err} erreur(s)");
+        }
+        catch (OperationCanceledException) { Log("Annulé"); }
+        finally
+        {
+            cts.Dispose();
+            cts = null;
+            SetBusy(false);
+            if (Visible) WindowState = FormWindowState.Normal;
+        }
+    }
+
+    void SetBusy(bool busy)
+    {
+        btnRun.Enabled = !busy;
+        btnStop.Enabled = busy;
+        btnRec.Enabled = !busy;
+    }
+
+    // ---- recording ----
+
+    void ToggleRec()
+    {
+        if (rec != null) { StopRec(); return; }
+        if (Cur is not { } p) return;
+        try { rec = new Recorder(p.Steps, () => BeginInvoke(() => { RefreshSteps(p.Steps.Count - 1); cfg.Save(); })); }
+        catch (Exception e) { Log("ERREUR : " + e.Message); return; }
+
+        btnRec.Text = "■ Arrêter l'enregistrement";
+        recBar = new Form
+        {
+            FormBorderStyle = FormBorderStyle.FixedToolWindow, TopMost = true, ShowInTaskbar = false,
+            StartPosition = FormStartPosition.Manual, Text = "Enregistrement des clics", ClientSize = new Size(260, 44),
+        };
+        var wa = Screen.PrimaryScreen!.WorkingArea;
+        recBar.Location = new Point(wa.X + (wa.Width - recBar.Width) / 2, wa.Y + 8);
+        var stop = new Button { Text = "■ Arrêter", Dock = DockStyle.Fill };
+        stop.Click += (_, _) => StopRec();
+        recBar.ControlBox = false;
+        recBar.Controls.Add(stop);
+        recBar.Show();
+        WindowState = FormWindowState.Minimized;
+    }
+
+    void StopRec()
+    {
+        if (rec == null) return;
+        rec.Dispose();
+        rec = null;
+        recBar?.Close();
+        recBar = null;
+        btnRec.Text = "● Enregistrer les clics";
+        if (!IsDisposed && Visible) { WindowState = FormWindowState.Normal; Activate(); }
+    }
+}
+
+class ImportDialog : Form
+{
+    public List<Step> Result { get; } = new();
+    readonly CheckedListBox clb = new() { Dock = DockStyle.Fill, CheckOnClick = true, HorizontalScrollbar = true };
+    readonly CheckBox chkLaunch = new() { Text = "Inclure le lancement de l'application", Checked = true, AutoSize = true };
+    readonly List<Native.Win> wins;
+
+    public ImportDialog()
+    {
+        Text = "Importer les fenêtres ouvertes (position + écran)";
+        Size = new Size(720, 460);
+        StartPosition = FormStartPosition.CenterParent;
+        wins = Native.TopWindows().Where(w => w.Pid != Environment.ProcessId && w.Process != "").ToList();
+        foreach (var w in wins) clb.Items.Add($"{w.Process}  —  {w.Title}");
+
+        var ok = new Button { Text = "Importer", AutoSize = true, DialogResult = DialogResult.OK };
+        ok.Click += (_, _) => Build();
+        var bottom = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true };
+        bottom.Controls.AddRange(new Control[] { chkLaunch, ok });
+        Controls.Add(clb);
+        Controls.Add(bottom);
+        AcceptButton = ok;
+    }
+
+    void Build()
+    {
+        foreach (int i in clb.CheckedIndices)
+        {
+            var w = wins[i];
+            Native.GetWindowRect(w.H, out var r);
+            var scr = Screen.FromHandle(w.H);
+            if (chkLaunch.Checked && w.Path != "")
+                Result.Add(new Step { Type = StepType.Launch, Exe = w.Path, DelayMs = 500 });
+            Result.Add(new Step
+            {
+                Type = StepType.Place, DelayMs = 300, Process = w.Process, Title = w.Title, Monitor = scr.DeviceName,
+                X = r.Left - scr.Bounds.X, Y = r.Top - scr.Bounds.Y, W = r.Right - r.Left, H = r.Bottom - r.Top,
+                Maximize = Native.IsZoomed(w.H),
+            });
+        }
+    }
+}
