@@ -12,7 +12,7 @@ static class HelpTopics
    - ouvre tes applications et place tes fenêtres comme tu les veux, puis « Importer fenêtres ouvertes… » ;
    - ou glisse-dépose des raccourcis, exe ou documents dans la fenêtre ;
    - ou utilise les boutons « + Application… », « + Navigateur », « + Icône du tray »…
-3. Pour les clics, utilise « ● Enregistrer les clics » et fais les clics toi-même.
+3. Pour les clics, utilise « ＋ Ajouter une étape > Enregistrer mes clics » et fais les clics toi-même.
 4. Teste : clic droit sur une étape > « Tester cette étape », ou « ▶ Lancer » pour tout le profil.
 5. Pour lancer d'un clic : bouton « ▶ nom du profil » en haut de la fenêtre, icône de la zone de notification (clic droit), ou Stream Deck (voir la rubrique dédiée).
 
@@ -27,8 +27,7 @@ Zone de droite : les propriétés de l'étape sélectionnée (tout se règle là
 Boutons principaux :
 - ▶ Lancer le live / ■ Fermer le live : exécute le profil, puis ferme ses fenêtres (bascule).
 - ■ Stop : interrompt une exécution en cours.
-- ● Enregistrer les clics : transforme tes clics en étapes.
-- ＋ Ajouter une étape ▾ : menu par thèmes (Applications, Fenêtres, Interactions) : application ou fichier, import des fenêtres ouvertes, site web, placer / déplacer / réduire une fenêtre, clic, icône de la zone de notification.
+- ＋ Ajouter une étape ▾ : menu par thèmes (Applications, Fenêtres, Interactions) : application ou fichier, import des fenêtres ouvertes, site web, placer / déplacer / réduire une fenêtre, enregistrer mes clics, clic réglé à la main, icône de la zone de notification, scène OBS.
 - Menus du bandeau du haut : « Paramètres » (démarrer avec Windows, canal de mise à jour, identifier ou renommer les écrans), « Outils » (dossier des raccourcis Stream Deck, journal des lancements, liste des icônes de la zone de notification) et « Aide » (guide, mises à jour, à propos).
 - ↑ ↓ Dupliquer Supprimer : réorganisent la liste (même chose par clic droit sur une étape). Tu peux aussi glisser-déposer une étape à l'endroit voulu : une ligne violette montre où elle sera insérée.
 
@@ -79,7 +78,7 @@ Deux modes (propriété Mode) :
 
 Autres propriétés : Button (gauche ou droit), Double (double-clic).
 
-Enregistrement : « ● Enregistrer les clics » réduit Stream Launcher et affiche une barre « Arrêter » en haut de l'écran. Chaque clic que tu fais devient une étape (nom de l'élément quand il existe, sinon coordonnées), avec l'attente réelle entre les clics. Deux clics rapprochés au même endroit deviennent un double-clic.
+Enregistrement : « ＋ Ajouter une étape > Enregistrer mes clics » réduit Stream Launcher et affiche une barre « Arrêter » en haut de l'écran. Chaque clic que tu fais devient une étape (nom de l'élément quand il existe, sinon coordonnées), avec l'attente réelle entre les clics. Deux clics rapprochés au même endroit deviennent un double-clic.
 
 Limites : les éléments de menus contextuels sont mal retrouvés par nom, préfère Coords pour ceux-là."),
 

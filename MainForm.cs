@@ -12,7 +12,7 @@ class MainForm : Form
     readonly Label lblEmpty = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Ui.Muted, Font = Ui.Base, BackColor = Ui.Card, Padding = new Padding(30) };
     readonly Label lblProps = new() { Dock = DockStyle.Top, Height = 34, Font = Ui.Bold, ForeColor = Ui.Text, BackColor = Ui.Card, Padding = new Padding(12, 9, 0, 0), Text = "Réglages de l'étape" };
     readonly Label lblFootLeft = new() { Dock = DockStyle.Fill, Font = Ui.Small, ForeColor = ColorTranslator.FromHtml("#64748B"), TextAlign = ContentAlignment.MiddleLeft, Text = "Vérification des mises à jour…" };
-    readonly Button btnRun, btnStop, btnRec;
+    readonly Button btnRun, btnStop;
     readonly Button btnSide = new() { Text = "◀", FlatStyle = FlatStyle.Flat, Size = new Size(28, 22), Cursor = Cursors.Hand, TabStop = false, Font = Ui.Small, BackColor = Ui.Card, ForeColor = Ui.Muted };
     readonly ToolTip sideTip = new();
     Panel sidebar = null!;
@@ -99,12 +99,11 @@ class MainForm : Form
         btnRun.Font = Ui.Bold;
         btnStop = Ui.Btn("■  Stop", Ui.Kind.Secondary, (_, _) => cts?.Cancel());
         btnStop.Enabled = false;
-        btnRec = Ui.Btn("●  Enregistrer les clics", Ui.Kind.Secondary, (_, _) => ToggleRec());
 
         var titleBox = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, AutoSize = true, Dock = DockStyle.Left, WrapContents = false, Margin = new Padding(0) };
         titleBox.Controls.AddRange(new Control[] { lblProfile, lblCount });
         var runBtns = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, WrapContents = false, Padding = new Padding(0, 4, 0, 0) };
-        runBtns.Controls.AddRange(new Control[] { btnRun, btnStop, btnRec });
+        runBtns.Controls.AddRange(new Control[] { btnRun, btnStop });
         var profileBar = new Panel { Dock = DockStyle.Top, Height = 54, BackColor = Ui.Card, Padding = new Padding(18, 5, 14, 3) };
         profileBar.Controls.Add(runBtns);
         profileBar.Controls.Add(titleBox);
@@ -123,6 +122,7 @@ class MainForm : Form
         Item("Réduire une fenêtre (je clique dessus)", () => PickWindow(false));
         addMenu.Items.Add(new ToolStripSeparator());
         Group("INTERACTIONS");
+        Item("Enregistrer mes clics (j'utilise mes applications)", ToggleRec);
         Item("Clic (réglé à la main)", () => AddStep(new Step { Type = StepType.Click }));
         Item("Icône de la zone de notification (je clique dessus)", PickTray);
         Item("Scène OBS Studio…", () => AddStep(new Step { Type = StepType.Obs }));
@@ -418,8 +418,6 @@ class MainForm : Form
             ? "Aucun profil.\n\nClique sur « + Nouveau » à gauche pour créer ton premier profil (par exemple « Live Twitch »)."
             : "Ce profil n'a encore aucune étape.\n\nClique sur « Ajouter une étape », ou glisse ici des raccourcis, exécutables ou documents.\nAstuce : ouvre tes applications, place-les, puis « Importer les fenêtres ouvertes ».";
         lblProps.Text = CurStep == null ? "Réglages de l'étape" : "Réglages : " + Ui.Badge(CurStep.Type).Label.ToLowerInvariant();
-        var live = Cur != null && Live.IsLive(Cur.Name);
-        btnRec.Visible = !live;
     }
 
     void DrawStep(object? sender, DrawItemEventArgs e)
@@ -863,7 +861,6 @@ class MainForm : Form
     {
         btnRun.Enabled = !busy;
         btnStop.Enabled = busy;
-        btnRec.Enabled = !busy;
     }
 
     async void ListTray()
@@ -959,11 +956,11 @@ class MainForm : Form
     void ToggleRec()
     {
         if (rec != null) { StopRec(); return; }
-        if (Cur is not { } p) return;
+        if (Cur is not { } p || cts != null) return;
+        if (Live.IsLive(p.Name)) { Log("Ferme d'abord le live de ce profil avant d'enregistrer des clics."); return; }
         try { rec = new Recorder(p.Steps, () => BeginInvoke(() => { RefreshSteps(p.Steps.Count - 1); cfg.Save(); })); }
         catch (Exception e) { Log("ERREUR : " + e.Message); return; }
 
-        btnRec.Text = "■  Arrêter l'enregistrement";
         recBar = new Form
         {
             FormBorderStyle = FormBorderStyle.FixedToolWindow, TopMost = true, ShowInTaskbar = false,
@@ -986,7 +983,6 @@ class MainForm : Form
         rec = null;
         recBar?.Close();
         recBar = null;
-        btnRec.Text = "●  Enregistrer les clics";
         if (!IsDisposed && Visible) { WindowState = FormWindowState.Normal; Activate(); }
     }
 }
