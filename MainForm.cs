@@ -13,6 +13,11 @@ class MainForm : Form
     readonly Label lblProps = new() { Dock = DockStyle.Top, Height = 34, Font = Ui.Bold, ForeColor = Ui.Text, BackColor = Ui.Card, Padding = new Padding(12, 9, 0, 0), Text = "Réglages de l'étape" };
     readonly Label lblFootLeft = new() { Dock = DockStyle.Fill, Font = Ui.Small, ForeColor = ColorTranslator.FromHtml("#64748B"), TextAlign = ContentAlignment.MiddleLeft, Text = "Vérification des mises à jour…" };
     readonly Button btnRun, btnStop, btnRec;
+    readonly Button btnSide = new() { Text = "◀", FlatStyle = FlatStyle.Flat, Size = new Size(28, 22), Cursor = Cursors.Hand, TabStop = false, Font = Ui.Small, BackColor = Ui.Card, ForeColor = Ui.Muted };
+    readonly ToolTip sideTip = new();
+    Panel sidebar = null!;
+    Label sideTitle = null!;
+    TableLayoutPanel profBtns = null!;
     bool allowShow, exiting, refreshing;
     CancellationTokenSource? cts;
     Recorder? rec;
@@ -47,8 +52,8 @@ class MainForm : Form
         header.Controls.AddRange(new Control[] { logo, brand, ver });
 
         // ---- profiles sidebar ----
-        var sideTitle = new Label { Text = "PROFILS", Font = Ui.Small, ForeColor = Ui.Muted, Dock = DockStyle.Top, Height = 28, Padding = new Padding(14, 10, 0, 0), BackColor = Ui.Card };
-        var profBtns = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 92, Padding = new Padding(10, 8, 10, 10), BackColor = Ui.Card, ColumnCount = 2, RowCount = 2 };
+        sideTitle = new Label { Text = "PROFILS", Font = Ui.Small, ForeColor = Ui.Muted, Dock = DockStyle.Top, Height = 28, Padding = new Padding(14, 10, 0, 0), BackColor = Ui.Card };
+        profBtns = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 92, Padding = new Padding(10, 8, 10, 10), BackColor = Ui.Card, ColumnCount = 2, RowCount = 2 };
         profBtns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         profBtns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         profBtns.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
@@ -61,7 +66,10 @@ class MainForm : Form
         profBtns.SetColumnSpan(newBtn, 2);
         profBtns.Controls.Add(renBtn, 0, 1);
         profBtns.Controls.Add(delBtn, 1, 1);
-        var sidebar = new Panel { Dock = DockStyle.Left, Width = 250, BackColor = Ui.Card };
+        sidebar = new Panel { Dock = DockStyle.Left, Width = 250, BackColor = Ui.Card };
+        btnSide.FlatAppearance.BorderSize = 0;
+        btnSide.Click += (_, _) => SetSidebar(!cfg.SidebarCollapsed);
+        sideTitle.Controls.Add(btnSide);
         sidebar.Controls.Add(lbProf);
         sidebar.Controls.Add(sideTitle);
         sidebar.Controls.Add(profBtns);
@@ -229,10 +237,25 @@ class MainForm : Form
 
         RebuildProfiles();
         if (lbProf.Items.Count > 0) lbProf.SelectedIndex = 0;
+        SetSidebar(cfg.SidebarCollapsed, false);
         UpdateHeader();
         Log("Écrans : " + string.Join(" | ", Screen.AllScreens.Select(s =>
             $"{Config.Label(s.DeviceName)} {s.Bounds.Width}x{s.Bounds.Height}{(s.Primary ? " (principal)" : "")}")));
         HandleCreated += (_, _) => BeginInvoke(() => CheckUpdate(false));
+    }
+
+    // folds the profile list to a thin strip (the quick-launch pills in the header still start every profile)
+    void SetSidebar(bool collapsed, bool save = true)
+    {
+        cfg.SidebarCollapsed = collapsed;
+        sidebar.Width = collapsed ? 40 : 250;
+        lbProf.Visible = profBtns.Visible = !collapsed;
+        sideTitle.Text = collapsed ? "" : "PROFILS";
+        btnSide.Text = collapsed ? "▶" : "◀";
+        btnSide.Anchor = collapsed ? AnchorStyles.Top | AnchorStyles.Left : AnchorStyles.Top | AnchorStyles.Right;
+        btnSide.Location = new Point(collapsed ? 6 : sidebar.Width - btnSide.Width - 8, 4);
+        sideTip.SetToolTip(btnSide, collapsed ? "Afficher la liste des profils" : "Masquer la liste des profils");
+        if (save) cfg.Save();
     }
 
     void ShowProps() => pg.SelectedObject = CurStep == null ? null : new StepView(CurStep);
