@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- MSI de Stream Launcher (WiX 4, par machine, 64 bits). Construit par tools\Build-Release.ps1 :
+     wix build installer\Product.wxs -d Version=x.y.z -d ExePath=<exe signé> -->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+  <Package Name="Stream Launcher" Manufacturer="TomLine prod&amp;co" Version="$(Version)"
+           UpgradeCode="6B1F0C5E-3A47-4D2B-9E8A-5C7D21F4A0B3" Scope="perMachine" Language="1036" Codepage="1252">
+
+    <MajorUpgrade AllowDowngrades="yes" />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="StreamLauncher">
+
+        <!-- profiles.json vit à côté de l'exe : le dossier reste inscriptible pour les utilisateurs standard.
+             Les mises à jour passent par un nouveau MSI (releases GitHub). -->
+        <Component Id="MainExe" Guid="*">
+          <File Id="StreamLauncherExe" Source="$(ExePath)" KeyPath="yes">
+            <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="Stream Launcher"
+                      WorkingDirectory="INSTALLFOLDER" Advertise="no" />
+          </File>
+        </Component>
+
+        <Component Id="InstallFolder" Guid="3E9A7B14-85C2-4F60-B1D7-2A4C6E8F0D95">
+          <CreateFolder>
+            <util:PermissionEx User="Users" GenericAll="yes" />
+          </CreateFolder>
+        </Component>
+
+      </Directory>
+    </StandardDirectory>
+
+    <Feature Id="Main" Title="Stream Launcher" Level="1">
+      <ComponentRef Id="MainExe" />
+      <ComponentRef Id="InstallFolder" />
+    </Feature>
+
+  </Package>
+</Wix>

@@ -1,6 +1,6 @@
 # Stream Launcher
 
-Exe Windows portable (.NET 8, self-contained, un seul fichier) : lance des applications, les place sur le bon écran et clique dans leurs fenêtres. Profils stockés dans `profiles.json` à côté de l'exe.
+Application Windows (.NET 8, self-contained) distribuée uniquement par installateur MSI signé (release GitHub) : lance des applications, les place sur le bon écran et clique dans leurs fenêtres. Profils stockés dans `profiles.json` à côté de l'exe.
 
 ## Utilisation
 
@@ -28,7 +28,7 @@ Exécution sans fenêtre, code retour 0 = OK, 1 = étapes en erreur, 2 = profil 
 powershell -File tools\Build-Release.ps1
 ```
 
-Produit `dist\StreamLauncher.exe` signé (certificat global TomLine).
+Produit `dist\StreamLauncher-Va.b.c-win-x64.msi` signé (certificat global TomLine). Avec `-Publish`, seul le MSI est joint à la release ; la mise à jour automatique le télécharge, vérifie la signature et l'installe (invite UAC).
 
 ## Limites connues
 
