@@ -68,7 +68,7 @@ Menu **Live > Éditer le titre, le jeu et les tags…** : mêmes titre, jeu et t
 
 - **Connexion sans configuration** : les versions publiées embarquent les applications Twitch et Kick de Stream Launcher. Twitch : flux « device code » (identifiant client public, code à saisir sur twitch.tv). Kick : OAuth 2.1 PKCE avec retour sur `http://localhost:43117/callback` (port à garder libre), droits `channel:read` et `channel:write`.
 - **Jetons chiffrés** (DPAPI, compte Windows courant) dans `%LOCALAPPDATA%\StreamLauncher\streaming-auth.bin`. Ils ne sont transmis qu'à Twitch et à Kick.
-- **Envoi séparé** : en plus de « Appliquer sur les plateformes », un bouton « Appliquer seulement sur Twitch » et un autre pour Kick envoient la mise à jour à une seule plateforme (utile pour renvoyer après un échec).
+- **Envoi par plateforme** : un interrupteur à côté de chaque compte connecté choisit si les mises à jour lui sont envoyées (choix mémorisé) ; le bouton principal nomme les plateformes visées.
 - **Voyants de connexion** en haut à droite : vert (opérationnelle), orange (vérification), rouge (erreur, détail au survol), gris (non connecté). Vérifiés au démarrage, toutes les 5 minutes et à chaque envoi.
 - **Favoris** (combos titre + jeu + tags) créés, modifiables et appliqués en 1 clic, **historique** des 15 derniers lives (`streaming.json`), **dictionnaire des jeux** mis à jour dynamiquement (`games.json`) : relu à chaque lancement de l'application (catégories des plateformes connectées), complété à chaque recherche.
 - Étape **Scène OBS Studio** : profil, collection de scènes puis scène (serveur WebSocket d'OBS 28+).

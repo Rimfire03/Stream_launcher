@@ -16,7 +16,7 @@ sealed class StreamingDialog : Form
     CancellationTokenSource? searchCts;
     bool busy;
     Button btnApply = null!; // label follows the connected platforms
-    readonly FlowLayoutPanel perPlatform = new() { AutoSize = true, WrapContents = true }; // "Appliquer seulement sur Twitch / Kick"
+    readonly ToolTip tip = new() { InitialDelay = 300 };
 
     public StreamingDialog()
     {
@@ -66,7 +66,7 @@ sealed class StreamingDialog : Form
         Add(Ui.Heading("COMPTES"));
         Add(accounts);
         Add(Ui.Heading("INFORMATIONS DU LIVE"));
-        Add(new Label { Text = "Mêmes titre, jeu et tags sur toutes les plateformes connectées (seules celles-ci sont proposées).", Font = Ui.Small, ForeColor = Ui.Muted, AutoSize = true });
+        Add(new Label { Text = "Mêmes titre, jeu et tags sur les plateformes connectées dont l'interrupteur est activé.", Font = Ui.Small, ForeColor = Ui.Muted, AutoSize = true });
         Add(new Label { Text = "Titre", Font = Ui.Bold, AutoSize = true });
         Add(tbTitle);
         Add(lblCount);
@@ -81,7 +81,6 @@ sealed class StreamingDialog : Form
         actions.Controls.Add(btnApply);
         actions.Controls.Add(Ui.Btn("Charger depuis le live", Ui.Kind.Secondary, async (_, _) => await LoadFromLive()));
         Add(actions);
-        Add(perPlatform);
         var stars = new FlowLayoutPanel { AutoSize = true, WrapContents = true };
         stars.Controls.Add(Ui.Btn("★ Ajouter aux favoris (titre + jeu + tags)", Ui.Kind.Secondary, (_, _) => AddFavorite()));
         Add(stars);
@@ -135,11 +134,24 @@ sealed class StreamingDialog : Form
         foreach (var p in Streaming.Platforms)
         {
             var row = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 0, 0, 4) };
+            // switch: send the updates to this platform or not (only offered once the account is connected)
+            var sw = new SwitchToggle { Checked = !store.Skipped.Contains(p.Id), Margin = new Padding(0, 8, 10, 0), Visible = p.Connected };
+            var swPlat = p;
+            tip.SetToolTip(sw, $"Envoyer les mises à jour à {p.Name}");
+            sw.CheckedChanged += (_, _) =>
+            {
+                if (sw.Checked) store.Skipped.Remove(swPlat.Id); else if (!store.Skipped.Contains(swPlat.Id)) store.Skipped.Add(swPlat.Id);
+                store.Save();
+                RebuildAccounts();
+            };
+            row.Controls.Add(sw);
+            if (!p.Connected) row.Controls.Add(new Panel { Width = 52, Height = 1, Margin = new Padding(0) }); // keeps the names aligned
             row.Controls.Add(new Label
             {
                 Text = $"{p.Name} : " + (p.Connected ? $"connecté ({p.UserName})" : p.Configured ? "non connecté" : "indisponible (build local)")
+                    + (p.Connected && store.Skipped.Contains(p.Id) ? "  (envoi désactivé)" : "")
                     + (p.Connected ? p.State switch { Health.Ok => "  ✔ opérationnel", Health.Error => "  ✖ erreur", Health.Checking => "  …", _ => "" } : ""),
-                Font = Ui.Bold, AutoSize = false, Width = 285, Height = 24, Margin = new Padding(0, 8, 8, 0),
+                Font = Ui.Bold, AutoSize = false, Width = 300, Height = 24, Margin = new Padding(0, 8, 8, 0),
                 ForeColor = StatusPill.ColorOf(p.State),
             });
             var plat = p;
@@ -149,16 +161,9 @@ sealed class StreamingDialog : Form
             if (p.Connected) row.Controls.Add(Ui.Btn("Tester", Ui.Kind.Ghost, async (_, _) => { await plat.CheckAsync(); Say(plat.StateText, plat.State == Health.Error); }));
             accounts.Controls.Add(row);
         }
-        // only the connected platforms are offered: nothing to update on an account that is not connected
-        var on = Streaming.Platforms.Where(p => p.Connected).ToList();
-        btnApply.Text = on.Count == 0 ? "Appliquer sur les plateformes" : "Appliquer sur " + string.Join(" et ", on.Select(p => p.Name));
-        perPlatform.Controls.Clear();
-        foreach (var p in on)
-        {
-            var plat = p;
-            perPlatform.Controls.Add(Ui.Btn($"Appliquer seulement sur {p.Name}", Ui.Kind.Secondary, async (_, _) => await ApplyForm(new[] { plat })));
-        }
-        perPlatform.Visible = on.Count > 1; // with a single connected platform, the main button already does it
+        // the main button names where the update goes: connected platforms whose switch is on
+        var targets = Streaming.Targets.ToList();
+        btnApply.Text = targets.Count == 0 ? "Appliquer sur les plateformes" : "Appliquer sur " + string.Join(" et ", targets.Select(p => p.Name));
     }
 
     async Task Connect(Platform p)
@@ -220,6 +225,7 @@ sealed class StreamingDialog : Form
     Task ApplyForm(IEnumerable<Platform>? only = null) => Guard(async () =>
     {
         if (NeedConnection()) return;
+        if (only == null && !Streaming.Targets.Any()) { Say("Aucune plateforme activée : active au moins un interrupteur à côté d'un compte connecté.", true); return; }
         if (only != null && !only.Any(p => p.Connected)) { Say("Ce compte n'est pas connecté.", true); return; }
         var title = tbTitle.Text.Trim();
         var game = tbGame.Text.Trim();
@@ -524,5 +530,49 @@ sealed class StatusPill : Control
         g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         using (var br = new SolidBrush(ColorOf(p.State))) g.FillEllipse(br, 8, Height / 2 - 5, 10, 10);
         TextRenderer.DrawText(g, p.Name, Ui.Small, new Rectangle(24, 0, Width - 24, Height), Color.White, TextFormatFlags.VerticalCenter | TextFormatFlags.Left);
+    }
+}
+
+/// <summary>On/off switch (WinForms has none): blue track with a white knob.</summary>
+sealed class SwitchToggle : Control
+{
+    bool on;
+    public event EventHandler? CheckedChanged;
+
+    public bool Checked
+    {
+        get => on;
+        set
+        {
+            if (on == value) return;
+            on = value;
+            Invalidate();
+            CheckedChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public SwitchToggle()
+    {
+        Size = new Size(42, 22);
+        Cursor = Cursors.Hand;
+        DoubleBuffered = true;
+        SetStyle(ControlStyles.Selectable, false);
+    }
+
+    protected override void OnClick(EventArgs e)
+    {
+        base.OnClick(e);
+        Checked = !Checked;
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        var track = new Rectangle(0, 1, Width - 1, Height - 3);
+        using (var path = Ui.Round(track, track.Height / 2))
+        using (var br = new SolidBrush(on ? Ui.Primary : ColorTranslator.FromHtml("#B9B6C8"))) g.FillPath(br, path);
+        int d = track.Height - 4;
+        using (var knob = new SolidBrush(Color.White)) g.FillEllipse(knob, on ? track.Right - d - 2 : track.Left + 2, track.Top + 2, d, d);
     }
 }

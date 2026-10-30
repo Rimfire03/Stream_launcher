@@ -63,6 +63,8 @@ class StreamingStore
 {
     /// <summary>favourites: a title, a game and tags that always go together</summary>
     public List<LiveInfo> Favorites { get; set; } = new();
+    /// <summary>ids of the platforms whose switch is off: updates are not sent to them</summary>
+    public List<string> Skipped { get; set; } = new();
     public List<HistoryEntry> History { get; set; } = new();
 
     public const int HistorySize = 15;
@@ -549,6 +551,8 @@ static class Streaming
 {
     public static readonly Platform[] Platforms = { new TwitchPlatform(), new KickPlatform() };
     public static IEnumerable<Platform> Connected => Platforms.Where(p => p.Connected);
+    /// <summary>where an update goes: the connected platforms whose switch is on</summary>
+    public static IEnumerable<Platform> Targets => Connected.Where(p => !StreamingStore.Current.Skipped.Contains(p.Id));
 
     /// <summary>tags the platforms accept: letters and digits only, 25 characters, 10 at most</summary>
     public static List<string> NormalizeTags(string text) => text.Split(new[] { ',', ';', '#', '\n' }, StringSplitOptions.RemoveEmptyEntries)
@@ -561,7 +565,7 @@ static class Streaming
     public static async Task<List<(Platform P, string? Warning, Exception? Error)>> ApplyAsync(string? title, string? game, List<string>? tags, IEnumerable<Platform>? only = null, CancellationToken ct = default)
     {
         var results = new List<(Platform, string?, Exception?)>();
-        foreach (var p in (only ?? Platforms).Where(x => x.Connected)) // "only": the retry after a failure targets just the platforms that failed
+        foreach (var p in (only ?? Targets).Where(x => x.Connected)) // "only": the retry after a failure targets just the platforms that failed
         {
             try
             {
