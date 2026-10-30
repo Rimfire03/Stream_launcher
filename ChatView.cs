@@ -116,18 +116,30 @@ sealed class ChatView : ListBox
         ChatBadges.Loaded += () =>
         {
             if (!IsHandleCreated || IsDisposed || Interlocked.Exchange(ref pending, 1) == 1) return; // several images often arrive together: one pass
-            BeginInvoke(() => { Interlocked.Exchange(ref pending, 0); Remeasure(); Invalidate(); });
+            BeginInvoke(() => { Interlocked.Exchange(ref pending, 0); Frozen(Remeasure); });
         };
     }
 
     int pending;
+
+    [System.Runtime.InteropServices.DllImport("user32")] static extern IntPtr SendMessage(IntPtr h, int msg, IntPtr w, IntPtr l);
+    const int WM_SETREDRAW = 0x000B;
+
+    /// <summary>runs a change of the list with the painting frozen, then repaints once</summary>
+    void Frozen(Action change)
+    {
+        if (!IsHandleCreated) { change(); return; }
+        SendMessage(Handle, WM_SETREDRAW, IntPtr.Zero, IntPtr.Zero);
+        try { change(); }
+        finally { SendMessage(Handle, WM_SETREDRAW, (IntPtr)1, IntPtr.Zero); Invalidate(); }
+    }
 
     public bool ShowBadges { get; set; } = true;
 
     protected override void OnResize(EventArgs e)
     {
         base.OnResize(e);
-        Remeasure(); // row heights depend on the width
+        Frozen(Remeasure); // row heights depend on the width
     }
 
     void Remeasure()
@@ -287,10 +299,13 @@ sealed class ChatView : ListBox
     public void AddMessage(ChatMessage m)
     {
         bool follow = AtBottom();
-        int i = Items.Add(m);
-        Items[i] = m; // re-assigning forces the measure of the new row (it stays at the default height otherwise)
-        while (Items.Count > MaxItems) Items.RemoveAt(0);
-        if (follow) ScrollToEnd();
+        Frozen(() =>
+        {
+            int i = Items.Add(m);
+            Items[i] = m; // re-assigning forces the measure of the new row (it stays at the default height otherwise)
+            while (Items.Count > MaxItems) Items.RemoveAt(0);
+            if (follow) ScrollToEnd();
+        });
     }
 
     public void ScrollToEnd()

@@ -71,6 +71,13 @@ sealed class ChatWindow : Form
         AddSystem("Chat unifié : écris ici, le message part sur toutes les plateformes allumées. Clique sur un logo pour l'éteindre ; Réglages : son, utilisateurs exclus, ce qui s'affiche.");
     }
 
+    // a ListBox repaints everything when its content changes: composited painting of the window (double buffer including children) removes the flicker
+    // (not on the list itself: the handle of an owner-drawn ListBox cannot be created with this style)
+    protected override CreateParams CreateParams
+    {
+        get { var cp = base.CreateParams; cp.ExStyle |= 0x02000000; /* WS_EX_COMPOSITED */ return cp; }
+    }
+
     void OnUi(Action a)
     {
         if (IsHandleCreated && !IsDisposed) BeginInvoke(a);
