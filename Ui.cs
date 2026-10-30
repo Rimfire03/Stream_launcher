@@ -119,7 +119,7 @@ class StepView : ICustomTypeDescriptor
         }
         switch (s.Type)
         {
-            case StepType.Launch: h.UnionWith(new[] { "Exe", "Args", "SkipIfRunning" }); break;
+            case StepType.Launch: h.UnionWith(new[] { "Exe", "Args", "SkipIfRunning", "KeepOpen" }); break;
             case StepType.Place: Target(); Placement(); break;
             case StepType.Window: Target(); h.Add("Action"); if (s.Action == WindowAction.Deplacer) Placement(); break;
             case StepType.Click:

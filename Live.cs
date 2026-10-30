@@ -8,7 +8,7 @@ using System.Text.Json;
 static class Live
 {
     record WinRef(long H, uint Pid);
-    record State(DateTime Started, long[] Before, WinRef[] Touched);
+    record State(DateTime Started, long[] Before, WinRef[] Touched, string[]? Keep = null); // Keep: process names left open at stop
 
     static string Dir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "StreamLauncher", "live");
 
@@ -25,7 +25,9 @@ static class Live
         finally
         {
             Directory.CreateDirectory(Dir);
-            var state = new State(DateTime.Now, before, runner.Touched.Select(t => new WinRef((long)t.H, t.Pid)).ToArray());
+            var keep = p.Steps.Where(s => s.Type == StepType.Launch && s.KeepOpen && !string.IsNullOrWhiteSpace(s.Exe))
+                .Select(s => Path.GetFileNameWithoutExtension(s.Exe)).ToArray();
+            var state = new State(DateTime.Now, before, runner.Touched.Select(t => new WinRef((long)t.H, t.Pid)).ToArray(), keep);
             File.WriteAllText(FileOf(p.Name), JsonSerializer.Serialize(state));
         }
     }
@@ -51,6 +53,12 @@ static class Live
             if (pid == t.Pid && pid != own) targets[h] = Native.Describe(h); // same pid: guards against a reused handle
         }
 
+        var keep = (state.Keep ?? Array.Empty<string>()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var w in targets.Values.Where(w => keep.Contains(w.Process)).ToList())
+        {
+            log($"  gardée ouverte : {w.Process} '{w.Title}'");
+            targets.Remove(w.H);
+        }
         foreach (var w in targets.Values)
         {
             log($"  fermeture : {w.Process} '{w.Title}'");

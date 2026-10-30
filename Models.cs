@@ -19,6 +19,8 @@ class Step
     [DisplayName("Arguments"), Category("Lancement")] public string Args { get; set; } = "";
     [DisplayName("Ne pas relancer si déjà lancée"), Category("Lancement"), Description("Ne pas relancer si un processus du même nom tourne déjà"), TypeConverter(typeof(FrBool))] public bool SkipIfRunning { get; set; } = true;
 
+    [DisplayName("Garder ouverte à l'arrêt du live"), Category("Lancement"), Description("Si oui, les fenêtres de cette application ne sont pas fermées quand on arrête le live"), TypeConverter(typeof(FrBool))] public bool KeepOpen { get; set; }
+
     [DisplayName("Processus (sans .exe)"), Category("Fenêtre cible"), Description("Nom du processus sans .exe")] public string Process { get; set; } = "";
     [DisplayName("Titre contient"), Category("Fenêtre cible"), Description("Texte contenu dans le titre (vide = n'importe quel titre)")] public string Title { get; set; } = "";
 
