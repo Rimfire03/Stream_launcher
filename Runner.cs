@@ -10,6 +10,7 @@ class Runner
     IntPtr lastWindow; // window opened by the latest Browser step
     /// <summary>windows the profile placed, clicked or opened (used to close the live)</summary>
     public readonly HashSet<(IntPtr H, uint Pid)> Touched = new();
+    public readonly HashSet<IntPtr> KeepWindows = new(); // browser windows left open at stop (KeepOpen)
 
     void Touch(IntPtr h)
     {
@@ -143,7 +144,7 @@ class Runner
         if (s.Browser == BrowserKind.Defaut)
         {
             Process.Start(new ProcessStartInfo(u.AbsoluteUri) { UseShellExecute = true });
-            Log("  navigateur par défaut : la nouvelle fenêtre ne peut pas être suivie");
+            Log("  navigateur par défaut : la nouvelle fenêtre ne peut pas être suivie" + (s.KeepOpen ? " (« garder ouverte » sans effet)" : ""));
             return;
         }
         var exe = FindBrowser(s.Browser) ?? throw new FileNotFoundException($"{s.Browser} introuvable sur ce poste");
@@ -161,6 +162,13 @@ class Runner
             {
                 lastWindow = fresh.H;
                 Touch(fresh.H);
+                if (s.KeepOpen)
+                {
+                    // extension pop-ups can appear first: once the window has settled, keep every new window of this browser
+                    Thread.Sleep(1500);
+                    foreach (var w in Native.TopWindows().Where(w => w.Process.Equals(proc, StringComparison.OrdinalIgnoreCase) && !before.Contains(w.H)))
+                        KeepWindows.Add(w.H);
+                }
                 if (s.PlaceWindow)
                 {
                     Native.Move(fresh.H, s);

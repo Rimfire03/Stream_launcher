@@ -8,7 +8,7 @@ using System.Text.Json;
 static class Live
 {
     record WinRef(long H, uint Pid);
-    record State(DateTime Started, long[] Before, WinRef[] Touched, string[]? Keep = null); // Keep: process names left open at stop
+    record State(DateTime Started, long[] Before, WinRef[] Touched, string[]? Keep = null, long[]? KeepWindows = null); // Keep: process names, KeepWindows: window handles, both left open at stop
 
     static string Dir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "StreamLauncher", "live");
 
@@ -27,7 +27,7 @@ static class Live
             Directory.CreateDirectory(Dir);
             var keep = p.Steps.Where(s => s.Type == StepType.Launch && s.KeepOpen && !string.IsNullOrWhiteSpace(s.Exe))
                 .Select(s => Path.GetFileNameWithoutExtension(s.Exe)).ToArray();
-            var state = new State(DateTime.Now, before, runner.Touched.Select(t => new WinRef((long)t.H, t.Pid)).ToArray(), keep);
+            var state = new State(DateTime.Now, before, runner.Touched.Select(t => new WinRef((long)t.H, t.Pid)).ToArray(), keep, runner.KeepWindows.Select(h => (long)h).ToArray());
             File.WriteAllText(FileOf(p.Name), JsonSerializer.Serialize(state));
         }
     }
@@ -54,7 +54,8 @@ static class Live
         }
 
         var keep = (state.Keep ?? Array.Empty<string>()).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var w in targets.Values.Where(w => keep.Contains(w.Process)).ToList())
+        var keepWins = (state.KeepWindows ?? Array.Empty<long>()).ToHashSet();
+        foreach (var w in targets.Values.Where(w => keep.Contains(w.Process) || keepWins.Contains((long)w.H)).ToList())
         {
             log($"  gardée ouverte : {w.Process} '{w.Title}'");
             targets.Remove(w.H);

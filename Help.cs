@@ -44,7 +44,7 @@ Propriétés (catégorie « Lancement ») :
 - Exe : chemin de l'exécutable, du document ou de l'URL.
 - Args : arguments de ligne de commande (par exemple un argument « démarrer réduit dans le tray » si l'application en propose un).
 - SkipIfRunning : si vrai (par défaut), l'application n'est pas relancée quand un processus du même nom tourne déjà.
-- KeepOpen (« Garder ouverte à l'arrêt du live ») : si vrai, les fenêtres de cette application ne sont pas fermées quand on arrête le live (par exemple un lecteur de musique). Sans effet sur une application qui était déjà ouverte avant le live : celle-ci n'est jamais fermée.
+- KeepOpen (« Garder ouverte à l'arrêt du live ») : si vrai, les fenêtres de cette application ne sont pas fermées quand on arrête le live (par exemple un lecteur de musique). Disponible aussi pour l'étape Navigateur (la fenêtre ouverte par l'étape reste ouverte ; sans effet avec « navigateur par défaut », dont la fenêtre n'est pas suivie). Sans effet sur une application qui était déjà ouverte avant le live : celle-ci n'est jamais fermée.
 
 Ajouter facilement :
 - glisse-dépose un raccourci (.lnk), un exe ou un document dans la fenêtre : un raccourci est résolu vers sa cible ;

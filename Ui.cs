@@ -127,7 +127,7 @@ class StepView : ICustomTypeDescriptor
                 h.UnionWith(s.Mode == ClickMode.Element ? new[] { "ElementName", "ElementId" } : new[] { "RelX", "RelY" });
                 break;
             case StepType.Tray: h.UnionWith(new[] { "TrayName", "Button", "Double" }); break;
-            default: h.UnionWith(new[] { "Browser", "Url", "PlaceWindow" }); if (s.PlaceWindow) Placement(); break;
+            default: h.UnionWith(new[] { "Browser", "Url", "PlaceWindow", "KeepOpen" }); if (s.PlaceWindow) Placement(); break;
         }
         return h;
     }
