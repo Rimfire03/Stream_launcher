@@ -167,7 +167,7 @@ Code de retour : 0 = tout est passé, 1 = au moins une étape en erreur, 2 = pro
 
 Autres options :
 - --start ""Nom"" / --stop ""Nom"" : force le lancement ou la fermeture.
-- --tray : démarre l'interface masquée dans la zone de notification.
+- --tray : démarre l'interface masquée dans la zone de notification. « Outils > Démarrer avec Windows » l'ajoute au démarrage de la session avec cette option.
 - --list-tray : écrit sur la sortie standard les noms des icônes de la zone de notification.
 
 Au quotidien, l'icône de la zone de notification (clic droit) permet aussi de lancer chaque profil."),

@@ -88,6 +88,24 @@ static class Program
     }
 }
 
+/// <summary>Démarrage avec Windows : valeur « Run » de l'utilisateur, l'application démarre masquée dans la zone de notification (--tray).</summary>
+static class Autostart
+{
+    const string Key = @"Software\Microsoft\Windows\CurrentVersion\Run", Name = "StreamLauncher";
+
+    public static bool Enabled
+    {
+        get { using var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(Key); return k?.GetValue(Name) != null; }
+    }
+
+    public static void Set(bool on)
+    {
+        using var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(Key);
+        if (on) k.SetValue(Name, $"\"{Environment.ProcessPath}\" --tray");
+        else k.DeleteValue(Name, false);
+    }
+}
+
 /// <summary>Journal des lancements en ligne de commande (Stream Deck) : la ligne de commande n'a pas de fenêtre pour afficher les erreurs.</summary>
 static class RunLog
 {

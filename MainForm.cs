@@ -115,6 +115,9 @@ class MainForm : Form
         toolsMenu.Items.Add("Renommer les écrans…", null, (_, _) => RenameScreens());
         toolsMenu.Items.Add("Lister les icônes de la zone de notification", null, (_, _) => ListTray());
         toolsMenu.Items.Add(new ToolStripSeparator());
+        var startup = new ToolStripMenuItem("Démarrer avec Windows (dans la zone de notification)") { Checked = Autostart.Enabled, CheckOnClick = true };
+        startup.CheckedChanged += (_, _) => Autostart.Set(startup.Checked);
+        toolsMenu.Items.Add(startup);
         toolsMenu.Items.Add("Vérifier les mises à jour…", null, (_, _) => CheckUpdate(true));
         var toolsBtn = Ui.Btn("Outils  ▾", Ui.Kind.Secondary, (s, _) => toolsMenu.Show((Control)s!, new Point(0, ((Control)s!).Height)));
 
@@ -252,7 +255,7 @@ class MainForm : Form
         RebuildProfiles();
         if (lbProf.Items.Count > 0) lbProf.SelectedIndex = 0;
         SetSidebar(cfg.SidebarCollapsed, false);
-        HandleCreated += (_, _) => SyncDeck();
+        HandleCreated += (_, _) => { SyncDeck(); if (Autostart.Enabled) Autostart.Set(true); }; // re-register: the install folder may have changed
         UpdateHeader();
         Log("Écrans : " + string.Join(" | ", Screen.AllScreens.Select(s =>
             $"{Config.Label(s.DeviceName)} {s.Bounds.Width}x{s.Bounds.Height}{(s.Primary ? " (principal)" : "")}")));

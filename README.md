@@ -30,7 +30,7 @@ L'action « Ouvrir » (Système) de Stream Deck n'a pas de champ d'arguments : l
 StreamLauncher.exe --profile "Nom du profil"
 ```
 
-C'est une **bascule** : le 1er appel lance le profil, le suivant ferme toutes les fenêtres ouvertes depuis (même touche Stream Deck pour lancer et fermer le live). `--start "Nom"` / `--stop "Nom"` forcent un sens. Exécution sans fenêtre, code retour 0 = OK, 1 = étapes en erreur, 2 = profil inconnu. `--tray` démarre l'interface masquée.
+C'est une **bascule** : le 1er appel lance le profil, le suivant ferme toutes les fenêtres ouvertes depuis (même touche Stream Deck pour lancer et fermer le live). `--start "Nom"` / `--stop "Nom"` forcent un sens. Exécution sans fenêtre, code retour 0 = OK, 1 = étapes en erreur, 2 = profil inconnu. `--tray` démarre l'interface masquée. **Outils > Démarrer avec Windows** lance l'application à l'ouverture de session, directement dans la zone de notification (désactivé par défaut).
 
 ## Installation
 
