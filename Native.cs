@@ -38,6 +38,15 @@ static class Native
 
     [DllImport("user32", CharSet = CharSet.Unicode)] public static extern IntPtr FindWindow(string cls, string? title);
 
+    [DllImport("user32", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder s, int n);
+
+    public static string ClassOf(IntPtr h)
+    {
+        var sb = new StringBuilder(256);
+        GetClassName(h, sb, sb.Capacity);
+        return sb.ToString();
+    }
+
     public record Win(IntPtr H, uint Pid, string Process, string Title, string Path);
 
     public static string GetTitle(IntPtr h)

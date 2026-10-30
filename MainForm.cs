@@ -11,7 +11,7 @@ class MainForm : Form
     bool allowShow, exiting, refreshing;
     CancellationTokenSource? cts;
     Recorder? rec;
-    WindowPicker? picker;
+    IDisposable? picker;
     Form? pickBar;
     Form? recBar;
 
@@ -51,7 +51,7 @@ class MainForm : Form
             Btn("Importer fenêtres ouvertes…", (_, _) => ImportWindows()),
             Btn("+ Application…", (_, _) => AddApp()),
             Btn("+ Clic", (_, _) => AddStep(new Step { Type = StepType.Click })),
-            Btn("+ Icône du tray", (_, _) => AddStep(new Step { Type = StepType.Tray })),
+            Btn("+ Icône du tray", (_, _) => PickTray()),
             Btn("Icônes du tray…", (_, _) => ListTray()),
             Btn("+ Déplacer fenêtre", (_, _) => PickWindow(true)),
             Btn("+ Réduire fenêtre", (_, _) => PickWindow(false)),
@@ -71,6 +71,18 @@ class MainForm : Form
         Controls.Add(split);
         Controls.Add(log);
         Controls.Add(quick);
+
+        var stepMenu = new ContextMenuStrip();
+        stepMenu.Items.Add("▶ Tester cette étape", null, (_, _) => TestStep(false));
+        stepMenu.Items.Add("▶ Tester à partir de cette étape", null, (_, _) => TestStep(true));
+        stepMenu.Opening += (_, e) => e.Cancel = CurStep == null || cts != null;
+        lbSteps.ContextMenuStrip = stepMenu;
+        lbSteps.MouseDown += (_, e) =>
+        {
+            if (e.Button != MouseButtons.Right) return;
+            int i = lbSteps.IndexFromPoint(e.Location);
+            if (i >= 0) lbSteps.SelectedIndex = i;
+        };
 
         lbProf.SelectedIndexChanged += (_, _) => RefreshSteps();
         lbSteps.SelectedIndexChanged += (_, _) => { if (!refreshing) pg.SelectedObject = CurStep; };
@@ -374,6 +386,14 @@ class MainForm : Form
 
     // ---- run ----
 
+    void TestStep(bool fromHere)
+    {
+        if (Cur is not { } p || CurStep is not { } s) return;
+        int i = lbSteps.SelectedIndex;
+        RunProfile(new Profile { Name = "Test : " + s, Steps = fromHere ? p.Steps.Skip(i).ToList() : new List<Step> { s } });
+    }
+
+
     async void RunProfile(Profile p)
     {
         if (cts != null) return;
@@ -442,18 +462,38 @@ class MainForm : Form
         }
         catch (Exception e) { Log("ERREUR : " + e.Message); return; }
 
+        ShowPickBar(move ? "Déplacer une fenêtre" : "Réduire une fenêtre",
+            move ? "Déplacez (ou redimensionnez) maintenant la fenêtre voulue : sa nouvelle position sera enregistrée." : "Cliquez sur la fenêtre à réduire.");
+    }
+
+    // Tray: the user clicks the icon (open the hidden-icons flyout first if needed); the click goes through and is recorded.
+    void PickTray()
+    {
+        if (Cur == null || picker != null || rec != null) return;
+        try
+        {
+            picker = new TrayPicker(this, (name, right) =>
+            {
+                StopPick();
+                var s = new Step { Type = StepType.Tray, TrayName = name, Button = right ? MouseBtn.Right : MouseBtn.Left };
+                AddStep(s);
+                Log("Capturé : " + s);
+            });
+        }
+        catch (Exception e) { Log("ERREUR : " + e.Message); return; }
+        ShowPickBar("Icône de la zone de notification", "Cliquez sur l'icône de l'application dans la zone de notification (ouvrez d'abord les icônes cachées si besoin).");
+    }
+
+    void ShowPickBar(string title, string text)
+    {
         pickBar = new Form
         {
             FormBorderStyle = FormBorderStyle.FixedToolWindow, TopMost = true, ShowInTaskbar = false, ControlBox = false,
-            StartPosition = FormStartPosition.Manual, Text = move ? "Déplacer une fenêtre" : "Réduire une fenêtre", ClientSize = new Size(420, 70),
+            StartPosition = FormStartPosition.Manual, Text = title, ClientSize = new Size(420, 70),
         };
         var wa = Screen.PrimaryScreen!.WorkingArea;
         pickBar.Location = new Point(wa.X + (wa.Width - pickBar.Width) / 2, wa.Y + 8);
-        var label = new Label
-        {
-            Dock = DockStyle.Top, Height = 38, TextAlign = ContentAlignment.MiddleCenter,
-            Text = move ? "Déplacez (ou redimensionnez) maintenant la fenêtre voulue : sa nouvelle position sera enregistrée." : "Cliquez sur la fenêtre à réduire.",
-        };
+        var label = new Label { Dock = DockStyle.Top, Height = 38, TextAlign = ContentAlignment.MiddleCenter, Text = text };
         var cancel = new Button { Text = "Annuler", Dock = DockStyle.Fill };
         cancel.Click += (_, _) => StopPick();
         pickBar.Controls.Add(cancel);

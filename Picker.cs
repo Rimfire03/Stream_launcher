@@ -82,3 +82,70 @@ class WindowPicker : IDisposable
 
     public void Dispose() => Native.UnhookWindowsHookEx(hook);
 }
+
+/// <summary>
+/// One-shot global mouse hook for recording a notification-area icon: the first click on a taskbar-tray or overflow-flyout
+/// icon is reported (its name, whether it was a right click); the click itself goes through. The "show hidden icons"
+/// chevron and clicks elsewhere are ignored so the user can open the flyout first. Create and dispose on the UI thread.
+/// </summary>
+class TrayPicker : IDisposable
+{
+    const int WH_MOUSE_LL = 14, WM_LBUTTONDOWN = 0x201, WM_RBUTTONDOWN = 0x204;
+
+    readonly Control sync;
+    readonly Action<string, bool> found;
+    readonly FlaUI.UIA3.UIA3Automation uia = new();
+    readonly Native.HookProc proc;
+    readonly IntPtr hook;
+    bool done;
+
+    public TrayPicker(Control sync, Action<string, bool> found)
+    {
+        this.sync = sync;
+        this.found = found;
+        proc = Callback;
+        hook = Native.SetWindowsHookEx(WH_MOUSE_LL, proc, Native.GetModuleHandle(null), 0);
+        if (hook == IntPtr.Zero) throw new InvalidOperationException("Hook souris impossible");
+    }
+
+    IntPtr Callback(int code, IntPtr w, IntPtr l)
+    {
+        int msg = (int)w;
+        if (code >= 0 && !done && (msg == WM_LBUTTONDOWN || msg == WM_RBUTTONDOWN))
+        {
+            try
+            {
+                var pt = Marshal.PtrToStructure<Native.MSLL>(l).pt;
+                var hw = Native.WindowFromPoint(pt);
+                var root = hw == IntPtr.Zero ? IntPtr.Zero : Native.GetAncestor(hw, 3);
+                var cls = root == IntPtr.Zero ? "" : Native.ClassOf(root);
+                if (cls == "Shell_TrayWnd" || cls.Contains("Overflow", StringComparison.OrdinalIgnoreCase))
+                {
+                    // the hook runs before the app gets the click: the element is still under the cursor
+                    var t = Task.Run(() =>
+                    {
+                        var el = uia.FromPoint(new System.Drawing.Point(pt.X, pt.Y));
+                        var c = el?.ClassName ?? "";
+                        return c.Contains("TaskListButton") || c == "ToggleButton" ? null : el?.Name;
+                    });
+                    var name = t.Wait(400) ? t.Result : null;
+                    if (!string.IsNullOrWhiteSpace(name) && !name.Contains("cach", StringComparison.OrdinalIgnoreCase) && !name.Contains("hidden", StringComparison.OrdinalIgnoreCase))
+                    {
+                        done = true;
+                        var first = name.Split('\n')[0].Trim(); // tooltips can carry several lines of live status
+                        bool right = msg == WM_RBUTTONDOWN;
+                        sync.BeginInvoke(() => found(first, right));
+                    }
+                }
+            }
+            catch { }
+        }
+        return Native.CallNextHookEx(hook, code, w, l);
+    }
+
+    public void Dispose()
+    {
+        Native.UnhookWindowsHookEx(hook);
+        uia.Dispose();
+    }
+}
