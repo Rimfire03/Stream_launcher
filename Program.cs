@@ -2,12 +2,19 @@ static class Program
 {
     // StreamLauncher.exe                    -> GUI (+ tray icon)
     // StreamLauncher.exe --tray             -> GUI started hidden in the tray
+    // StreamLauncher.exe --list-tray       -> prints the notification-area icon names (stdout, when redirected)
     // StreamLauncher.exe --profile "Nom"    -> run the profile headless and exit (Stream Deck); exit code 0 ok, 1 step errors, 2 unknown profile
     [STAThread]
     static int Main(string[] args)
     {
         ApplicationConfiguration.Initialize();
         var cfg = Config.Load();
+
+        if (args.Contains("--list-tray"))
+        {
+            foreach (var n in Task.Run(Runner.ListTray).GetAwaiter().GetResult()) Console.WriteLine(n);
+            return 0;
+        }
 
         int i = Array.IndexOf(args, "--profile");
         if (i >= 0 && i + 1 < args.Length)

@@ -36,6 +36,8 @@ static class Native
     [DllImport("kernel32", CharSet = CharSet.Unicode)] static extern bool QueryFullProcessImageName(IntPtr h, int flags, StringBuilder s, ref int n);
     [DllImport("dwmapi")] static extern int DwmGetWindowAttribute(IntPtr h, int attr, out int val, int size);
 
+    [DllImport("user32", CharSet = CharSet.Unicode)] public static extern IntPtr FindWindow(string cls, string? title);
+
     public record Win(IntPtr H, uint Pid, string Process, string Title, string Path);
 
     public static string GetTitle(IntPtr h)

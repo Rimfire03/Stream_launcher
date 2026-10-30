@@ -2,7 +2,7 @@ using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-enum StepType { Launch, Place, Click, Window }
+enum StepType { Launch, Place, Click, Window, Tray }
 enum WindowAction { Reduire, Agrandir, Restaurer, Deplacer }
 enum ClickMode { Element, Coords }
 enum MouseBtn { Left, Right }
@@ -35,6 +35,7 @@ class Step
     [Category("Placement")] public int H { get; set; }
     [Category("Placement")] public bool Maximize { get; set; }
 
+    [Category("Zone de notification"), Description("Type Tray : texte du nom (info-bulle) de l'icône de la zone de notification à cliquer pour faire apparaître l'application. Le bouton \"Icônes du tray\" liste les noms disponibles. Bouton, Double : voir catégorie Clic.")] public string TrayName { get; set; } = "";
     [Category("Action fenêtre"), Description("Type Window : réduire, agrandir, restaurer ou déplacer la fenêtre cible (Process / Title). Déplacer applique le placement (Monitor, Multitâche/Zone, X, Y, W, H) de cette étape.")] public WindowAction Action { get; set; }
 
     [Category("Clic"), Description("Element = cherche le contrôle par nom (UI Automation). Coords = position relative à la fenêtre.")] public ClickMode Mode { get; set; } = ClickMode.Element;
@@ -54,6 +55,7 @@ class Step
             Zone.Grille => $"Placer {Process} '{Title}' → {Config.Label(Monitor)} grille {Cols}x{Rows} case {Col},{Row} ({SpanCols}x{SpanRows})",
             _ => $"Placer {Process} '{Title}' → {Config.Label(Monitor)} multitâche {Zone}",
         },
+        StepType.Tray => $"Ouvrir depuis la zone de notification « {TrayName} » ({Button}{(Double ? " x2" : "")})",
         StepType.Window => $"{Action} la fenêtre {Process} '{Title}'",
         _ => Mode == ClickMode.Element
             ? $"Clic {Button}{(Double ? " x2" : "")} sur « {ElementName} » ({Process})"

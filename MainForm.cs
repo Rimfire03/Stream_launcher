@@ -51,6 +51,8 @@ class MainForm : Form
             Btn("Importer fenêtres ouvertes…", (_, _) => ImportWindows()),
             Btn("+ Application…", (_, _) => AddApp()),
             Btn("+ Clic", (_, _) => AddStep(new Step { Type = StepType.Click })),
+            Btn("+ Icône du tray", (_, _) => AddStep(new Step { Type = StepType.Tray })),
+            Btn("Icônes du tray…", (_, _) => ListTray()),
             Btn("+ Déplacer fenêtre", (_, _) => PickWindow(true)),
             Btn("+ Réduire fenêtre", (_, _) => PickWindow(false)),
             Btn("↑", (_, _) => MoveStep(-1)),
@@ -400,6 +402,13 @@ class MainForm : Form
         btnRun.Enabled = !busy;
         btnStop.Enabled = busy;
         btnRec.Enabled = !busy;
+    }
+
+    async void ListTray()
+    {
+        Log("Icônes de la zone de notification (lecture en cours)…");
+        try { Log("Icônes : " + string.Join(" | ", await Task.Run(Runner.ListTray))); }
+        catch (Exception e) { Log("ERREUR : " + e.Message); }
     }
 
     // ---- window capture (move / minimize) ----
