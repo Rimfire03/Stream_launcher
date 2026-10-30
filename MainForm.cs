@@ -277,8 +277,16 @@ class MainForm : Form
         if (Cur is not { } p) { Log("Sélectionne un profil d'abord"); return; }
         try
         {
-            var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Stream Launcher", "Stream Deck");
-            Directory.CreateDirectory(dir);
+            // in the application folder ("Stream Deck" subfolder); Documents if that folder is not writable
+            var exeDir = Path.GetDirectoryName(Environment.ProcessPath)!;
+            var dir = Path.Combine(exeDir, "Stream Deck");
+            try { Directory.CreateDirectory(dir); File.WriteAllText(Path.Combine(dir, ".write-test"), ""); File.Delete(Path.Combine(dir, ".write-test")); }
+            catch (UnauthorizedAccessException)
+            {
+                dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Stream Launcher", "Stream Deck");
+                Directory.CreateDirectory(dir);
+                Log("Dossier de l'application non inscriptible : raccourcis créés dans Documents");
+            }
             var safe = string.Concat(p.Name.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
             var exe = Environment.ProcessPath!;
             dynamic shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!)!;
