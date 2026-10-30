@@ -113,8 +113,14 @@ class ObsSceneConverter : StringConverter
 
     public override TypeConverter.StandardValuesCollection GetStandardValues(ITypeDescriptorContext? c)
     {
-        if (c?.Instance is not Step s) return new TypeConverter.StandardValuesCollection(Array.Empty<string>());
+        // the PropertyGrid hands over the selected object (a StepView), not the step itself
+        var s = c?.Instance as Step ?? (c?.Instance as StepView)?.Step;
+        if (s == null) return new TypeConverter.StandardValuesCollection(Array.Empty<string>());
         try { return new TypeConverter.StandardValuesCollection(ObsSession.ListScenes(s.ObsHost, s.ObsPassword)); }
-        catch { return new TypeConverter.StandardValuesCollection(Array.Empty<string>()); } // OBS closed or WebSocket disabled
+        catch (Exception e) // OBS closed, WebSocket disabled, wrong password
+        {
+            RunLog.Write("liste des scènes OBS impossible : " + e.Message);
+            return new TypeConverter.StandardValuesCollection(Array.Empty<string>());
+        }
     }
 }

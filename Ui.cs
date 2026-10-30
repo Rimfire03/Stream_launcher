@@ -108,6 +108,7 @@ class StepView : ICustomTypeDescriptor
 {
     readonly Step s;
     public StepView(Step s) => this.s = s;
+    public Step Step => s;
 
     HashSet<string> Visible()
     {
