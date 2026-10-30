@@ -24,13 +24,15 @@ Zone de gauche : les profils (Nouveau, Renommer, Supprimer).
 Zone du milieu : les étapes du profil sélectionné.
 Zone de droite : les propriétés de l'étape sélectionnée (tout se règle là).
 
-Boutons de la barre d'outils :
-- ▶ Lancer / ■ Stop : exécute ou arrête le profil sélectionné.
+Boutons principaux :
+- ▶ Lancer le live / ■ Fermer le live : exécute le profil, puis ferme ses fenêtres (bascule).
+- ■ Stop : interrompt une exécution en cours.
 - ● Enregistrer les clics : transforme tes clics en étapes.
-- Importer fenêtres ouvertes… : crée les étapes Lancer + Placer pour les fenêtres choisies.
-- + Application… / + Clic / + Navigateur / + Icône du tray / + Déplacer fenêtre / + Réduire fenêtre : ajoutent une étape.
-- ↑ ↓ : change l'ordre. Supprimer l'étape.
-- Identifier les écrans / Renommer les écrans… / Icônes du tray… / Mises à jour.
+- ＋ Ajouter une étape ▾ : menu par thèmes (Applications, Fenêtres, Interactions) : application ou fichier, import des fenêtres ouvertes, site web, placer / déplacer / réduire une fenêtre, clic, icône de la zone de notification.
+- Outils ▾ : identifier ou renommer les écrans, lister les icônes de la zone de notification, mises à jour.
+- ↑ ↓ Dupliquer Supprimer : réorganisent la liste (même chose par clic droit sur une étape).
+
+Chaque étape de la liste porte une pastille de couleur (LANCER, PLACER, CLIC, FENÊTRE, TRAY, WEB), un résumé en clair et son temps d'attente. Le panneau de droite n'affiche que les réglages utiles au type d'étape choisi.
 
 Réglages communs à toutes les étapes :
 - DelayMs : attente avant l'étape (en millisecondes).

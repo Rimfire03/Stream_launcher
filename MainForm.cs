@@ -2,11 +2,16 @@ class MainForm : Form
 {
     readonly Config cfg;
     readonly NotifyIcon tray = new() { Icon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!), Text = "Stream Launcher" };
-    readonly ListBox lbProf = new() { Dock = DockStyle.Fill, IntegralHeight = false };
-    readonly ListBox lbSteps = new() { Dock = DockStyle.Fill, IntegralHeight = false, HorizontalScrollbar = true };
-    readonly PropertyGrid pg = new() { Dock = DockStyle.Fill };
-    readonly TextBox log = new() { Dock = DockStyle.Bottom, Height = 110, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical };
-    readonly FlowLayoutPanel quick = new() { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(4) };
+    readonly ListBox lbProf = new() { Dock = DockStyle.Fill, IntegralHeight = false, DrawMode = DrawMode.OwnerDrawFixed, ItemHeight = 46, BorderStyle = BorderStyle.None, BackColor = Ui.Card };
+    readonly ListBox lbSteps = new() { Dock = DockStyle.Fill, IntegralHeight = false, DrawMode = DrawMode.OwnerDrawFixed, ItemHeight = 58, BorderStyle = BorderStyle.None, BackColor = Ui.Card };
+    readonly PropertyGrid pg = new() { Dock = DockStyle.Fill, ToolbarVisible = false, HelpVisible = true, PropertySort = PropertySort.Categorized, ViewBackColor = Ui.Card, LineColor = Ui.Border, CategoryForeColor = Ui.Primary };
+    readonly TextBox log = new() { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Font = Ui.Mono, BorderStyle = BorderStyle.None, BackColor = Ui.Card };
+    readonly FlowLayoutPanel quick = new() { Dock = DockStyle.Fill, AutoSize = false, WrapContents = true, Padding = new Padding(0, 4, 0, 0) };
+    readonly Label lblProfile = new() { Font = Ui.Title, ForeColor = Ui.Text, AutoSize = true };
+    readonly Label lblCount = new() { Font = Ui.Base, ForeColor = Ui.Muted, AutoSize = true };
+    readonly Label lblEmpty = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Ui.Muted, Font = Ui.Base, BackColor = Ui.Card, Padding = new Padding(30) };
+    readonly Label lblProps = new() { Dock = DockStyle.Top, Height = 34, Font = Ui.Bold, ForeColor = Ui.Text, BackColor = Ui.Card, Padding = new Padding(12, 9, 0, 0), Text = "Réglages de l'étape" };
+    readonly Label lblFootLeft = new() { Dock = DockStyle.Fill, Font = Ui.Small, ForeColor = ColorTranslator.FromHtml("#64748B"), TextAlign = ContentAlignment.MiddleLeft, Text = "Vérification des mises à jour…" };
     readonly Button btnRun, btnStop, btnRec;
     bool allowShow, exiting, refreshing;
     CancellationTokenSource? cts;
@@ -24,54 +29,144 @@ class MainForm : Form
         allowShow = !startHidden;
         Text = "Stream Launcher " + Updater.Format(Updater.Current);
         Icon = tray.Icon;
-        Size = new Size(1100, 720);
+        Font = Ui.Base;
+        BackColor = Ui.Bg;
+        ForeColor = Ui.Text;
+        Size = new Size(1180, 760);
+        MinimumSize = new Size(980, 620);
         StartPosition = FormStartPosition.CenterScreen;
 
-        // left: profiles
-        var profBtns = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true };
-        profBtns.Controls.AddRange(new Control[]
-        {
-            Btn("Nouveau", (_, _) => NewProfile()),
-            Btn("Renommer", (_, _) => RenameProfile()),
-            Btn("Supprimer", (_, _) => DeleteProfile()),
-        });
-        var split = new SplitContainer { Dock = DockStyle.Fill, SplitterDistance = 210, FixedPanel = FixedPanel.Panel1 };
-        split.Panel1.Controls.Add(lbProf);
-        split.Panel1.Controls.Add(profBtns);
+        // ---- header band ----
+        var header = new Panel { Dock = DockStyle.Top, Height = 56, BackColor = Ui.Header };
+        var logo = new PictureBox { Image = new Icon(tray.Icon!, 32, 32).ToBitmap(), SizeMode = PictureBoxSizeMode.Zoom, Size = new Size(32, 32), Location = new Point(16, 12) };
+        var brand = new Label { Text = "Stream Launcher", Font = Ui.Title, ForeColor = Color.White, AutoSize = true, Location = new Point(56, 12) };
+        var ver = new Label { Text = Updater.Format(Updater.Current), Font = Ui.Small, ForeColor = Color.FromArgb(170, 165, 195), AutoSize = true, Location = new Point(56 + TextRenderer.MeasureText("Stream Launcher", Ui.Title).Width, 24) };
+        header.Controls.AddRange(new Control[] { logo, brand, ver });
 
-        // right: toolbar + steps + properties
-        btnRun = Btn("▶ Lancer", (_, _) => { if (Cur != null) RunProfile(Cur); });
-        btnStop = Btn("■ Stop", (_, _) => cts?.Cancel());
+        // ---- quick launch strip ----
+        var quickWrap = new Panel { Dock = DockStyle.Top, Height = 80, BackColor = Ui.Bg, Padding = new Padding(16, 6, 16, 6) };
+        var quickTitle = new Label { Text = "LANCEMENT RAPIDE", Font = Ui.Small, ForeColor = Ui.Muted, Dock = DockStyle.Top, Height = 16 };
+        quickWrap.Controls.Add(quick);
+        quickWrap.Controls.Add(quickTitle);
+
+        // ---- profiles sidebar ----
+        var sideTitle = new Label { Text = "PROFILS", Font = Ui.Small, ForeColor = Ui.Muted, Dock = DockStyle.Top, Height = 30, Padding = new Padding(14, 12, 0, 0), BackColor = Ui.Card };
+        var profBtns = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 92, Padding = new Padding(10, 8, 10, 10), BackColor = Ui.Card, ColumnCount = 2, RowCount = 2 };
+        profBtns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        profBtns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        profBtns.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+        profBtns.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+        var newBtn = Ui.Btn("+  Nouveau profil", Ui.Kind.Secondary, (_, _) => NewProfile());
+        var renBtn = Ui.Btn("Renommer", Ui.Kind.Ghost, (_, _) => RenameProfile());
+        var delBtn = Ui.Btn("Supprimer", Ui.Kind.Ghost, (_, _) => DeleteProfile());
+        foreach (var btn in new[] { newBtn, renBtn, delBtn }) { btn.AutoSize = false; btn.Dock = DockStyle.Fill; btn.Margin = new Padding(2); btn.Padding = new Padding(0); }
+        profBtns.Controls.Add(newBtn, 0, 0);
+        profBtns.SetColumnSpan(newBtn, 2);
+        profBtns.Controls.Add(renBtn, 0, 1);
+        profBtns.Controls.Add(delBtn, 1, 1);
+        var sidebar = new Panel { Dock = DockStyle.Left, Width = 250, BackColor = Ui.Card };
+        sidebar.Controls.Add(lbProf);
+        sidebar.Controls.Add(sideTitle);
+        sidebar.Controls.Add(profBtns);
+
+        // ---- profile bar (title + run buttons) and toolbar ----
+        btnRun = Ui.Btn("▶  Lancer le live", Ui.Kind.Primary, (_, _) => { if (Cur != null) RunProfile(Cur); });
+        btnRun.Font = Ui.Bold;
+        btnStop = Ui.Btn("■  Stop", Ui.Kind.Secondary, (_, _) => cts?.Cancel());
         btnStop.Enabled = false;
-        btnRec = Btn("● Enregistrer les clics", (_, _) => ToggleRec());
-        var bar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true };
-        bar.Controls.AddRange(new Control[]
-        {
-            btnRun, btnStop, btnRec,
-            Btn("Importer fenêtres ouvertes…", (_, _) => ImportWindows()),
-            Btn("+ Application…", (_, _) => AddApp()),
-            Btn("+ Clic", (_, _) => AddStep(new Step { Type = StepType.Click })),
-            Btn("+ Navigateur", (_, _) => AddStep(new Step { Type = StepType.Browser, Browser = BrowserKind.Chrome })),
-            Btn("+ Icône du tray", (_, _) => PickTray()),
-            Btn("Icônes du tray…", (_, _) => ListTray()),
-            Btn("+ Déplacer fenêtre", (_, _) => PickWindow(true)),
-            Btn("+ Réduire fenêtre", (_, _) => PickWindow(false)),
-            Btn("↑", (_, _) => MoveStep(-1)),
-            Btn("↓", (_, _) => MoveStep(1)),
-            Btn("Supprimer l'étape", (_, _) => DeleteStep()),
-            Btn("Identifier les écrans", (_, _) => IdentifyScreens()),
-            Btn("Renommer les écrans…", (_, _) => RenameScreens()),
-            Btn("Mises à jour", (_, _) => CheckUpdate(true)),
-        });
-        var split2 = new SplitContainer { Dock = DockStyle.Fill, SplitterDistance = 520 };
-        split2.Panel1.Controls.Add(lbSteps);
-        split2.Panel2.Controls.Add(pg);
-        split.Panel2.Controls.Add(split2);
-        split.Panel2.Controls.Add(bar);
+        btnRec = Ui.Btn("●  Enregistrer les clics", Ui.Kind.Secondary, (_, _) => ToggleRec());
 
-        Controls.Add(split);
-        Controls.Add(log);
-        Controls.Add(quick);
+        var titleBox = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, AutoSize = true, Dock = DockStyle.Left, WrapContents = false, Margin = new Padding(0) };
+        titleBox.Controls.AddRange(new Control[] { lblProfile, lblCount });
+        var runBtns = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, WrapContents = false, Padding = new Padding(0, 6, 0, 0) };
+        runBtns.Controls.AddRange(new Control[] { btnRun, btnStop, btnRec });
+        var profileBar = new Panel { Dock = DockStyle.Top, Height = 66, BackColor = Ui.Card, Padding = new Padding(18, 8, 14, 6) };
+        profileBar.Controls.Add(runBtns);
+        profileBar.Controls.Add(titleBox);
+
+        var addMenu = new ContextMenuStrip { Font = Ui.Base };
+        void Group(string name) => addMenu.Items.Add(new ToolStripLabel(name) { Font = Ui.Small, ForeColor = Ui.Muted, Enabled = false });
+        void Item(string text, Action a) => addMenu.Items.Add(text, null, (_, _) => a());
+        Group("APPLICATIONS");
+        Item("Application ou fichier…", AddApp);
+        Item("Importer les fenêtres ouvertes (position + écran)…", ImportWindows);
+        Item("Site web dans un navigateur", () => AddStep(new Step { Type = StepType.Browser, Browser = BrowserKind.Chrome }));
+        addMenu.Items.Add(new ToolStripSeparator());
+        Group("FENÊTRES");
+        Item("Placer une fenêtre (écran, Multitâche)", () => AddStep(new Step { Type = StepType.Place, Zone = Zone.Gauche }));
+        Item("Déplacer une fenêtre (je la déplace moi-même)", () => PickWindow(true));
+        Item("Réduire une fenêtre (je clique dessus)", () => PickWindow(false));
+        addMenu.Items.Add(new ToolStripSeparator());
+        Group("INTERACTIONS");
+        Item("Clic (réglé à la main)", () => AddStep(new Step { Type = StepType.Click }));
+        Item("Icône de la zone de notification (je clique dessus)", PickTray);
+        var addBtn = Ui.Btn("＋  Ajouter une étape  ▾", Ui.Kind.Primary, (s, _) => addMenu.Show((Control)s!, new Point(0, ((Control)s!).Height)));
+
+        var toolsMenu = new ContextMenuStrip { Font = Ui.Base };
+        toolsMenu.Items.Add("Identifier les écrans", null, (_, _) => IdentifyScreens());
+        toolsMenu.Items.Add("Renommer les écrans…", null, (_, _) => RenameScreens());
+        toolsMenu.Items.Add("Lister les icônes de la zone de notification", null, (_, _) => ListTray());
+        toolsMenu.Items.Add(new ToolStripSeparator());
+        toolsMenu.Items.Add("Vérifier les mises à jour…", null, (_, _) => CheckUpdate(true));
+        var toolsBtn = Ui.Btn("Outils  ▾", Ui.Kind.Secondary, (s, _) => toolsMenu.Show((Control)s!, new Point(0, ((Control)s!).Height)));
+
+        var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 52, BackColor = Ui.Bg, Padding = new Padding(18, 9, 14, 0), WrapContents = false };
+        toolbar.Controls.AddRange(new Control[]
+        {
+            addBtn, toolsBtn,
+            Ui.Btn("↑", Ui.Kind.Secondary, (_, _) => MoveStep(-1)),
+            Ui.Btn("↓", Ui.Kind.Secondary, (_, _) => MoveStep(1)),
+            Ui.Btn("Dupliquer", Ui.Kind.Secondary, (_, _) => DuplicateStep()),
+            Ui.Btn("Supprimer", Ui.Kind.Secondary, (_, _) => DeleteStep()),
+        });
+
+        // ---- steps | settings ----
+        var stepsHolder = new Panel { Dock = DockStyle.Fill, BackColor = Ui.Card };
+        stepsHolder.Controls.Add(lblEmpty);
+        stepsHolder.Controls.Add(lbSteps);
+        lblEmpty.BringToFront();
+        var propsHolder = new Panel { Dock = DockStyle.Fill, BackColor = Ui.Card };
+        propsHolder.Controls.Add(pg);
+        propsHolder.Controls.Add(lblProps);
+        var split2 = new SplitContainer { Dock = DockStyle.Fill, BackColor = Ui.Border, SplitterWidth = 1 };
+        split2.SizeChanged += (_, _) => { if (split2.Width > 700) split2.SplitterDistance = (int)(split2.Width * 0.52); };
+        split2.Panel1.Controls.Add(stepsHolder);
+        split2.Panel2.Controls.Add(propsHolder);
+        var content = new Panel { Dock = DockStyle.Fill, BackColor = Ui.Bg, Padding = new Padding(0, 0, 0, 0) };
+        var cardFrame = new Panel { Dock = DockStyle.Fill, Padding = new Padding(18, 0, 14, 10), BackColor = Ui.Bg };
+        cardFrame.Controls.Add(split2);
+        content.Controls.Add(cardFrame);
+        content.Controls.Add(toolbar);
+        content.Controls.Add(profileBar);
+
+        // ---- journal ----
+        var logHolder = new Panel { Dock = DockStyle.Bottom, Height = 110, BackColor = Ui.Bg, Padding = new Padding(16, 0, 14, 10) };
+        var logTitle = new Label { Text = "JOURNAL", Font = Ui.Small, ForeColor = Ui.Muted, Dock = DockStyle.Top, Height = 18 };
+        var logCard = new Panel { Dock = DockStyle.Fill, BackColor = Ui.Card, Padding = new Padding(8, 6, 8, 6) };
+        logCard.Controls.Add(log);
+        logHolder.Controls.Add(logCard);
+        logHolder.Controls.Add(logTitle);
+
+        // dock order: fill first, then edges (later controls dock outermost)
+        var main = new Panel { Dock = DockStyle.Fill };
+        main.Controls.Add(content);
+        main.Controls.Add(sidebar);
+        // footer, same look as FiltresApp: thin top border, copyright centred, version on the right, status on the left
+        var footer = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 30, BackColor = Ui.Card, Padding = new Padding(16, 0, 16, 0), ColumnCount = 3, RowCount = 1 };
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
+        var footColor = ColorTranslator.FromHtml("#64748B");
+        footer.Controls.Add(lblFootLeft, 0, 0);
+        footer.Controls.Add(new Label { Dock = DockStyle.Fill, Font = Ui.Small, ForeColor = footColor, TextAlign = ContentAlignment.MiddleCenter, Text = "© TomLine prod&&co by Thomas Guidez  ·  Préparation de live Twitch" }, 1, 0);
+        footer.Controls.Add(new Label { Dock = DockStyle.Fill, Font = Ui.Small, ForeColor = footColor, TextAlign = ContentAlignment.MiddleRight, Text = $"Stream Launcher {Updater.Format(Updater.Current)}" }, 2, 0);
+        footer.Paint += (_, e) => { using var pen = new Pen(Ui.Border); e.Graphics.DrawLine(pen, 0, 0, footer.Width, 0); };
+
+        Controls.Add(main);
+        Controls.Add(logHolder);
+        Controls.Add(footer);
+        Controls.Add(quickWrap);
+        Controls.Add(header);
 
         var help = new ToolStripMenuItem("Aide");
         help.DropDownItems.Add(new ToolStripMenuItem("Guide d'utilisation", null, (_, _) => ShowHelp(0)) { ShortcutKeys = Keys.F1 });
@@ -85,14 +180,20 @@ class MainForm : Form
         help.DropDownItems.Add(new ToolStripSeparator());
         help.DropDownItems.Add("Vérifier les mises à jour…", null, (_, _) => CheckUpdate(true));
         help.DropDownItems.Add("À propos…", null, (_, _) => About());
-        var menu = new MenuStrip();
+        var menu = new MenuStrip { BackColor = Ui.Card, Font = Ui.Base };
         menu.Items.Add(help);
         MainMenuStrip = menu;
         Controls.Add(menu);
 
-        var stepMenu = new ContextMenuStrip();
-        stepMenu.Items.Add("▶ Tester cette étape", null, (_, _) => TestStep(false));
-        stepMenu.Items.Add("▶ Tester à partir de cette étape", null, (_, _) => TestStep(true));
+        // ---- step list: right-click menu and drawing ----
+        var stepMenu = new ContextMenuStrip { Font = Ui.Base };
+        stepMenu.Items.Add("▶  Tester cette étape", null, (_, _) => TestStep(false));
+        stepMenu.Items.Add("▶  Tester à partir de cette étape", null, (_, _) => TestStep(true));
+        stepMenu.Items.Add(new ToolStripSeparator());
+        stepMenu.Items.Add("Monter", null, (_, _) => MoveStep(-1));
+        stepMenu.Items.Add("Descendre", null, (_, _) => MoveStep(1));
+        stepMenu.Items.Add("Dupliquer", null, (_, _) => DuplicateStep());
+        stepMenu.Items.Add("Supprimer", null, (_, _) => DeleteStep());
         stepMenu.Opening += (_, e) => e.Cancel = CurStep == null || cts != null;
         lbSteps.ContextMenuStrip = stepMenu;
         lbSteps.MouseDown += (_, e) =>
@@ -101,12 +202,20 @@ class MainForm : Form
             int i = lbSteps.IndexFromPoint(e.Location);
             if (i >= 0) lbSteps.SelectedIndex = i;
         };
+        lbSteps.DrawItem += DrawStep;
+        lbProf.DrawItem += DrawProfile;
 
         lbProf.SelectedIndexChanged += (_, _) => { RefreshSteps(); UpdateRunLabel(); };
-        lbSteps.SelectedIndexChanged += (_, _) => { if (!refreshing) pg.SelectedObject = CurStep; };
-        pg.PropertyValueChanged += (_, _) => { RefreshSteps(); cfg.Save(); };
+        lbSteps.SelectedIndexChanged += (_, _) => { if (!refreshing) ShowProps(); };
+        pg.PropertyValueChanged += (_, e) =>
+        {
+            var changed = e.ChangedItem?.PropertyDescriptor?.Name;
+            RefreshSteps();
+            cfg.Save();
+            if (changed is "Zone" or "Action" or "Mode" or "PlaceWindow") ShowProps(); // the visible settings depend on these
+        };
 
-        foreach (Control c in new Control[] { this, lbSteps, pg })
+        foreach (Control c in new Control[] { this, lbSteps, pg, lblEmpty })
         {
             c.AllowDrop = true;
             c.DragEnter += (_, e) => e.Effect = e.Data?.GetDataPresent(DataFormats.FileDrop) == true ? DragDropEffects.Copy : DragDropEffects.None;
@@ -118,9 +227,82 @@ class MainForm : Form
 
         RebuildProfiles();
         if (lbProf.Items.Count > 0) lbProf.SelectedIndex = 0;
+        UpdateHeader();
         Log("Écrans : " + string.Join(" | ", Screen.AllScreens.Select(s =>
-            $"{s.DeviceName} {s.Bounds.Width}x{s.Bounds.Height} @{s.Bounds.X},{s.Bounds.Y}{(s.Primary ? " (principal)" : "")}")));
+            $"{Config.Label(s.DeviceName)} {s.Bounds.Width}x{s.Bounds.Height}{(s.Primary ? " (principal)" : "")}")));
         HandleCreated += (_, _) => BeginInvoke(() => CheckUpdate(false));
+    }
+
+    void ShowProps() => pg.SelectedObject = CurStep == null ? null : new StepView(CurStep);
+
+    void UpdateHeader()
+    {
+        lblProfile.Text = Cur?.Name ?? "Aucun profil";
+        int n = Cur?.Steps.Count ?? 0;
+        lblCount.Text = Cur == null ? "Crée un profil pour commencer" : n == 0 ? "Aucune étape" : $"{n} étape{(n > 1 ? "s" : "")} · exécutées de haut en bas";
+        lblEmpty.Visible = lbSteps.Items.Count == 0;
+        lblEmpty.Text = Cur == null
+            ? "Aucun profil.\n\nClique sur « + Nouveau » à gauche pour créer ton premier profil (par exemple « Live Twitch »)."
+            : "Ce profil n'a encore aucune étape.\n\nClique sur « Ajouter une étape », ou glisse ici des raccourcis, exécutables ou documents.\nAstuce : ouvre tes applications, place-les, puis « Importer les fenêtres ouvertes ».";
+        lblProps.Text = CurStep == null ? "Réglages de l'étape" : "Réglages : " + Ui.Badge(CurStep.Type).Label.ToLowerInvariant();
+        var live = Cur != null && Live.IsLive(Cur.Name);
+        btnRec.Visible = !live;
+    }
+
+    void DrawStep(object? sender, DrawItemEventArgs e)
+    {
+        if (e.Index < 0 || e.Index >= lbSteps.Items.Count) return;
+        var s = (Step)lbSteps.Items[e.Index];
+        var g = e.Graphics;
+        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+        bool sel = (e.State & DrawItemState.Selected) != 0;
+        using (var bg = new SolidBrush(sel ? Ui.Selected : Ui.Card)) g.FillRectangle(bg, e.Bounds);
+        if (sel) using (var bar = new SolidBrush(Ui.Primary)) g.FillRectangle(bar, e.Bounds.X, e.Bounds.Y, 4, e.Bounds.Height);
+        using (var line = new Pen(Ui.Border)) g.DrawLine(line, e.Bounds.X + 14, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
+
+        TextRenderer.DrawText(g, (e.Index + 1).ToString(), Ui.Bold, new Rectangle(e.Bounds.X + 12, e.Bounds.Y, 26, e.Bounds.Height), Ui.Muted, TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter);
+
+        var (label, color) = Ui.Badge(s.Type);
+        var badge = new Rectangle(e.Bounds.X + 44, e.Bounds.Y + 19, 76, 20);
+        using (var path = Ui.Round(badge, 6)) using (var br = new SolidBrush(color)) g.FillPath(br, path);
+        TextRenderer.DrawText(g, label, new Font("Segoe UI", 8f, FontStyle.Bold), badge, Color.White, TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter);
+
+        var (main, sub) = Ui.Describe(s);
+        var delay = $"+{s.DelayMs} ms";
+        int right = e.Bounds.Right - 14;
+        var delaySize = TextRenderer.MeasureText(delay, Ui.Small);
+        TextRenderer.DrawText(g, delay, Ui.Small, new Rectangle(right - delaySize.Width, e.Bounds.Y, delaySize.Width, e.Bounds.Height), Ui.Muted, TextFormatFlags.VerticalCenter);
+        int textLeft = badge.Right + 12, textWidth = right - delaySize.Width - 12 - textLeft;
+        var fl = TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.Left;
+        TextRenderer.DrawText(g, main, Ui.Bold, new Rectangle(textLeft, e.Bounds.Y + 9, textWidth, 20), Ui.Text, fl);
+        TextRenderer.DrawText(g, sub, Ui.Small, new Rectangle(textLeft, e.Bounds.Y + 30, textWidth, 18), Ui.Muted, fl);
+    }
+
+    void DrawProfile(object? sender, DrawItemEventArgs e)
+    {
+        if (e.Index < 0 || e.Index >= lbProf.Items.Count) return;
+        var p = (Profile)lbProf.Items[e.Index];
+        var g = e.Graphics;
+        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        bool sel = (e.State & DrawItemState.Selected) != 0;
+        using (var bg = new SolidBrush(sel ? Ui.Selected : Ui.Card)) g.FillRectangle(bg, e.Bounds);
+        if (sel) using (var bar = new SolidBrush(Ui.Primary)) g.FillRectangle(bar, e.Bounds.X, e.Bounds.Y, 4, e.Bounds.Height);
+        bool live = Live.IsLive(p.Name);
+        var fl = TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.Left;
+        TextRenderer.DrawText(g, p.Name, Ui.Bold, new Rectangle(e.Bounds.X + 16, e.Bounds.Y + 6, e.Bounds.Width - 50, 20), Ui.Text, fl);
+        TextRenderer.DrawText(g, live ? "en direct" : $"{p.Steps.Count} étape{(p.Steps.Count > 1 ? "s" : "")}", Ui.Small,
+            new Rectangle(e.Bounds.X + 16, e.Bounds.Y + 25, e.Bounds.Width - 50, 18), live ? Ui.LiveGreen : Ui.Muted, fl);
+        if (live) using (var br = new SolidBrush(Ui.LiveGreen)) g.FillEllipse(br, e.Bounds.Right - 28, e.Bounds.Y + 17, 11, 11);
+    }
+
+    void DuplicateStep()
+    {
+        if (Cur is not { } p || CurStep is not { } s) return;
+        int i = lbSteps.SelectedIndex;
+        p.Steps.Insert(i + 1, s.Clone());
+        cfg.Save();
+        RefreshSteps(i + 1);
     }
 
     async void CheckUpdate(bool manual)
@@ -130,17 +312,24 @@ class MainForm : Form
             var up = await Updater.CheckAsync();
             if (up is not { } u)
             {
+                lblFootLeft.Text = "Application à jour";
                 if (manual) MessageBox.Show("Version à jour : " + Updater.Format(Updater.Current), Text);
                 return;
             }
             Log($"Mise à jour disponible : {Updater.Format(u.Ver)}");
+            lblFootLeft.Text = $"Mise à jour {Updater.Format(u.Ver)} disponible";
+            lblFootLeft.ForeColor = Ui.Primary;
             if (!manual && !allowShow) { tray.ShowBalloonTip(5000, "Stream Launcher", $"Mise à jour {Updater.Format(u.Ver)} disponible (ouvrir l'app pour l'installer)", ToolTipIcon.Info); return; }
             if (MessageBox.Show($"Installer {Updater.Format(u.Ver)} (actuelle : {Updater.Format(Updater.Current)}) ?\nL'application va redémarrer.", Text, MessageBoxButtons.YesNo) != DialogResult.Yes) return;
             await Updater.DownloadAndRestartAsync(u.Url);
             exiting = true;
             Close();
         }
-        catch (Exception e) { if (manual) Log("ERREUR mise à jour : " + e.Message); }
+        catch (Exception e)
+        {
+            lblFootLeft.Text = "Mises à jour : vérification impossible";
+            if (manual) Log("ERREUR mise à jour : " + e.Message);
+        }
     }
 
     // keeps the form hidden at startup when launched with --tray
@@ -273,7 +462,8 @@ class MainForm : Form
         {
             var prof = p;
             var label = (Live.IsLive(prof.Name) ? "■ Fermer " : "▶ ") + prof.Name;
-            quick.Controls.Add(Btn(label, (_, _) => RunProfile(prof)));
+            var pill = Ui.Btn(label, Live.IsLive(prof.Name) ? Ui.Kind.Danger : Ui.Kind.Secondary, (_, _) => RunProfile(prof));
+            quick.Controls.Add(pill);
             menu.Items.Add(label, null, (_, _) => RunProfile(prof));
         }
         menu.Items.Add(new ToolStripSeparator());
@@ -338,7 +528,8 @@ class MainForm : Form
         if (sel >= lbSteps.Items.Count) sel = lbSteps.Items.Count - 1;
         if (sel >= 0) lbSteps.SelectedIndex = sel;
         refreshing = false;
-        pg.SelectedObject = CurStep;
+        ShowProps();
+        UpdateHeader();
     }
 
     void AddStep(Step s)
@@ -458,7 +649,14 @@ class MainForm : Form
         RebuildProfiles();
     }
 
-    void UpdateRunLabel() => btnRun.Text = Cur != null && Live.IsLive(Cur.Name) ? "■ Fermer le live" : "▶ Lancer";
+    void UpdateRunLabel()
+    {
+        bool live = Cur != null && Live.IsLive(Cur.Name);
+        btnRun.Text = live ? "■  Fermer le live" : "▶  Lancer le live";
+        Ui.Style(btnRun, live ? Ui.Kind.Danger : Ui.Kind.Primary);
+        lbProf.Invalidate();
+        UpdateHeader();
+    }
 
     void SetBusy(bool busy)
     {
@@ -564,7 +762,7 @@ class MainForm : Form
         try { rec = new Recorder(p.Steps, () => BeginInvoke(() => { RefreshSteps(p.Steps.Count - 1); cfg.Save(); })); }
         catch (Exception e) { Log("ERREUR : " + e.Message); return; }
 
-        btnRec.Text = "■ Arrêter l'enregistrement";
+        btnRec.Text = "■  Arrêter l'enregistrement";
         recBar = new Form
         {
             FormBorderStyle = FormBorderStyle.FixedToolWindow, TopMost = true, ShowInTaskbar = false,
@@ -587,7 +785,7 @@ class MainForm : Form
         rec = null;
         recBar?.Close();
         recBar = null;
-        btnRec.Text = "● Enregistrer les clics";
+        btnRec.Text = "●  Enregistrer les clics";
         if (!IsDisposed && Visible) { WindowState = FormWindowState.Normal; Activate(); }
     }
 }
