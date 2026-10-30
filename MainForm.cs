@@ -108,6 +108,8 @@ class MainForm : Form
         var addBtn = Ui.Btn("＋  Ajouter une étape  ▾", Ui.Kind.Primary, (s, _) => addMenu.Show((Control)s!, new Point(0, ((Control)s!).Height)));
 
         var toolsMenu = new ContextMenuStrip { Font = Ui.Base };
+        toolsMenu.Items.Add("Créer les raccourcis Stream Deck de ce profil…", null, (_, _) => CreateDeckShortcuts());
+        toolsMenu.Items.Add(new ToolStripSeparator());
         toolsMenu.Items.Add("Identifier les écrans", null, (_, _) => IdentifyScreens());
         toolsMenu.Items.Add("Renommer les écrans…", null, (_, _) => RenameScreens());
         toolsMenu.Items.Add("Lister les icônes de la zone de notification", null, (_, _) => ListTray());
@@ -267,6 +269,33 @@ class MainForm : Form
         btnSide.Location = new Point(collapsed ? 6 : sidebar.Width - btnSide.Width - 8, 4);
         sideTip.SetToolTip(btnSide, collapsed ? "Afficher la liste des profils" : "Masquer la liste des profils");
         if (save) cfg.Save();
+    }
+
+    // The Stream Deck "Open" action has no argument field: it opens a file. A .lnk carries the arguments instead.
+    void CreateDeckShortcuts()
+    {
+        if (Cur is not { } p) { Log("Sélectionne un profil d'abord"); return; }
+        try
+        {
+            var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Stream Launcher", "Stream Deck");
+            Directory.CreateDirectory(dir);
+            var safe = string.Concat(p.Name.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
+            var exe = Environment.ProcessPath!;
+            dynamic shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!)!;
+            foreach (var (suffix, flag) in new[] { (" - bascule", "--profile"), (" - lancer", "--start"), (" - fermer", "--stop") })
+            {
+                dynamic lnk = shell.CreateShortcut(Path.Combine(dir, safe + suffix + ".lnk"));
+                lnk.TargetPath = exe;
+                lnk.Arguments = $"{flag} \"{p.Name}\"";
+                lnk.WorkingDirectory = Path.GetDirectoryName(exe);
+                lnk.IconLocation = exe + ",0";
+                lnk.Description = $"Stream Launcher : {p.Name}";
+                lnk.Save();
+            }
+            Log($"Raccourcis Stream Deck créés dans {dir}");
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(dir) { UseShellExecute = true });
+        }
+        catch (Exception e) { Log("ERREUR : " + e.Message); }
     }
 
     void ShowProps() => pg.SelectedObject = CurStep == null ? null : new StepView(CurStep);
