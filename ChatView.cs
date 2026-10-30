@@ -97,54 +97,72 @@ static class ChatBadges
     }
 }
 
-/// <summary>The chat itself: one owner-drawn row per message with time, platform logo, badges, name, then the text (wrapped).</summary>
-sealed class ChatView : ListBox
+/// <summary>The chat itself: one row per message with time, platform logo, badges, name, then the text (wrapped). Drawn by hand in one double-buffered pass (a ListBox repaints the whole list and flickers).</summary>
+sealed class ChatView : Control
 {
     const int Pad = 8, Logo = 16, MaxItems = 600;
     readonly Font body = new("Segoe UI", 10f), bold = new("Segoe UI", 10f, FontStyle.Bold), small = new("Segoe UI", 8.5f);
-    static readonly TextFormatFlags Flags = TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.WordBreak | TextFormatFlags.Left | TextFormatFlags.Top;
+
+    readonly List<ChatMessage> items = new();
+    readonly List<int> heights = new();
+    readonly VScrollBar bar = new() { Dock = DockStyle.Right, SmallChange = 30 };
+    int total, offset; // height of all rows, scroll position in pixels
 
     public ChatView()
     {
-        DrawMode = DrawMode.OwnerDrawVariable;
-        IntegralHeight = false;
-        BorderStyle = BorderStyle.None;
+        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
         BackColor = ColorTranslator.FromHtml("#0E0E10");
         ForeColor = ColorTranslator.FromHtml("#EFEFF1");
-        DoubleBuffered = true;
-        SetStyle(ControlStyles.ResizeRedraw, true);
+        Controls.Add(bar);
+        bar.Scroll += (_, e) => { offset = Math.Clamp(e.NewValue, 0, MaxOffset); Invalidate(); };
         ChatBadges.Loaded += () =>
         {
             if (!IsHandleCreated || IsDisposed || Interlocked.Exchange(ref pending, 1) == 1) return; // several images often arrive together: one pass
-            BeginInvoke(() => { Interlocked.Exchange(ref pending, 0); Frozen(Remeasure); });
+            BeginInvoke(() => { Interlocked.Exchange(ref pending, 0); Remeasure(); });
         };
     }
 
     int pending;
 
-    [System.Runtime.InteropServices.DllImport("user32")] static extern IntPtr SendMessage(IntPtr h, int msg, IntPtr w, IntPtr l);
-    const int WM_SETREDRAW = 0x000B;
-
-    /// <summary>runs a change of the list with the painting frozen, then repaints once</summary>
-    void Frozen(Action change)
-    {
-        if (!IsHandleCreated) { change(); return; }
-        SendMessage(Handle, WM_SETREDRAW, IntPtr.Zero, IntPtr.Zero);
-        try { change(); }
-        finally { SendMessage(Handle, WM_SETREDRAW, (IntPtr)1, IntPtr.Zero); Invalidate(); }
-    }
-
     public bool ShowBadges { get; set; } = true;
+
+    int Wide => Math.Max(80, ClientSize.Width - bar.Width);
+    int MaxOffset => Math.Max(0, total - ClientSize.Height);
+    bool AtBottom() => offset >= MaxOffset - 40;
+
+    int RowHeight(ChatMessage m) => Flow(m, Prefix(m).Width, Wide).Height;
+
+    void Sync()
+    {
+        int page = Math.Max(1, ClientSize.Height);
+        offset = Math.Clamp(offset, 0, MaxOffset);
+        bar.LargeChange = page;
+        bar.Maximum = Math.Max(total, page) - 1;
+        bar.Value = Math.Min(offset, Math.Max(0, bar.Maximum - page + 1));
+        bar.Enabled = MaxOffset > 0;
+        Invalidate();
+    }
 
     protected override void OnResize(EventArgs e)
     {
         base.OnResize(e);
-        Frozen(Remeasure); // row heights depend on the width
+        Remeasure(); // row heights depend on the width
     }
 
     void Remeasure()
     {
-        for (int i = 0; i < Items.Count; i++) { var o = Items[i]; Items[i] = o; }
+        bool follow = AtBottom();
+        total = 0;
+        for (int i = 0; i < items.Count; i++) { heights[i] = RowHeight(items[i]); total += heights[i]; }
+        if (follow) offset = MaxOffset;
+        Sync();
+    }
+
+    protected override void OnMouseWheel(MouseEventArgs e)
+    {
+        base.OnMouseWheel(e);
+        offset = Math.Clamp(offset - e.Delta / 120 * 60, 0, MaxOffset);
+        Sync();
     }
 
     // ---- layout: the prefix (time, logo, badges, name, label) is drawn by hand, then the text is flowed word by word and emote by emote
@@ -227,20 +245,20 @@ sealed class ChatView : ListBox
         return (pieces, lines, Math.Max(Logo + 8, height));
     }
 
-    protected override void OnMeasureItem(MeasureItemEventArgs e)
+    protected override void OnPaint(PaintEventArgs e)
     {
-        if (e.Index < 0 || e.Index >= Items.Count) return;
-        var m = (ChatMessage)Items[e.Index];
-        var (px, _) = Prefix(m);
-        e.ItemHeight = Flow(m, px, ClientSize.Width).Height;
+        var g = e.Graphics;
+        g.Clear(BackColor);
+        int y = -offset;
+        for (int i = 0; i < items.Count && y < ClientSize.Height; i++)
+        {
+            if (y + heights[i] > 0) DrawRow(g, items[i], new Rectangle(0, y, Wide, heights[i]));
+            y += heights[i];
+        }
     }
 
-    protected override void OnDrawItem(DrawItemEventArgs e)
+    void DrawRow(Graphics g, ChatMessage m, Rectangle r)
     {
-        if (e.Index < 0 || e.Index >= Items.Count) return;
-        var m = (ChatMessage)Items[e.Index];
-        var g = e.Graphics;
-        var r = e.Bounds;
         bool special = m.Kind != "message" || m.System;
         var accent = m.System ? ColorTranslator.FromHtml("#D64535") : m.Kind switch
         {
@@ -252,7 +270,7 @@ sealed class ChatView : ListBox
         if (special) using (var bar = new SolidBrush(accent)) g.FillRectangle(bar, r.X, r.Y, 3, r.Height);
 
         var (px, badges) = Prefix(m);
-        var (pieces, lines, _) = Flow(m, px, ClientSize.Width);
+        var (pieces, lines, _) = Flow(m, px, r.Width);
         int top = r.Y + 3 + (lines[0] - bodyH) / 2; // the prefix is centred on the first line when an emote makes it taller
 
         TextRenderer.DrawText(g, m.Time.ToString("HH:mm"), small, new Rectangle(r.X + Pad, top + 1, 38, Logo), Ui.Muted, TextFormatFlags.NoPadding | TextFormatFlags.VerticalCenter);
@@ -289,35 +307,20 @@ sealed class ChatView : ListBox
 
     // ---- content
 
-    bool AtBottom()
-    {
-        if (Items.Count == 0) return true;
-        var last = GetItemRectangle(Items.Count - 1);
-        return last.Bottom <= ClientSize.Height + 40;
-    }
-
     public void AddMessage(ChatMessage m)
     {
         bool follow = AtBottom();
-        Frozen(() =>
-        {
-            int i = Items.Add(m);
-            Items[i] = m; // re-assigning forces the measure of the new row (it stays at the default height otherwise)
-            while (Items.Count > MaxItems) Items.RemoveAt(0);
-            if (follow) ScrollToEnd();
-        });
+        int h = RowHeight(m);
+        items.Add(m); heights.Add(h); total += h;
+        while (items.Count > MaxItems) { total -= heights[0]; offset -= heights[0]; items.RemoveAt(0); heights.RemoveAt(0); }
+        if (follow) offset = MaxOffset;
+        Sync();
     }
 
-    public void ScrollToEnd()
-    {
-        if (Items.Count == 0) return;
-        int top = Items.Count - 1, used = GetItemHeight(top);
-        while (top > 0 && used + GetItemHeight(top - 1) <= ClientSize.Height) { top--; used += GetItemHeight(top); }
-        TopIndex = top;
-    }
+    public void ScrollToEnd() { offset = MaxOffset; Sync(); }
 
-    public void ClearMessages() => Items.Clear();
+    public void ClearMessages() { items.Clear(); heights.Clear(); total = offset = 0; Sync(); }
 
     /// <summary>the messages in the list, for tests</summary>
-    public string DumpText() => string.Join(Environment.NewLine, Items.Cast<ChatMessage>().Select(m => $"{m.Time:HH:mm} [{m.PlatformId}] {m.Author}{(m.Extra != null ? " <" + m.Extra + ">" : "")}{(m.Badges != null ? " {" + string.Join(",", m.Badges) + "}" : "")}: {m.Text}"));
+    public string DumpText() => string.Join(Environment.NewLine, items.Select(m => $"{m.Time:HH:mm} [{m.PlatformId}] {m.Author}{(m.Extra != null ? " <" + m.Extra + ">" : "")}{(m.Badges != null ? " {" + string.Join(",", m.Badges) + "}" : "")}: {m.Text}"));
 }
