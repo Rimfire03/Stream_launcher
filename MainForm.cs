@@ -11,6 +11,8 @@ class MainForm : Form
     bool allowShow, exiting, refreshing;
     CancellationTokenSource? cts;
     Recorder? rec;
+    WindowPicker? picker;
+    Form? pickBar;
     Form? recBar;
 
     Profile? Cur => lbProf.SelectedItem as Profile;
@@ -49,8 +51,8 @@ class MainForm : Form
             Btn("Importer fenêtres ouvertes…", (_, _) => ImportWindows()),
             Btn("+ Application…", (_, _) => AddApp()),
             Btn("+ Clic", (_, _) => AddStep(new Step { Type = StepType.Click })),
-            Btn("+ Déplacer fenêtre", (_, _) => AddStep(new Step { Type = StepType.Window, Action = WindowAction.Deplacer, Zone = Zone.Gauche })),
-            Btn("+ Réduire fenêtre", (_, _) => AddStep(new Step { Type = StepType.Window, Action = WindowAction.Reduire })),
+            Btn("+ Déplacer fenêtre", (_, _) => PickWindow(true)),
+            Btn("+ Réduire fenêtre", (_, _) => PickWindow(false)),
             Btn("↑", (_, _) => MoveStep(-1)),
             Btn("↓", (_, _) => MoveStep(1)),
             Btn("Supprimer l'étape", (_, _) => DeleteStep()),
@@ -125,6 +127,7 @@ class MainForm : Form
             return;
         }
         StopRec();
+        StopPick();
         tray.Visible = false;
         tray.Dispose();
         base.OnFormClosing(e);
@@ -397,6 +400,67 @@ class MainForm : Form
         btnRun.Enabled = !busy;
         btnStop.Enabled = busy;
         btnRec.Enabled = !busy;
+    }
+
+    // ---- window capture (move / minimize) ----
+
+    // Move: the user drags the window, the new position is recorded. Minimize: the user clicks the window to minimize.
+    void PickWindow(bool move)
+    {
+        if (Cur is not { } p || picker != null || rec != null) return;
+        try
+        {
+            picker = new WindowPicker(this, move, h =>
+            {
+                StopPick();
+                var w = Native.Describe(h);
+                var s = new Step { Type = StepType.Window, Process = w.Process, Title = w.Title, Action = move ? WindowAction.Deplacer : WindowAction.Reduire };
+                if (move)
+                {
+                    Native.GetWindowRect(h, out var r);
+                    var scr = Screen.FromHandle(h);
+                    s.Zone = Zone.Manuel;
+                    s.Monitor = scr.DeviceName;
+                    s.X = r.Left - scr.Bounds.X;
+                    s.Y = r.Top - scr.Bounds.Y;
+                    s.W = r.Right - r.Left;
+                    s.H = r.Bottom - r.Top;
+                    s.Maximize = Native.IsZoomed(h);
+                }
+                AddStep(s);
+                Log("Capturé : " + s);
+            });
+        }
+        catch (Exception e) { Log("ERREUR : " + e.Message); return; }
+
+        pickBar = new Form
+        {
+            FormBorderStyle = FormBorderStyle.FixedToolWindow, TopMost = true, ShowInTaskbar = false, ControlBox = false,
+            StartPosition = FormStartPosition.Manual, Text = move ? "Déplacer une fenêtre" : "Réduire une fenêtre", ClientSize = new Size(420, 70),
+        };
+        var wa = Screen.PrimaryScreen!.WorkingArea;
+        pickBar.Location = new Point(wa.X + (wa.Width - pickBar.Width) / 2, wa.Y + 8);
+        var label = new Label
+        {
+            Dock = DockStyle.Top, Height = 38, TextAlign = ContentAlignment.MiddleCenter,
+            Text = move ? "Déplacez (ou redimensionnez) maintenant la fenêtre voulue : sa nouvelle position sera enregistrée." : "Cliquez sur la fenêtre à réduire.",
+        };
+        var cancel = new Button { Text = "Annuler", Dock = DockStyle.Fill };
+        cancel.Click += (_, _) => StopPick();
+        pickBar.Controls.Add(cancel);
+        pickBar.Controls.Add(label);
+        pickBar.Show();
+        WindowState = FormWindowState.Minimized;
+    }
+
+    void StopPick()
+    {
+        if (picker == null) return;
+        picker.Dispose();
+        picker = null;
+        pickBar?.Close();
+        pickBar = null;
+        if (!IsDisposed && Visible) { WindowState = FormWindowState.Normal; Activate(); }
     }
 
     // ---- recording ----
