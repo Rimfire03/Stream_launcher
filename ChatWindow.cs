@@ -16,7 +16,7 @@ sealed class ChatWindow : Form
 
     public ChatWindow()
     {
-        Text = "Chat unifié - Stream Launcher";
+        Text = "Chat unifié";
         Size = new Size(520, 720);
         MinimumSize = new Size(360, 360);
         StartPosition = FormStartPosition.CenterParent;

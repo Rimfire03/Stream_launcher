@@ -1033,7 +1033,9 @@ class ImportDialog : Form
         Text = "Importer les fenêtres ouvertes (position + écran)";
         Size = new Size(720, 460);
         StartPosition = FormStartPosition.CenterParent;
-        wins = Native.TopWindows().Where(w => w.Pid != Environment.ProcessId && w.Process != "").ToList();
+        // our own windows are left out (main window, this dialog), except the unified chat: it can be placed like any other window
+        var own = Application.OpenForms.Cast<Form>().Where(f => f is not ChatWindow).Select(f => f.Handle).ToHashSet();
+        wins = Native.TopWindows().Where(w => (w.Pid != Environment.ProcessId || !own.Contains(w.H)) && w.Process != "").ToList();
         foreach (var w in wins) clb.Items.Add($"{w.Process}  —  {w.Title}");
 
         var ok = new Button { Text = "Importer", AutoSize = true, DialogResult = DialogResult.OK };
