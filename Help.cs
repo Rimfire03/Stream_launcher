@@ -144,9 +144,9 @@ Titre, jeu, tags : « Appliquer sur les plateformes » envoie les trois valeurs 
 
 Jeux : le dictionnaire des jeux se complète tout seul. Il est rempli à la connexion avec les catégories des plateformes, mis à jour au bout de 7 jours (ou avec « Actualiser le dictionnaire des jeux »), et chaque recherche tapée y ajoute les jeux trouvés. Il est enregistré dans %LOCALAPPDATA%\StreamLauncher\games.json. Sous le champ, « Pris en charge : Twitch ✔ Kick ✔ » indique où le jeu est connu.
 
-Favoris : trois listes (titres, jeux, jeux de tags) avec les boutons ★. « Appliquer en 1 clic » (ou double-clic) envoie tout de suite ce favori seul à toutes les plateformes ; « Dans le formulaire » ne fait que le copier.
+Favoris : un favori est un combo titre + jeu + tags, qui vont toujours ensemble. « ★ Ajouter aux favoris » enregistre ce qui est dans le formulaire. Dans l'onglet « Favoris », « Appliquer en 1 clic » (ou double-clic) envoie tout de suite le combo à toutes les plateformes ; « Dans le formulaire » ne fait que le copier pour le modifier.
 
-Historique : les 15 derniers lives (titre, jeu, tags), enregistrés quand tu appliques des valeurs ou que tu lances un live. « Importer mes lives Twitch (VOD) » ajoute les titres de tes dernières diffusions Twitch (Twitch ne donne pas le jeu). Kick ne fournit pas d'historique. « ★ Mettre en favoris » copie titre, jeu et tags dans les favoris ; « Appliquer » renvoie ce live.
+Historique : les 15 derniers lives (titre, jeu, tags), enregistrés quand tu appliques des valeurs ou que tu lances un live. « Importer mes lives Twitch (VOD) » ajoute les titres de tes dernières diffusions Twitch (Twitch ne donne pas le jeu). Kick ne fournit pas d'historique. « ★ Mettre en favoris » ajoute ce combo aux favoris ; « Appliquer » renvoie ce live.
 
 Sur Kick, la recherche de jeux par mot-clé utilise une partie de l'API que Kick marque comme obsolète ; le dictionnaire reste utilisable si elle disparaît."),
         new("Retrouver une fenêtre", @"Les étapes Placer, Action fenêtre et Clic doivent retrouver la bonne fenêtre. Critères (catégorie « Fenêtre cible ») :

@@ -10,9 +10,7 @@ sealed class StreamingDialog : Form
     readonly Label lblStatus = new() { AutoSize = true, Font = Ui.Base, MaximumSize = new Size(540, 0), Padding = new Padding(0, 6, 0, 0) };
     readonly Label lblDict = new() { AutoSize = true, Font = Ui.Small, ForeColor = Ui.Muted, Padding = new Padding(0, 8, 0, 0) };
     readonly FlowLayoutPanel accounts = new() { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Dock = DockStyle.Top };
-    readonly ListBox lbTitles = new() { Dock = DockStyle.Fill, IntegralHeight = false, Font = Ui.Base };
-    readonly ListBox lbGames = new() { Dock = DockStyle.Fill, IntegralHeight = false, Font = Ui.Base };
-    readonly ListBox lbTags = new() { Dock = DockStyle.Fill, IntegralHeight = false, Font = Ui.Base };
+    readonly ListView lvFav = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, MultiSelect = false, HideSelection = false, Font = Ui.Base };
     readonly ListView lvHistory = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, MultiSelect = false, HideSelection = false, Font = Ui.Base };
     readonly System.Windows.Forms.Timer searchTimer = new() { Interval = 400 };
     CancellationTokenSource? searchCts;
@@ -51,7 +49,7 @@ sealed class StreamingDialog : Form
 
         lblCount.Text = "0/140";
         RebuildAccounts();
-        FillLists();
+        FillFavs();
         FillHistory();
         ShowDict();
     }
@@ -81,9 +79,7 @@ sealed class StreamingDialog : Form
         actions.Controls.Add(Ui.Btn("Charger depuis le live", Ui.Kind.Secondary, async (_, _) => await LoadFromLive()));
         Add(actions);
         var stars = new FlowLayoutPanel { AutoSize = true, WrapContents = true };
-        stars.Controls.Add(Ui.Btn("★ Titre", Ui.Kind.Secondary, (_, _) => FavTitle()));
-        stars.Controls.Add(Ui.Btn("★ Jeu", Ui.Kind.Secondary, (_, _) => FavGame()));
-        stars.Controls.Add(Ui.Btn("★ Tags", Ui.Kind.Secondary, (_, _) => FavTags()));
+        stars.Controls.Add(Ui.Btn("★ Ajouter aux favoris (titre + jeu + tags)", Ui.Kind.Secondary, (_, _) => AddFavorite()));
         Add(stars);
         Add(lblStatus);
         Add(lblDict);
@@ -97,13 +93,17 @@ sealed class StreamingDialog : Form
     {
         var tabs = new TabControl { Dock = DockStyle.Fill, Font = Ui.Base };
 
-        var fav = new TabPage("Favoris") { BackColor = Ui.Card, Padding = new Padding(10) };
-        var grid = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
-        for (int i = 0; i < 3; i++) grid.RowStyles.Add(new RowStyle(SizeType.Percent, 33.3f));
-        grid.Controls.Add(Section("Titres favoris", lbTitles, async () => await ApplyTitleFav(), () => tbTitle.Text = (string)(lbTitles.SelectedItem ?? tbTitle.Text), () => Remove(store.FavTitles, lbTitles)), 0, 0);
-        grid.Controls.Add(Section("Jeux favoris", lbGames, async () => await ApplyGameFav(), () => tbGame.Text = (string)(lbGames.SelectedItem ?? tbGame.Text), () => Remove(store.FavGames, lbGames)), 0, 1);
-        grid.Controls.Add(Section("Tags favoris", lbTags, async () => await ApplyTagsFav(), () => { if (lbTags.SelectedIndex >= 0) tbTags.Text = (string)lbTags.SelectedItem!; }, () => RemoveTags()), 0, 2);
-        fav.Controls.Add(grid);
+        var fav = new TabPage("Favoris (titre + jeu + tags)") { BackColor = Ui.Card, Padding = new Padding(10) };
+        lvFav.Columns.Add("Titre", 280);
+        lvFav.Columns.Add("Jeu", 150);
+        lvFav.Columns.Add("Tags", 170);
+        lvFav.DoubleClick += async (_, _) => await ApplyFavorite();
+        var fb = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, Padding = new Padding(0, 8, 0, 0) };
+        fb.Controls.Add(Ui.Btn("Appliquer en 1 clic", Ui.Kind.Primary, async (_, _) => await ApplyFavorite()));
+        fb.Controls.Add(Ui.Btn("Dans le formulaire", Ui.Kind.Secondary, (_, _) => FavoriteToForm()));
+        fb.Controls.Add(Ui.Btn("Supprimer", Ui.Kind.Secondary, (_, _) => RemoveFavorite()));
+        fav.Controls.Add(lvFav);
+        fav.Controls.Add(fb);
 
         var hist = new TabPage("Historique (15 derniers lives)") { BackColor = Ui.Card, Padding = new Padding(10) };
         lvHistory.Columns.Add("Date", 120);
@@ -122,23 +122,6 @@ sealed class StreamingDialog : Form
         tabs.TabPages.Add(fav);
         tabs.TabPages.Add(hist);
         return tabs;
-    }
-
-    static Control Section(string title, ListBox lb, Func<Task> apply, Action toForm, Action remove)
-    {
-        var s = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Margin = new Padding(0, 0, 0, 6) };
-        s.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        s.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        s.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        s.Controls.Add(Ui.Heading(title.ToUpperInvariant()), 0, 0);
-        s.Controls.Add(lb, 0, 1);
-        var b = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, Padding = new Padding(0, 4, 0, 0) };
-        b.Controls.Add(Ui.Btn("Appliquer en 1 clic", Ui.Kind.Primary, async (_, _) => await apply()));
-        b.Controls.Add(Ui.Btn("Dans le formulaire", Ui.Kind.Secondary, (_, _) => toForm()));
-        b.Controls.Add(Ui.Btn("Supprimer", Ui.Kind.Secondary, (_, _) => remove()));
-        s.Controls.Add(b, 0, 2);
-        lb.DoubleClick += async (_, _) => await apply();
-        return s;
     }
 
     // ---- accounts ----
@@ -242,35 +225,6 @@ sealed class StreamingDialog : Form
         FillGameItemsFromDict();
     });
 
-    Task ApplyOnly(string? title, string? game, List<string>? tags) => Guard(async () =>
-    {
-        if (NeedConnection()) return;
-        Say("Envoi…", false);
-        Report(await Streaming.ApplyAsync(title, game, tags));
-    });
-
-    Task ApplyTitleFav()
-    {
-        if (lbTitles.SelectedItem is not string t) return Task.CompletedTask;
-        tbTitle.Text = t;
-        return ApplyOnly(t, null, null);
-    }
-
-    Task ApplyGameFav()
-    {
-        if (lbGames.SelectedItem is not string g) return Task.CompletedTask;
-        tbGame.Text = g;
-        return ApplyOnly(null, g, null);
-    }
-
-    Task ApplyTagsFav()
-    {
-        if (lbTags.SelectedIndex < 0) return Task.CompletedTask;
-        var set = store.FavTagSets[lbTags.SelectedIndex];
-        tbTags.Text = string.Join(", ", set);
-        return ApplyOnly(null, null, set);
-    }
-
     Task LoadFromLive() => Guard(async () =>
     {
         var p = Streaming.Connected.FirstOrDefault();
@@ -282,53 +236,49 @@ sealed class StreamingDialog : Form
         Say($"Valeurs actuelles de {p.Name} chargées.", false);
     });
 
-    // ---- favourites ----
+    // ---- favourites: a title, a game and tags that go together ----
 
-    void FavTitle()
+    LiveInfo FormInfo() => new() { Title = tbTitle.Text.Trim(), GameName = tbGame.Text.Trim(), Tags = Streaming.NormalizeTags(tbTags.Text) };
+
+    void AddFavorite()
     {
-        if (StreamingStore.AddUnique(store.FavTitles, tbTitle.Text)) { store.Save(); FillLists(); Say("Titre ajouté aux favoris.", false); }
+        var info = FormInfo();
+        if (info.Title == "") { Say("Saisis au moins un titre pour l'ajouter aux favoris.", true); return; }
+        Say(store.AddFavorite(info) ? "Ajouté aux favoris." : "Ce favori existe déjà.", false);
+        FillFavs();
     }
 
-    void FavGame()
+    LiveInfo? SelectedFavorite => lvFav.SelectedItems.Count > 0 ? lvFav.SelectedItems[0].Tag as LiveInfo : null;
+
+    void FavoriteToForm()
     {
-        if (StreamingStore.AddUnique(store.FavGames, tbGame.Text)) { store.Save(); FillLists(); Say("Jeu ajouté aux favoris.", false); }
+        if (SelectedFavorite is not { } f) return;
+        tbTitle.Text = f.Title;
+        tbGame.Text = f.GameName;
+        tbTags.Text = string.Join(", ", f.Tags);
     }
 
-    void FavTags() => AddTagSet(Streaming.NormalizeTags(tbTags.Text));
-
-    void AddTagSet(List<string> tags)
+    /// <summary>1 click: fills the form with the favourite and sends the three values to every connected platform</summary>
+    Task ApplyFavorite()
     {
-        if (tags.Count == 0 || store.FavTagSets.Any(s => s.SequenceEqual(tags, StringComparer.OrdinalIgnoreCase))) return;
-        store.FavTagSets.Add(tags);
+        if (SelectedFavorite == null) return Task.CompletedTask;
+        FavoriteToForm();
+        return ApplyForm();
+    }
+
+    void RemoveFavorite()
+    {
+        if (lvFav.SelectedItems.Count == 0) return;
+        store.Favorites.RemoveAt(lvFav.SelectedIndices[0]);
         store.Save();
-        FillLists();
-        Say("Tags ajoutés aux favoris.", false);
+        FillFavs();
     }
 
-    void Remove(List<string> list, ListBox lb)
+    void FillFavs()
     {
-        if (lb.SelectedIndex < 0) return;
-        list.RemoveAt(lb.SelectedIndex);
-        store.Save();
-        FillLists();
-    }
-
-    void RemoveTags()
-    {
-        if (lbTags.SelectedIndex < 0) return;
-        store.FavTagSets.RemoveAt(lbTags.SelectedIndex);
-        store.Save();
-        FillLists();
-    }
-
-    void FillLists()
-    {
-        lbTitles.Items.Clear();
-        lbTitles.Items.AddRange(store.FavTitles.ToArray<object>());
-        lbGames.Items.Clear();
-        lbGames.Items.AddRange(store.FavGames.ToArray<object>());
-        lbTags.Items.Clear();
-        lbTags.Items.AddRange(store.FavTagSets.Select(s => (object)string.Join(", ", s)).ToArray());
+        lvFav.Items.Clear();
+        foreach (var f in store.Favorites)
+            lvFav.Items.Add(new ListViewItem(new[] { f.Title, f.GameName, string.Join(", ", f.Tags) }) { Tag = f });
     }
 
     // ---- history ----
@@ -354,12 +304,8 @@ sealed class StreamingDialog : Form
     void FavHistory()
     {
         if (SelectedHistory is not { } h) return;
-        StreamingStore.AddUnique(store.FavTitles, h.Title);
-        StreamingStore.AddUnique(store.FavGames, h.GameName);
-        AddTagSet(h.Tags);
-        store.Save();
-        FillLists();
-        Say("Titre, jeu et tags de ce live ajoutés aux favoris.", false);
+        Say(store.AddFavorite(h) ? "Ce live a été ajouté aux favoris." : "Ce favori existe déjà.", false);
+        FillFavs();
     }
 
     Task ImportVods() => Guard(async () =>

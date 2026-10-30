@@ -61,9 +61,8 @@ static class Json
 /// <summary>Favourites and history (streaming.json in %LOCALAPPDATA%\StreamLauncher).</summary>
 class StreamingStore
 {
-    public List<string> FavTitles { get; set; } = new();
-    public List<string> FavGames { get; set; } = new();
-    public List<List<string>> FavTagSets { get; set; } = new();
+    /// <summary>favourites: a title, a game and tags that always go together</summary>
+    public List<LiveInfo> Favorites { get; set; } = new();
     public List<HistoryEntry> History { get; set; } = new();
 
     public const int HistorySize = 15;
@@ -81,10 +80,12 @@ class StreamingStore
         Save();
     }
 
-    public static bool AddUnique(List<string> list, string v)
+    /// <returns>false when this combo is already a favourite (or has no title)</returns>
+    public bool AddFavorite(LiveInfo info)
     {
-        if (v.Trim() == "" || list.Contains(v, StringComparer.OrdinalIgnoreCase)) return false;
-        list.Add(v.Trim());
+        if (info.Title.Trim() == "" || Favorites.Any(f => f.Title == info.Title && f.GameName.Equals(info.GameName, StringComparison.OrdinalIgnoreCase) && f.Tags.SequenceEqual(info.Tags, StringComparer.OrdinalIgnoreCase))) return false;
+        Favorites.Add(new LiveInfo { Title = info.Title.Trim(), GameName = info.GameName.Trim(), Tags = info.Tags.ToList() });
+        Save();
         return true;
     }
 }
