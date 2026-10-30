@@ -3,7 +3,7 @@ using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 
-/// <summary>Version "Vaaa.bbb.ccc" (ex. V001.000.000) et mise à jour depuis les releases GitHub.</summary>
+/// <summary>Version "Va.b.c" (ex. V0.1.0) et mise à jour depuis les releases GitHub.</summary>
 static class Updater
 {
     const string Repo = "Rimfire03/Stream_launcher";
@@ -14,7 +14,7 @@ static class Updater
 
     public static Version Current => Assembly.GetEntryAssembly()!.GetName().Version!;
 
-    public static string Format(Version v) => $"V{v.Major:000}.{v.Minor:000}.{Math.Max(v.Build, 0):000}";
+    public static string Format(Version v) => $"V{v.Major}.{v.Minor}.{Math.Max(v.Build, 0)}";
 
     static bool TryParse(string tag, out Version v)
     {

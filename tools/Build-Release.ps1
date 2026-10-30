@@ -1,6 +1,6 @@
 # Publie l'exe portable (single-file, self-contained) dans dist\ puis le signe avec le certificat global TomLine.
-# -Publish : crée la release GitHub (tag Vaaa.bbb.ccc depuis <Version> du csproj) avec l'exe en asset ; l'app s'y met à jour.
-# Pour changer de version : modifier <Version> dans StreamLauncher.csproj (ex. 1.2.0 -> V001.002.000).
+# -Publish : crée la release GitHub (tag Va.b.c depuis <Version> du csproj) avec l'exe en asset ; l'app s'y met à jour.
+# Pour changer de version : modifier <Version> dans StreamLauncher.csproj (ex. 1.2.0 -> V1.2.0).
 param([switch]$Publish)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
@@ -17,7 +17,7 @@ $sig = Set-AuthenticodeSignature -FilePath $exe -Certificate $cert -HashAlgorith
 
 if ($Publish) {
     $v = [version](([xml](Get-Content "$root\StreamLauncher.csproj")).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1)
-    $tag = 'V{0:000}.{1:000}.{2:000}' -f $v.Major, $v.Minor, [math]::Max($v.Build, 0)
+    $tag = 'V{0}.{1}.{2}' -f $v.Major, $v.Minor, [math]::Max($v.Build, 0)
     gh release create $tag $exe --repo Rimfire03/Stream_launcher --title $tag --generate-notes
     if ($LASTEXITCODE -ne 0) { throw 'gh release echoue' }
     "Release $tag publiee"
