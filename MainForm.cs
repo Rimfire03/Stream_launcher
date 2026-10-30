@@ -114,7 +114,8 @@ class MainForm : Form
         var titleBox = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, AutoSize = true, Dock = DockStyle.Left, WrapContents = false, Margin = new Padding(0) };
         titleBox.Controls.AddRange(new Control[] { lblProfile, lblCount });
         var runBtns = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, WrapContents = false, Padding = new Padding(0, 4, 0, 0) };
-        runBtns.Controls.AddRange(new Control[] { btnRun, btnStop });
+        var btnChat = Ui.Btn("💬  Chat", Ui.Kind.Secondary, (_, _) => OpenChatWindow());
+        runBtns.Controls.AddRange(new Control[] { btnChat, btnRun, btnStop });
         var profileBar = new Panel { Dock = DockStyle.Top, Height = 54, BackColor = Ui.Card, Padding = new Padding(18, 5, 14, 3) };
         profileBar.Controls.Add(runBtns);
         profileBar.Controls.Add(titleBox);
