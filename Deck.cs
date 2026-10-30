@@ -80,6 +80,7 @@ static class Deck
             var dir = Path.Combine(root, Safe(p.Name));
             wanted.Add(dir);
             Directory.CreateDirectory(dir);
+            foreach (var f in Directory.GetFiles(dir, "*.exe.old")) TryDelete(f);
             foreach (var (suffix, flag) in Kinds)
             {
                 var baseName = Path.Combine(dir, Safe(p.Name) + suffix);
@@ -131,9 +132,19 @@ static class Deck
         try { File.Delete(path); } catch { }
     }
 
-    // always re-written; a running launcher (locked) is left as is
+    // always re-written. A launcher that is in use (Stream Deck maps the file for its icon) cannot be overwritten but can be
+    // renamed: move it aside as ".old", write the stub, and delete the leftovers on a later sync.
     static void TryStub(string path)
     {
-        try { File.WriteAllBytes(path, StubBytes()); } catch { }
+        try { File.WriteAllBytes(path, StubBytes()); return; } catch { }
+        try
+        {
+            var old = path + ".old";
+            TryDelete(old);
+            File.Move(path, old);
+            File.WriteAllBytes(path, StubBytes());
+            TryDelete(old);
+        }
+        catch (Exception e) { RunLog.Write($"lanceur non mis à jour : {path} ({e.Message})"); }
     }
 }
