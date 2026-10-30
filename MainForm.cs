@@ -2,8 +2,8 @@ class MainForm : Form
 {
     readonly Config cfg;
     readonly NotifyIcon tray = new() { Icon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!), Text = "Stream Launcher" };
-    readonly ListBox lbProf = new() { Dock = DockStyle.Fill, IntegralHeight = false, DrawMode = DrawMode.OwnerDrawFixed, ItemHeight = 46, BorderStyle = BorderStyle.None, BackColor = Ui.Card };
-    readonly ListBox lbSteps = new() { Dock = DockStyle.Fill, IntegralHeight = false, DrawMode = DrawMode.OwnerDrawFixed, ItemHeight = 58, BorderStyle = BorderStyle.None, BackColor = Ui.Card };
+    readonly ListBox lbProf = new() { Dock = DockStyle.Fill, IntegralHeight = false, DrawMode = DrawMode.OwnerDrawFixed, ItemHeight = 42, BorderStyle = BorderStyle.None, BackColor = Ui.Card };
+    readonly ListBox lbSteps = new() { Dock = DockStyle.Fill, IntegralHeight = false, DrawMode = DrawMode.OwnerDrawFixed, ItemHeight = 36, BorderStyle = BorderStyle.None, BackColor = Ui.Card };
     readonly PropertyGrid pg = new() { Dock = DockStyle.Fill, ToolbarVisible = false, HelpVisible = true, PropertySort = PropertySort.Categorized, ViewBackColor = Ui.Card, LineColor = Ui.Border, CategoryForeColor = Ui.Primary };
     readonly TextBox log = new() { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Font = Ui.Mono, BorderStyle = BorderStyle.None, BackColor = Ui.Card };
     readonly FlowLayoutPanel quick = new() { Dock = DockStyle.Fill, AutoSize = false, WrapContents = true, Padding = new Padding(0, 4, 0, 0) };
@@ -212,6 +212,18 @@ class MainForm : Form
             int i = lbSteps.IndexFromPoint(e.Location);
             if (i >= 0) lbSteps.SelectedIndex = i;
         };
+        // rows are one line high: the full description of the hovered step is in a tooltip
+        var stepTip = new ToolTip { InitialDelay = 400 };
+        int tipIndex = -1;
+        lbSteps.MouseMove += (_, e) =>
+        {
+            int i = lbSteps.IndexFromPoint(e.Location);
+            if (i == tipIndex) return;
+            tipIndex = i;
+            var (m, sub) = i >= 0 ? Ui.Describe((Step)lbSteps.Items[i]) : ("", "");
+            stepTip.SetToolTip(lbSteps, i >= 0 ? m + "
+" + sub : "");
+        };
         lbSteps.DrawItem += DrawStep;
         lbProf.DrawItem += DrawProfile;
 
@@ -289,19 +301,23 @@ class MainForm : Form
         TextRenderer.DrawText(g, (e.Index + 1).ToString(), Ui.Bold, new Rectangle(e.Bounds.X + 12, e.Bounds.Y, 26, e.Bounds.Height), Ui.Muted, TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter);
 
         var (label, color) = Ui.Badge(s.Type);
-        var badge = new Rectangle(e.Bounds.X + 44, e.Bounds.Y + 19, 76, 20);
+        var badge = new Rectangle(e.Bounds.X + 44, e.Bounds.Y + 9, 76, 18);
         using (var path = Ui.Round(badge, 6)) using (var br = new SolidBrush(color)) g.FillPath(br, path);
         TextRenderer.DrawText(g, label, new Font("Segoe UI", 8f, FontStyle.Bold), badge, Color.White, TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter);
 
+        // one line per step: bold summary, then the details in grey, then the delay on the right
         var (main, sub) = Ui.Describe(s);
         var delay = $"+{s.DelayMs} ms";
         int right = e.Bounds.Right - 14;
         var delaySize = TextRenderer.MeasureText(delay, Ui.Small);
         TextRenderer.DrawText(g, delay, Ui.Small, new Rectangle(right - delaySize.Width, e.Bounds.Y, delaySize.Width, e.Bounds.Height), Ui.Muted, TextFormatFlags.VerticalCenter);
         int textLeft = badge.Right + 12, textWidth = right - delaySize.Width - 12 - textLeft;
-        var fl = TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.Left;
-        TextRenderer.DrawText(g, main, Ui.Bold, new Rectangle(textLeft, e.Bounds.Y + 9, textWidth, 20), Ui.Text, fl);
-        TextRenderer.DrawText(g, sub, Ui.Small, new Rectangle(textLeft, e.Bounds.Y + 30, textWidth, 18), Ui.Muted, fl);
+        var fl = TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.Left | TextFormatFlags.VerticalCenter;
+        int mainWidth = Math.Min(TextRenderer.MeasureText(main, Ui.Bold).Width + 4, textWidth);
+        TextRenderer.DrawText(g, main, Ui.Bold, new Rectangle(textLeft, e.Bounds.Y, mainWidth, e.Bounds.Height), Ui.Text, fl);
+        int subLeft = textLeft + mainWidth + 10;
+        if (textWidth - mainWidth - 10 > 40)
+            TextRenderer.DrawText(g, sub, Ui.Small, new Rectangle(subLeft, e.Bounds.Y, textLeft + textWidth - subLeft, e.Bounds.Height), Ui.Muted, fl);
     }
 
     void DrawProfile(object? sender, DrawItemEventArgs e)
