@@ -1,5 +1,7 @@
 # Stream Launcher
 
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Donate-orange.svg?logo=buy-me-a-coffee&logoColor=white)](https://buymeacoffee.com/slide598b)
+
 Application Windows (.NET 8, self-contained) distribuée uniquement par installateur MSI signé (release GitHub) : lance des applications, les place sur le bon écran et clique dans leurs fenêtres. Profils stockés dans `profiles.json` à côté de l'exe.
 
 ## Utilisation
@@ -50,3 +52,9 @@ Produit `dist\StreamLauncher-Va.b.c-win-x64.msi` signé (certificat global TomLi
 - Apps UWP/Store : le chemin importé est celui d'`ApplicationFrameHost`, à corriger à la main.
 - Titres de fenêtre dynamiques (navigateur, documents) : réduire `Title` à un fragment stable.
 - Éléments dans des menus contextuels (fenêtres popup) : préférer `Coords`.
+
+## Soutenir le projet
+
+Stream Launcher est gratuit. Si il vous est utile, vous pouvez soutenir son développement :
+
+<a href="https://buymeacoffee.com/slide598b" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50"></a>

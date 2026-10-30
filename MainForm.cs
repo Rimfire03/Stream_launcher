@@ -170,7 +170,12 @@ class MainForm : Form
         var footColor = ColorTranslator.FromHtml("#64748B");
         footer.Controls.Add(lblFootLeft, 0, 0);
         footer.Controls.Add(new Label { Dock = DockStyle.Fill, Font = Ui.Small, ForeColor = footColor, TextAlign = ContentAlignment.MiddleCenter, Text = "© TomLine prod&&co by Thomas Guidez  ·  Préparation de live Twitch" }, 1, 0);
-        footer.Controls.Add(new Label { Dock = DockStyle.Fill, Font = Ui.Small, ForeColor = footColor, TextAlign = ContentAlignment.MiddleRight, Text = $"Stream Launcher {Updater.Format(Updater.Current)}" }, 2, 0);
+        var footRight = new Panel { Dock = DockStyle.Fill };
+        var coffee = new LinkLabel { Dock = DockStyle.Right, AutoSize = true, Font = Ui.Small, LinkColor = Ui.Primary, ActiveLinkColor = Ui.Primary, TextAlign = ContentAlignment.MiddleRight, Text = "☕ Buy Me A Coffee", Padding = new Padding(0, 0, 14, 0), Cursor = Cursors.Hand };
+        coffee.LinkClicked += (_, _) => OpenCoffee();
+        footRight.Controls.Add(new Label { Dock = DockStyle.Right, AutoSize = true, Font = Ui.Small, ForeColor = footColor, TextAlign = ContentAlignment.MiddleRight, Text = $"Stream Launcher {Updater.Format(Updater.Current)}" });
+        footRight.Controls.Add(coffee);
+        footer.Controls.Add(footRight, 2, 0);
         footer.Paint += (_, e) => { using var pen = new Pen(Ui.Border); e.Graphics.DrawLine(pen, 0, 0, footer.Width, 0); };
 
         Controls.Add(main);
@@ -189,6 +194,7 @@ class MainForm : Form
         help.DropDownItems.Add(topics);
         help.DropDownItems.Add(new ToolStripSeparator());
         help.DropDownItems.Add("Vérifier les mises à jour…", null, (_, _) => CheckUpdate(true));
+        help.DropDownItems.Add("☕ Offrir un café (Buy Me A Coffee)", null, (_, _) => OpenCoffee());
         help.DropDownItems.Add("À propos…", null, (_, _) => About());
         help.ForeColor = Color.White;
         void DarkText(ToolStripItemCollection items)
@@ -277,6 +283,9 @@ class MainForm : Form
     }
 
     // Shortcuts live in <app folder>\Profils\<profile>\ and are kept in sync automatically (see Deck).
+    // the application is free: a link to support its author
+    static void OpenCoffee() => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://buymeacoffee.com/slide598b") { UseShellExecute = true });
+
     void OpenRunLog()
     {
         RunLog.Write("(journal ouvert depuis l'application)");
