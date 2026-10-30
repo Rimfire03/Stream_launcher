@@ -73,6 +73,23 @@ class MainForm : Form
         Controls.Add(log);
         Controls.Add(quick);
 
+        var help = new ToolStripMenuItem("Aide");
+        help.DropDownItems.Add(new ToolStripMenuItem("Guide d'utilisation", null, (_, _) => ShowHelp(0)) { ShortcutKeys = Keys.F1 });
+        var topics = new ToolStripMenuItem("Rubriques");
+        for (int t = 0; t < HelpTopics.All.Length; t++)
+        {
+            int topic = t;
+            topics.DropDownItems.Add(HelpTopics.All[t].Title, null, (_, _) => ShowHelp(topic));
+        }
+        help.DropDownItems.Add(topics);
+        help.DropDownItems.Add(new ToolStripSeparator());
+        help.DropDownItems.Add("Vérifier les mises à jour…", null, (_, _) => CheckUpdate(true));
+        help.DropDownItems.Add("À propos…", null, (_, _) => About());
+        var menu = new MenuStrip();
+        menu.Items.Add(help);
+        MainMenuStrip = menu;
+        Controls.Add(menu);
+
         var stepMenu = new ContextMenuStrip();
         stepMenu.Items.Add("▶ Tester cette étape", null, (_, _) => TestStep(false));
         stepMenu.Items.Add("▶ Tester à partir de cette étape", null, (_, _) => TestStep(true));
@@ -230,6 +247,16 @@ class MainForm : Form
         cfg.Save();
         RefreshSteps();
     }
+
+    void ShowHelp(int topic)
+    {
+        using var d = new HelpDialog(topic);
+        d.ShowDialog(this);
+    }
+
+    void About() => MessageBox.Show(
+        $"Stream Launcher {Updater.Format(Updater.Current)}\nTomLine prod&co\n\nPréparation du lancement d'un live : lance des applications, les place sur les écrans et clique dans leurs fenêtres.\n\nProfils : {Path.Combine(Path.GetDirectoryName(Environment.ProcessPath)!, "profiles.json")}\nhttps://github.com/Rimfire03/Stream_launcher",
+        "À propos", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
     // ---- profiles ----
 

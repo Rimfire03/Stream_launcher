@@ -18,6 +18,10 @@ Application Windows (.NET 8, self-contained) distribuée uniquement par installa
 - Chaque étape se règle dans le panneau de propriétés (mode `Element` ou `Coords` par étape, timeouts, titre/processus cible…).
 - Icône de zone de notification : clic droit → lancer un profil. Fermer la fenêtre réduit dans le tray.
 
+## Aide
+
+Menu **Aide** (ou F1) : guide complet avec une rubrique par fonction (étapes, Multitâche, écrans, navigateur, tray, Stream Deck, dépannage).
+
 ## Stream Deck
 
 Action « Ouvrir » (Système) :
