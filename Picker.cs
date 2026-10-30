@@ -28,6 +28,9 @@ class WindowPicker : IDisposable
         if (hook == IntPtr.Zero) throw new InvalidOperationException("Hook souris impossible");
     }
 
+    // the unified chat is one of our own windows, but it can be captured like any other (our main window and the pick bar cannot)
+    static bool IsChatWindow(IntPtr h) => Application.OpenForms.OfType<ChatWindow>().Any(f => f.IsHandleCreated && f.Handle == h);
+
     IntPtr Callback(int code, IntPtr w, IntPtr l)
     {
         int msg = (int)w;
@@ -39,7 +42,7 @@ class WindowPicker : IDisposable
                 var hw = Native.WindowFromPoint(pt);
                 var root = hw == IntPtr.Zero ? IntPtr.Zero : Native.GetAncestor(hw, 3); // GA_ROOTOWNER
                 Native.GetWindowThreadProcessId(root == IntPtr.Zero ? hw : root, out var pid);
-                if (root != IntPtr.Zero && pid != Environment.ProcessId)
+                if (root != IntPtr.Zero && (pid != Environment.ProcessId || IsChatWindow(root)))
                 {
                     downWin = root;
                     Native.GetWindowRect(root, out downRect);
