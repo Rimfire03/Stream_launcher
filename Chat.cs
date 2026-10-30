@@ -329,62 +329,50 @@ sealed class TwitchChatSource : ChatSource
     }
 }
 
-/// <summary>Kick chat: reads the real-time feed of kick.com (unofficial), sends through the official API.</summary>
+/// <summary>Kick chat: Kick sends the channel's events as webhooks (official API) to a small relay (relay/), the app listens to the relay.</summary>
 sealed class KickChatSource : ChatSource
 {
-    const string PusherUrl = "wss://ws-us2.pusher.com/app/32cbd69e4b950bf97679?protocol=7&client=js&version=8.4.0-rc2&flash=false";
-    static readonly HttpClient Web = new(new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All }) { Timeout = TimeSpan.FromSeconds(20) };
+    // the relay address is filled in after "wrangler deploy" (see relay/README.md)
+    const string RelayUrl = "wss://streamlauncher-kick-relay.slide598.workers.dev/ws";
+    static readonly string[] Events = { "chat.message.sent", "channel.subscription.new", "channel.subscription.renewal", "channel.subscription.gifts", "channel.reward.redemption.updated" };
 
     public override string PlatformId => "kick";
     public override bool CanSend => P.Connected && P.HasScope("chat:write");
 
     protected override async Task ReadAsync(CancellationToken ct)
     {
-        var slug = P.UserName;
+        if (!P.HasScope("events:subscribe")) { SetStatus("Reconnecte Kick pour lire le chat (nouveau droit « événements »)", false); await Task.Delay(TimeSpan.FromSeconds(20), ct); return; }
         SetStatus("Connexion…", false);
-        long chatroom = await ChatroomIdAsync(slug, ct);
+        await ((KickPlatform)P).SubscribeEventsAsync(Events, ct);
 
         using var socket = new ClientWebSocket();
-        await socket.ConnectAsync(new Uri(Environment.GetEnvironmentVariable("STREAMLAUNCHER_KICK_WS") ?? PusherUrl), ct);
-        while (true)
+        await socket.ConnectAsync(new Uri($"{Environment.GetEnvironmentVariable("STREAMLAUNCHER_KICK_RELAY") ?? RelayUrl}/{P.UserId}"), ct);
+        SetStatus($"Connecté (lecture : {P.UserName})", true);
+        using var keepAlive = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        _ = Task.Run(async () => // the relay answers "pong" by itself: the connection is never idle
         {
-            var frame = await ReceiveTextAsync(socket, ct);
-            if (frame == null) throw new InvalidOperationException("connexion fermée par Kick");
-            using var doc = JsonDocument.Parse(frame);
-            var ev = doc.RootElement.TryGetProperty("event", out var e) ? e.GetString() : "";
-            var data = doc.RootElement.TryGetProperty("data", out var d) ? (d.ValueKind == JsonValueKind.String ? d.GetString() ?? "" : d.GetRawText()) : "";
-            switch (ev)
+            try { while (true) { await Task.Delay(TimeSpan.FromSeconds(30), keepAlive.Token); await SendTextAsync(socket, "ping", keepAlive.Token); } }
+            catch { }
+        });
+        try
+        {
+            while (true)
             {
-                case "pusher:connection_established":
-                    await SendTextAsync(socket, JsonSerializer.Serialize(new { @event = "pusher:subscribe", data = new { auth = "", channel = $"chatrooms.{chatroom}.v2" } }), ct);
-                    break;
-                case "pusher_internal:subscription_succeeded":
-                    SetStatus($"Connecté (lecture : {slug})", true);
-                    break;
-                case "pusher:ping":
-                    await SendTextAsync(socket, "{\"event\":\"pusher:pong\",\"data\":{}}", ct);
-                    break;
-                case @"App\Events\ChatMessageEvent":
-                    if (ParseMessage(data) is { } m) Emit(m);
-                    break;
-                case @"App\Events\RewardRedeemedEvent" or @"App\Events\SubscriptionEvent" or @"App\Events\GiftedSubscriptionsEvent":
-                    if (ParseEvent(ev!, data) is { } evm) Emit(evm);
-                    break;
+                var frame = await ReceiveTextAsync(socket, ct);
+                if (frame == null) throw new InvalidOperationException("connexion fermée par le relais");
+                if (frame == "pong") continue;
+                try
+                {
+                    using var doc = JsonDocument.Parse(frame);
+                    var type = doc.RootElement.GetProperty("type").GetString() ?? "";
+                    var data = doc.RootElement.GetProperty("data").GetRawText();
+                    var m = type == "chat.message.sent" ? ParseMessage(data) : ParseEvent(type, data);
+                    if (m != null) Emit(m);
+                }
+                catch (JsonException) { }
             }
         }
-    }
-
-    /// <summary>the real-time room of a channel is identified by its chat room id, only given by kick.com's own API</summary>
-    static async Task<long> ChatroomIdAsync(string slug, CancellationToken ct)
-    {
-        var url = Environment.GetEnvironmentVariable("STREAMLAUNCHER_KICK_WEB") ?? "https://kick.com/api/v2/channels";
-        using var req = new HttpRequestMessage(HttpMethod.Get, $"{url}/{Uri.EscapeDataString(slug)}");
-        req.Headers.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36");
-        req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        using var r = await Web.SendAsync(req, ct);
-        if (!r.IsSuccessStatusCode) throw new InvalidOperationException($"lecture du chat indisponible (kick.com a répondu {(int)r.StatusCode}) ; l'envoi reste possible");
-        using var doc = JsonDocument.Parse(await r.Content.ReadAsStringAsync(ct));
-        return doc.RootElement.GetProperty("chatroom").GetProperty("id").GetInt64();
+        finally { keepAlive.Cancel(); }
     }
 
     public override Task SendAsync(string text, CancellationToken ct)
@@ -402,7 +390,7 @@ sealed class KickChatSource : ChatSource
             using var doc = JsonDocument.Parse(data);
             var r = doc.RootElement;
             var sender = r.GetProperty("sender");
-            var color = sender.TryGetProperty("identity", out var id) && id.TryGetProperty("color", out var c) ? c.GetString() : null;
+            var color = sender.TryGetProperty("identity", out var id) && id.ValueKind == JsonValueKind.Object && id.TryGetProperty("username_color", out var c) ? c.GetString() : null;
             var content = r.GetProperty("content").GetString() ?? "";
             var sb = new System.Text.StringBuilder();
             var spans = new List<EmoteSpan>();
@@ -421,23 +409,29 @@ sealed class KickChatSource : ChatSource
         catch { return null; }
     }
 
-    /// <summary>reward, subscription and gifted subscriptions events of the real-time feed (unofficial: field names are read defensively)</summary>
-    public static ChatMessage? ParseEvent(string ev, string data)
+    /// <summary>reward, subscription and gifted subscriptions webhooks (official payloads)</summary>
+    public static ChatMessage? ParseEvent(string type, string data)
     {
         try
         {
             using var doc = JsonDocument.Parse(data);
             var r = doc.RootElement;
-            string Str(params string[] names) { foreach (var n in names) if (r.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.String) return v.GetString() ?? ""; return ""; }
-            switch (ev)
+            string User(string prop) => r.TryGetProperty(prop, out var u) && u.ValueKind == JsonValueKind.Object && u.TryGetProperty("username", out var n) ? n.GetString() ?? "?" : "?";
+            switch (type)
             {
-                case @"App\Events\RewardRedeemedEvent":
-                    return new ChatMessage(DateTime.Now, "kick", Str("username", "user_username"), (Str("reward_title", "title") + " " + Str("user_input", "input")).Trim(), null, Kind: "reward", Extra: "Récompense");
-                case @"App\Events\SubscriptionEvent":
-                    return new ChatMessage(DateTime.Now, "kick", Str("username"), r.TryGetProperty("months", out var mo) ? $"s'abonne ({mo} mois)" : "s'abonne", null, Kind: "sub", Extra: "Abonnement");
-                case @"App\Events\GiftedSubscriptionsEvent":
-                    var n = r.TryGetProperty("gifted_usernames", out var g) && g.ValueKind == JsonValueKind.Array ? g.GetArrayLength() : 0;
-                    return new ChatMessage(DateTime.Now, "kick", Str("gifter_username", "username"), n > 0 ? $"offre {n} abonnement(s)" : "offre des abonnements", null, Kind: "gift", Extra: "Abonnement offert");
+                case "channel.reward.redemption.updated":
+                    if (r.GetProperty("status").GetString() != "pending") return null; // accepted / rejected: same redemption, already shown
+                    var reward = r.GetProperty("reward");
+                    var input = r.TryGetProperty("user_input", out var ui) ? ui.GetString() : "";
+                    return new ChatMessage(DateTime.Now, "kick", User("redeemer"), $"{reward.GetProperty("title").GetString()} {input}".Trim(), null, Kind: "reward", Extra: "Récompense");
+                case "channel.subscription.new":
+                    return new ChatMessage(DateTime.Now, "kick", User("subscriber"), "s'abonne", null, Kind: "sub", Extra: "Abonnement");
+                case "channel.subscription.renewal":
+                    return new ChatMessage(DateTime.Now, "kick", User("subscriber"), $"se réabonne ({r.GetProperty("duration").GetInt32()} mois)", null, Kind: "sub", Extra: "Abonnement");
+                case "channel.subscription.gifts":
+                    int n = r.TryGetProperty("giftees", out var g) && g.ValueKind == JsonValueKind.Array ? g.GetArrayLength() : 0;
+                    var anonymous = r.GetProperty("gifter").TryGetProperty("is_anonymous", out var an) && an.ValueKind == JsonValueKind.True;
+                    return new ChatMessage(DateTime.Now, "kick", anonymous ? "Anonyme" : User("gifter"), n > 0 ? $"offre {n} abonnement(s)" : "offre des abonnements", null, Kind: "gift", Extra: "Abonnement offert");
             }
         }
         catch { }

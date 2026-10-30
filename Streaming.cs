@@ -490,7 +490,8 @@ sealed class KickPlatform : Platform
     public const int CallbackPort = 43117;
     public const string RedirectUri = "http://localhost:43117/callback"; // to declare as-is in the Kick application settings
     const string Scope = "channel:read channel:write";
-    const string ChatScope = "channel:read channel:write chat:write"; // chat:write must be enabled on the Kick application
+    const string ChatScope = "channel:read channel:write chat:write events:subscribe"; // chat:write and events:subscribe must be enabled on the Kick application
+    const string SendScope = "channel:read channel:write chat:write";
 
     protected override string DefaultClientId => BuiltIn.KickId;
     protected override string DefaultClientSecret => BuiltIn.KickSecret;
@@ -504,11 +505,12 @@ sealed class KickPlatform : Platform
     /// <summary>asks for the chat right too; if Kick refuses it (not enabled on the application), connects again without it</summary>
     public override async Task ConnectAsync(Action<string> info, CancellationToken ct)
     {
-        try { await ConnectWithAsync(ChatScope, info, ct); }
-        catch (InvalidOperationException e) when (e.Message.StartsWith("Kick : "))
+        foreach (var scope in new[] { ChatScope, SendScope })
         {
-            await ConnectWithAsync(Scope, info, ct);
+            try { await ConnectWithAsync(scope, info, ct); return; }
+            catch (InvalidOperationException e) when (e.Message.StartsWith("Kick : ")) { }
         }
+        await ConnectWithAsync(Scope, info, ct);
     }
 
     async Task ConnectWithAsync(string scope, Action<string> info, CancellationToken ct)
@@ -599,6 +601,21 @@ sealed class KickPlatform : Platform
         }
         if (body.Count > 0) await SendAsync(new HttpMethod("PATCH"), "/v1/channels", body, ct);
         return warning;
+    }
+
+    /// <summary>makes Kick send these events of the streamer's channel as webhooks to the relay (only the missing ones are created)</summary>
+    public async Task SubscribeEventsAsync(string[] names, CancellationToken ct)
+    {
+        var list = await SendAsync(HttpMethod.Get, "/v1/events/subscriptions?broadcaster_user_id=" + Auth.UserId, null, ct);
+        var have = list.TryGetProperty("data", out var d) && d.ValueKind == JsonValueKind.Array
+            ? d.EnumerateArray().Select(x => x.TryGetProperty("event", out var e) ? e.GetString() : null).ToHashSet() : new HashSet<string?>();
+        var missing = names.Where(n => !have.Contains(n)).Select(n => new { name = n, version = 1 }).ToArray();
+        if (missing.Length == 0) return;
+        var r = await SendAsync(HttpMethod.Post, "/v1/events/subscriptions", new { broadcaster_user_id = long.Parse(Auth.UserId), events = missing, method = "webhook" }, ct);
+        if (r.TryGetProperty("data", out var res) && res.ValueKind == JsonValueKind.Array)
+            foreach (var x in res.EnumerateArray())
+                if (x.TryGetProperty("error", out var err) && err.ValueKind == JsonValueKind.String && err.GetString() is { Length: > 0 } msg)
+                    throw new InvalidOperationException($"Kick : abonnement à {x.GetProperty("name").GetString()} refusé ({msg})");
     }
 
     /// <summary>a chat message as the streamer, in their own channel (scope chat:write)</summary>
