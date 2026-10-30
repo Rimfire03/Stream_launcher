@@ -42,7 +42,7 @@ static class Live
 
         var targets = new Dictionary<IntPtr, Native.Win>();
         foreach (var w in Native.TopWindows())
-            if (w.Pid != own && !before.Contains((long)w.H)) targets[w.H] = w;
+            if (w.Pid != own && !before.Contains((long)w.H) && !w.Path.StartsWith(Deck.AppDir, StringComparison.OrdinalIgnoreCase)) targets[w.H] = w; // never our own app, whichever instance
         foreach (var t in state.Touched)
         {
             var h = (IntPtr)t.H;

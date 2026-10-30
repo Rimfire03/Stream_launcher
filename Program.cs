@@ -11,6 +11,11 @@ static class Program
     {
         ApplicationConfiguration.Initialize();
         var cfg = Config.Load();
+        if (args.Length == 0 && Deck.FromExeName(cfg) is { } fromName)
+        {
+            args = fromName; // « nom - bascule.exe » & co: the file name carries the action
+            RunLog.Write($"lancement via {Path.GetFileName(Environment.ProcessPath)}");
+        }
         RunLog.Write($"lancement : {(args.Length == 0 ? "(sans argument)" : string.Join(" ", args))}");
 
         if (args.Contains("--list-tray"))

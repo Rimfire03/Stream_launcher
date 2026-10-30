@@ -1,18 +1,55 @@
+using System.Runtime.InteropServices;
+
 /// <summary>
-/// Raccourcis Stream Deck : l'action « Ouvrir » de Stream Deck n'a pas de champ d'arguments, un .lnk les porte.
-/// Un sous-dossier par profil dans le dossier « Profils » de l'application, maintenu automatiquement.
+/// Raccourcis Stream Deck. L'action « Ouvrir » de Stream Deck n'a pas de champ d'arguments, ignore les arguments d'un .lnk
+/// et refuse les .cmd : elle n'accepte qu'un exécutable. Pour chaque profil on crée donc, dans « Profils\nom », trois
+/// liens physiques de StreamLauncher.exe (aucun espace disque en plus) dont le NOM porte l'action : « nom - bascule.exe »,
+/// « nom - lancer.exe », « nom - fermer.exe ». Au démarrage, l'exe lit son propre nom (voir <see cref="FromExeName"/>).
+/// Des .lnk équivalents sont créés pour un usage manuel.
 /// </summary>
 static class Deck
 {
-    static readonly (string Suffix, string Flag)[] Kinds = { (" - bascule", "--profile"), (" - lancer", "--start"), (" - fermer", "--stop") };
+    public static readonly (string Suffix, string Flag)[] Kinds = { (" - bascule", "--profile"), (" - lancer", "--start"), (" - fermer", "--stop") };
     const string Marker = "Stream Launcher :"; // description of our shortcuts: only those are ever deleted
 
-    static string Safe(string name) => string.Concat(name.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
+    [DllImport("kernel32", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern bool CreateHardLink(string newFile, string existingFile, IntPtr security);
+
+    public static string Safe(string name) => string.Concat(name.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
+
+    /// <summary>Application folder: the exe folder, or two levels up when running as a profile link (Profils\nom\nom - bascule.exe).</summary>
+    public static string AppDir
+    {
+        get
+        {
+            var dir = Path.GetDirectoryName(Environment.ProcessPath)!;
+            var parent = Directory.GetParent(dir);
+            return parent != null && parent.Name.Equals("Profils", StringComparison.OrdinalIgnoreCase) && parent.Parent != null ? parent.Parent.FullName : dir;
+        }
+    }
+
+    static string RealExe => Path.Combine(AppDir, "StreamLauncher.exe");
+
+    /// <summary>When this process was started through a profile link, the arguments that link stands for.</summary>
+    public static string[]? FromExeName(Config cfg)
+    {
+        var self = Path.GetFileNameWithoutExtension(Environment.ProcessPath);
+        if (self == null) return null;
+        foreach (var (suffix, flag) in Kinds)
+        {
+            if (!self.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)) continue;
+            var safeName = self[..^suffix.Length];
+            var p = cfg.Profiles.FirstOrDefault(x => Safe(x.Name).Equals(safeName, StringComparison.OrdinalIgnoreCase));
+            return p == null ? null : new[] { flag, p.Name };
+        }
+        return null;
+    }
 
     /// <summary>"Profils" folder next to the exe; in Documents when the application folder is not writable.</summary>
-    public static string Root()
+    public static string Root(out bool inAppDir)
     {
-        var dir = Path.Combine(Path.GetDirectoryName(Environment.ProcessPath)!, "Profils");
+        var dir = Path.Combine(AppDir, "Profils");
+        inAppDir = true;
         try
         {
             Directory.CreateDirectory(dir);
@@ -23,19 +60,22 @@ static class Deck
         }
         catch (UnauthorizedAccessException)
         {
+            inAppDir = false;
             dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Stream Launcher", "Profils");
             Directory.CreateDirectory(dir);
             return dir;
         }
     }
 
+    public static string Root() => Root(out _);
+
     public static string FolderOf(Profile p) => Path.Combine(Root(), Safe(p.Name));
 
-    /// <summary>Creates or refreshes the 3 shortcuts of every profile, and drops the folders of profiles that no longer exist.</summary>
+    /// <summary>Creates or refreshes the shortcuts of every profile, and drops the folders of profiles that no longer exist.</summary>
     public static void Sync(IEnumerable<Profile> profiles)
     {
-        var root = Root();
-        var exe = Environment.ProcessPath!;
+        var root = Root(out var inAppDir);
+        var exe = RealExe;
         dynamic shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!)!;
         var wanted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -46,7 +86,9 @@ static class Deck
             Directory.CreateDirectory(dir);
             foreach (var (suffix, flag) in Kinds)
             {
-                dynamic lnk = shell.CreateShortcut(Path.Combine(dir, Safe(p.Name) + suffix + ".lnk"));
+                var baseName = Path.Combine(dir, Safe(p.Name) + suffix);
+
+                dynamic lnk = shell.CreateShortcut(baseName + ".lnk");
                 lnk.TargetPath = exe;
                 lnk.Arguments = $"{flag} \"{p.Name}\"";
                 lnk.WorkingDirectory = Path.GetDirectoryName(exe);
@@ -54,14 +96,13 @@ static class Deck
                 lnk.Description = $"{Marker} {p.Name}";
                 lnk.Save();
 
-                // companion .cmd: some launchers resolve a .lnk to its target and drop the arguments
-                var exeQuoted = exe.Replace("%", "%%");
-                File.WriteAllText(Path.Combine(dir, Safe(p.Name) + suffix + ".cmd"),
-                    $"@echo off\r\nrem {Marker} {p.Name}\r\nstart \"\" \"{exeQuoted}\" {flag} \"{p.Name.Replace("%", "%%")}\"\r\n");
+                // hard link: needs the exe's volume, and a profile folder inside the application folder (the link finds profiles.json from there)
+                if (inAppDir) TryLink(baseName + ".exe", exe);
+                if (File.Exists(baseName + ".cmd")) TryDelete(baseName + ".cmd"); // earlier versions made these; Stream Deck refuses them
             }
         }
 
-        // renamed or deleted profiles: remove our own shortcuts there, then the folder if it ended up empty
+        // renamed or deleted profiles: remove our own files there, then the folder if it ended up empty
         foreach (var dir in Directory.GetDirectories(root))
         {
             if (wanted.Contains(dir)) continue;
@@ -71,8 +112,28 @@ static class Deck
                 if (((string)lnk.Description).StartsWith(Marker)) File.Delete(f);
             }
             foreach (var f in Directory.GetFiles(dir, "*.cmd"))
-                if (File.ReadLines(f).Take(2).Any(l => l.Contains(Marker))) File.Delete(f);
+                if (File.ReadLines(f).Take(2).Any(l => l.Contains(Marker))) TryDelete(f);
+            foreach (var f in Directory.GetFiles(dir, "*.exe"))
+                if (Kinds.Any(k => Path.GetFileNameWithoutExtension(f).EndsWith(k.Suffix, StringComparison.OrdinalIgnoreCase)) && IsSameFile(f, exe)) TryDelete(f);
             if (!Directory.EnumerateFileSystemEntries(dir).Any()) Directory.Delete(dir);
         }
+    }
+
+    static bool IsSameFile(string a, string b) => new FileInfo(a).Length == new FileInfo(b).Length;
+
+    static void TryDelete(string path)
+    {
+        try { File.Delete(path); } catch { }
+    }
+
+    // always re-created, so the links follow an updated StreamLauncher.exe; a running link (locked) is left as is
+    static void TryLink(string link, string target)
+    {
+        try
+        {
+            if (File.Exists(link)) File.Delete(link);
+            CreateHardLink(link, target, IntPtr.Zero);
+        }
+        catch { }
     }
 }

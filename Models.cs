@@ -118,7 +118,7 @@ class Config
         return input;
     }
 
-    static string FilePath => Path.Combine(Path.GetDirectoryName(Environment.ProcessPath)!, "profiles.json");
+    static string FilePath => Path.Combine(Deck.AppDir, "profiles.json");
     static readonly JsonSerializerOptions Opt = new()
     {
         WriteIndented = true,

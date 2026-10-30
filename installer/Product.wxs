@@ -20,6 +20,11 @@
     <Property Id="STARTMENU_SHORTCUT" Value="1" />
     <Property Id="DESKTOP_SHORTCUT" Value="1" />
 
+    <CustomAction Id="SetProfilsDir" Property="PROFILSDIR" Value="[INSTALLFOLDER]Profils" />
+    <InstallExecuteSequence>
+      <Custom Action="SetProfilsDir" After="CostFinalize" />
+    </InstallExecuteSequence>
+
     <StandardDirectory Id="ProgramMenuFolder">
       <Component Id="StartMenuShortcutComp" Guid="*" Bitness="always64">
         <Shortcut Id="StartMenuShortcut" Name="Stream Launcher" Target="[INSTALLFOLDER]StreamLauncher.exe" WorkingDirectory="INSTALLFOLDER" />
@@ -48,6 +53,12 @@
           </CreateFolder>
         </Component>
 
+        <Component Id="ProfilsCleanup" Guid="7C1D4E8A-2B53-4F9C-A6D0-91E3B5F20C48" Bitness="always64">
+          <RegistryValue Root="HKLM" Key="SOFTWARE\TomLine\StreamLauncher" Name="ProfilsCleanup" Type="integer" Value="1" KeyPath="yes" />
+          <!-- Profils\<profil>\*.exe are hard links created at run time (not in the package): remove the folder with the app -->
+          <util:RemoveFolderEx On="uninstall" Property="PROFILSDIR" />
+        </Component>
+
         <Component Id="InstallDirRegistry" Guid="*" Bitness="always64">
           <RegistryValue Root="HKLM" Key="SOFTWARE\TomLine\StreamLauncher" Name="InstallDir" Type="string" Value="[INSTALLFOLDER]" KeyPath="yes" />
         </Component>
@@ -59,6 +70,7 @@
       <ComponentRef Id="MainExe" />
       <ComponentRef Id="InstallFolder" />
       <ComponentRef Id="InstallDirRegistry" />
+      <ComponentRef Id="ProfilsCleanup" />
     </Feature>
     <Feature Id="StartMenuFeature" Title="Raccourci du menu Démarrer" Level="1" Display="hidden">
       <ComponentRef Id="StartMenuShortcutComp" />
