@@ -180,9 +180,12 @@ abstract class Platform
     public abstract bool NeedsSecret { get; }
     protected PlatformAuth Auth => Secrets.Of(Id);
 
-    public string ClientId { get => Auth.ClientId; }
+    /// <summary>application id built into Stream Launcher for this platform (a public id, not a secret); empty when the user must bring their own</summary>
+    protected virtual string DefaultClientId => "";
+    /// <summary>the id in use: the one the user entered, else the built-in one</summary>
+    public string ClientId => Auth.ClientId != "" ? Auth.ClientId : DefaultClientId;
     public string UserName => Auth.UserName;
-    public bool Configured => Auth.ClientId != "" && (!NeedsSecret || Auth.ClientSecret != "");
+    public bool Configured => ClientId != "" && (!NeedsSecret || Auth.ClientSecret != "");
     public bool Connected => Auth.Refresh != "" || Auth.Access != "";
 
     public void SetCredentials(string clientId, string secret)
@@ -291,6 +294,7 @@ sealed class TwitchPlatform : Platform
     static string OAuth => Environment.GetEnvironmentVariable("STREAMLAUNCHER_TWITCH_AUTH") ?? "https://id.twitch.tv/oauth2";
     const string Scope = "channel:manage:broadcast";
 
+    protected override string DefaultClientId => "gwjqrmds3c2ewc58x51mnr99v2d74z"; // Stream Launcher's Twitch application (public client)
     public override string Id => "twitch";
     public override string Name => "Twitch";
     public override bool NeedsSecret => false;
@@ -309,7 +313,7 @@ sealed class TwitchPlatform : Platform
 
     public override async Task ConnectAsync(Action<string> info, CancellationToken ct)
     {
-        var dev = await PostFormAsync(OAuth + "/device", new() { ["client_id"] = Auth.ClientId, ["scopes"] = Scope }, ct);
+        var dev = await PostFormAsync(OAuth + "/device", new() { ["client_id"] = ClientId, ["scopes"] = Scope }, ct);
         var code = dev.GetProperty("user_code").GetString() ?? "";
         var url = dev.GetProperty("verification_uri").GetString() ?? "https://www.twitch.tv/activate";
         var device = dev.GetProperty("device_code").GetString() ?? "";
@@ -323,7 +327,7 @@ sealed class TwitchPlatform : Platform
             await Task.Delay(TimeSpan.FromSeconds(Math.Max(1, interval)), ct);
             var t = await PostFormAsync(OAuth + "/token", new()
             {
-                ["client_id"] = Auth.ClientId, ["scopes"] = Scope, ["device_code"] = device,
+                ["client_id"] = ClientId, ["scopes"] = Scope, ["device_code"] = device,
                 ["grant_type"] = "urn:ietf:params:oauth:grant-type:device_code",
             }, ct, allowError: true);
             if (t.TryGetProperty("access_token", out _))
@@ -344,13 +348,13 @@ sealed class TwitchPlatform : Platform
     }
 
     protected override async Task RefreshAsync(CancellationToken ct) =>
-        Store(await PostFormAsync(OAuth + "/token", new() { ["grant_type"] = "refresh_token", ["refresh_token"] = Auth.Refresh, ["client_id"] = Auth.ClientId }, ct));
+        Store(await PostFormAsync(OAuth + "/token", new() { ["grant_type"] = "refresh_token", ["refresh_token"] = Auth.Refresh, ["client_id"] = ClientId }, ct));
 
     async Task<JsonElement> SendAsync(HttpMethod method, string path, object? body, CancellationToken ct)
     {
         using var req = new HttpRequestMessage(method, Api + path);
         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await TokenAsync(ct));
-        req.Headers.Add("Client-Id", Auth.ClientId);
+        req.Headers.Add("Client-Id", ClientId);
         if (body != null) req.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
         using var r = await Http.SendAsync(req, ct);
         return await ReadAsync("Twitch", r, ct);
