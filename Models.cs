@@ -2,7 +2,8 @@ using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-enum StepType { Launch, Place, Click, Window, Tray }
+enum StepType { Launch, Place, Click, Window, Tray, Browser }
+enum BrowserKind { Defaut, Chrome, Edge, Firefox, Brave, Opera, Vivaldi }
 enum WindowAction { Reduire, Agrandir, Restaurer, Deplacer }
 enum ClickMode { Element, Coords }
 enum MouseBtn { Left, Right }
@@ -35,6 +36,8 @@ class Step
     [Category("Placement")] public int H { get; set; }
     [Category("Placement")] public bool Maximize { get; set; }
 
+    [Category("Navigateur"), Description("Type Browser : navigateur à ouvrir (Defaut = navigateur par défaut de Windows, sans garantie de nouvelle fenêtre)")] public BrowserKind Browser { get; set; }
+    [Category("Navigateur"), Description("Adresse http(s) à ouvrir dans une nouvelle fenêtre du navigateur")] public string Url { get; set; } = "https://";
     [Category("Zone de notification"), Description("Type Tray : texte du nom (info-bulle) de l'icône de la zone de notification à cliquer pour faire apparaître l'application. Le bouton \"Icônes du tray\" liste les noms disponibles. Bouton, Double : voir catégorie Clic.")] public string TrayName { get; set; } = "";
     [Category("Action fenêtre"), Description("Type Window : réduire, agrandir, restaurer ou déplacer la fenêtre cible (Process / Title). Déplacer applique le placement (Monitor, Multitâche/Zone, X, Y, W, H) de cette étape.")] public WindowAction Action { get; set; }
 
@@ -55,6 +58,7 @@ class Step
             Zone.Grille => $"Placer {Process} '{Title}' → {Config.Label(Monitor)} grille {Cols}x{Rows} case {Col},{Row} ({SpanCols}x{SpanRows})",
             _ => $"Placer {Process} '{Title}' → {Config.Label(Monitor)} multitâche {Zone}",
         },
+        StepType.Browser => $"Ouvrir {Browser} sur {Url}",
         StepType.Tray => $"Ouvrir depuis la zone de notification « {TrayName} » ({Button}{(Double ? " x2" : "")})",
         StepType.Window => $"{Action} la fenêtre {Process} '{Title}'",
         _ => Mode == ClickMode.Element

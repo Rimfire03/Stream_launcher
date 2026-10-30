@@ -27,6 +27,7 @@ class Runner
                     case StepType.Place: Place(s, ct); break;
                     case StepType.Window: Window(s, ct); break;
                     case StepType.Tray: Tray(uia, s, ct); break;
+                    case StepType.Browser: Browse(s); break;
                     default: Click(uia, s, ct); break;
                 }
             }
@@ -80,6 +81,41 @@ class Runner
         if (s.Action == WindowAction.Deplacer) { Native.Move(h, s); return; }
         // async: a plain ShowWindow blocks while the target app is busy
         Native.ShowWindowAsync(h, s.Action switch { WindowAction.Reduire => 6, WindowAction.Agrandir => 3, _ => 9 }); // SW_MINIMIZE / MAXIMIZE / RESTORE
+    }
+
+    // ---- browser ----
+
+    static readonly Dictionary<BrowserKind, string> BrowserExe = new()
+    {
+        [BrowserKind.Chrome] = "chrome.exe", [BrowserKind.Edge] = "msedge.exe", [BrowserKind.Firefox] = "firefox.exe",
+        [BrowserKind.Brave] = "brave.exe", [BrowserKind.Opera] = "opera.exe", [BrowserKind.Vivaldi] = "vivaldi.exe",
+    };
+
+    // installed browsers register themselves under App Paths (machine or user, 64 or 32 bit view)
+    static string? FindBrowser(BrowserKind kind)
+    {
+        var key = @"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\" + BrowserExe[kind];
+        foreach (var hive in new[] { Microsoft.Win32.RegistryHive.LocalMachine, Microsoft.Win32.RegistryHive.CurrentUser })
+            foreach (var view in new[] { Microsoft.Win32.RegistryView.Registry64, Microsoft.Win32.RegistryView.Registry32 })
+            {
+                using var k = Microsoft.Win32.RegistryKey.OpenBaseKey(hive, view).OpenSubKey(key);
+                if (k?.GetValue(null) as string is { } path && File.Exists(path)) return path;
+            }
+        return null;
+    }
+
+    void Browse(Step s)
+    {
+        // http(s) only: never hand file:, javascript: etc. to a browser
+        if (!Uri.TryCreate(s.Url, UriKind.Absolute, out var u) || (u.Scheme != "http" && u.Scheme != "https"))
+            throw new InvalidOperationException("URL http(s) invalide : " + s.Url);
+        if (s.Browser == BrowserKind.Defaut)
+        {
+            Process.Start(new ProcessStartInfo(u.AbsoluteUri) { UseShellExecute = true });
+            return;
+        }
+        var exe = FindBrowser(s.Browser) ?? throw new FileNotFoundException($"{s.Browser} introuvable sur ce poste");
+        Process.Start(new ProcessStartInfo(exe, (s.Browser == BrowserKind.Firefox ? "-new-window" : "--new-window") + $" \"{u.AbsoluteUri}\"") { UseShellExecute = false });
     }
 
     // ---- notification area (UI Automation on the taskbar) ----

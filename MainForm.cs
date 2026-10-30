@@ -51,6 +51,7 @@ class MainForm : Form
             Btn("Importer fenêtres ouvertes…", (_, _) => ImportWindows()),
             Btn("+ Application…", (_, _) => AddApp()),
             Btn("+ Clic", (_, _) => AddStep(new Step { Type = StepType.Click })),
+            Btn("+ Navigateur", (_, _) => AddStep(new Step { Type = StepType.Browser, Browser = BrowserKind.Chrome })),
             Btn("+ Icône du tray", (_, _) => PickTray()),
             Btn("Icônes du tray…", (_, _) => ListTray()),
             Btn("+ Déplacer fenêtre", (_, _) => PickWindow(true)),
