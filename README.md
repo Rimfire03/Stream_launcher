@@ -6,7 +6,7 @@ Exe Windows portable (.NET 8, self-contained, un seul fichier) : lance des appli
 
 - Créer un profil, puis ajouter des étapes :
   - **Importer fenêtres ouvertes** : ouvre tes apps, place-les à la main, importe → étapes `Launch` + `Place` (écran + position + taille).
-  - **+ Application** : étape de lancement manuelle.
+  - **+ Application** : étape de lancement manuelle. Ou glisser-déposer des raccourcis (.lnk), exe ou documents dans la fenêtre (le raccourci est résolu vers sa cible).
   - **● Enregistrer les clics** : clique normalement dans les apps, chaque clic devient une étape `Click` (élément UI Automation par nom + coordonnées relatives, délais réels conservés).
 - Chaque étape se règle dans le panneau de propriétés (mode `Element` ou `Coords` par étape, timeouts, titre/processus cible…).
 - Icône de zone de notification : clic droit → lancer un profil. Fermer la fenêtre réduit dans le tray.

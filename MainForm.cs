@@ -67,6 +67,13 @@ class MainForm : Form
         lbSteps.SelectedIndexChanged += (_, _) => { if (!refreshing) pg.SelectedObject = CurStep; };
         pg.PropertyValueChanged += (_, _) => { RefreshSteps(); cfg.Save(); };
 
+        foreach (Control c in new Control[] { this, lbSteps, pg })
+        {
+            c.AllowDrop = true;
+            c.DragEnter += (_, e) => e.Effect = e.Data?.GetDataPresent(DataFormats.FileDrop) == true ? DragDropEffects.Copy : DragDropEffects.None;
+            c.DragDrop += (_, e) => { if (e.Data?.GetData(DataFormats.FileDrop) is string[] files) DropFiles(files); };
+        }
+
         tray.Visible = true;
         tray.DoubleClick += (_, _) => ShowMain();
 
@@ -231,6 +238,36 @@ class MainForm : Form
     {
         using var d = new OpenFileDialog { Filter = "Applications (*.exe)|*.exe|Tous les fichiers|*.*" };
         if (d.ShowDialog() == DialogResult.OK) AddStep(new Step { Type = StepType.Launch, Exe = d.FileName });
+    }
+
+    // drag & drop of shortcuts (.lnk), executables, documents: one Launch step each
+    void DropFiles(string[] files)
+    {
+        if (Cur == null) { Log("Crée ou sélectionne un profil avant de déposer des fichiers"); return; }
+        foreach (var f in files)
+        {
+            string exe = f, args = "";
+            if (f.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    dynamic sc = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!)!;
+                    dynamic lnk = sc.CreateShortcut(f);
+                    string target = lnk.TargetPath;
+                    if (target != "") { exe = target; args = lnk.Arguments; }
+                }
+                catch { }
+            }
+            // Store apps have no target path: keep the .lnk itself, and its name says nothing about the process
+            bool resolved = !exe.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase);
+            Cur.Steps.Add(new Step
+            {
+                Type = StepType.Launch, Exe = exe, Args = args, SkipIfRunning = resolved,
+                Process = resolved ? Path.GetFileNameWithoutExtension(exe) : "",
+            });
+        }
+        cfg.Save();
+        RefreshSteps(Cur.Steps.Count - 1);
     }
 
     void MoveStep(int dir)
