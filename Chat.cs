@@ -151,8 +151,7 @@ sealed class TwitchChatSource : ChatSource
         await socket.ConnectAsync(new Uri(Url), ct);
         ws = socket;
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        if (twitch.HasScope("channel:read:redemptions")) _ = RedemptionsAsync(twitch, linked.Token);
-        else Emit(new ChatMessage(DateTime.Now, "twitch", "Stream Launcher", "Reconnecte Twitch (Paramètres du live) pour afficher les récompenses de points de chaîne : nouveau droit à accepter.", System: true));
+        _ = RedemptionsAsync(twitch, linked.Token);
         try
         {
             await SendTextAsync(socket, "CAP REQ :twitch.tv/tags twitch.tv/commands", ct);
@@ -179,10 +178,18 @@ sealed class TwitchChatSource : ChatSource
     async Task RedemptionsAsync(TwitchPlatform twitch, CancellationToken ct)
     {
         int delay = 3;
+        bool hinted = false;
         while (!ct.IsCancellationRequested)
         {
             try
             {
+                if (!twitch.HasScope("channel:read:redemptions")) // not granted yet: check again, so that reconnecting the account is enough (no need to reopen the chat)
+                {
+                    if (!hinted) Emit(new ChatMessage(DateTime.Now, "twitch", "Stream Launcher", "Reconnecte Twitch (Infos du live > Twitch > Connecter) pour afficher les récompenses de points de chaîne : nouveau droit à accepter.", System: true));
+                    hinted = true;
+                    await Task.Delay(TimeSpan.FromSeconds(10), ct);
+                    continue;
+                }
                 using var socket = new ClientWebSocket();
                 await socket.ConnectAsync(new Uri(EventSubUrl), ct);
                 while (true)
