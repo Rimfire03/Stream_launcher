@@ -46,6 +46,12 @@ static class Program
                 return 2;
             }
             bool stop = flag == "--stop" || (flag == "--profile" && Live.IsLive(p.Name));
+            using var lease = Live.Enter(p.Name);
+            if (lease == null)
+            {
+                RunLog.Write($"[{p.Name}] déjà en cours d'exécution : appel ignoré");
+                return 0;
+            }
             try
             {
                 if (stop)

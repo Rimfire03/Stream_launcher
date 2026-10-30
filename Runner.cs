@@ -23,11 +23,18 @@ class Runner
     {
         int errors = 0;
         using var uia = new UIA3Automation();
+        var issues = Checks.Analyze(p.Steps); // missing executables are skipped, with the steps aimed at their windows
         for (int i = 0; i < p.Steps.Count; i++)
         {
             ct.ThrowIfCancellationRequested();
             var s = p.Steps[i];
             Log($"[{i + 1}/{p.Steps.Count}] {s}");
+            if (issues[i] != null)
+            {
+                Log("  " + issues[i] + " : étape ignorée");
+                if (s.Type == StepType.Launch) errors++;
+                continue;
+            }
             try
             {
                 if (ct.WaitHandle.WaitOne(Math.Max(0, s.DelayMs))) throw new OperationCanceledException(ct);

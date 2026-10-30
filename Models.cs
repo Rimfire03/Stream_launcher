@@ -60,6 +60,9 @@ class Step
     [DisplayName("Bouton de la souris"), Category("Clic")] public MouseBtn Button { get; set; }
     [DisplayName("Double-clic"), Category("Clic"), TypeConverter(typeof(FrBool))] public bool Double { get; set; }
 
+    /// <summary>why this step will be skipped (missing executable...), set by <see cref="Checks.Analyze"/>; not saved</summary>
+    [JsonIgnore, Browsable(false)] public string? Issue { get; set; }
+
     public Step Clone() => (Step)MemberwiseClone();
 
     public override string ToString() => $"+{DelayMs}ms  " + Type switch

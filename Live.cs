@@ -17,6 +17,21 @@ static class Live
 
     public static bool IsLive(string profile) => File.Exists(FileOf(profile));
 
+    /// <summary>One start or stop of a profile at a time, across the GUI and the command line (Stream Deck pressed twice).</summary>
+    /// <returns>a lease to dispose when finished, or null when that profile is already being started or stopped</returns>
+    public static IDisposable? Enter(string profile)
+    {
+        var sem = new Semaphore(1, 1, @"Local\TomLine.StreamLauncher.Run." + Deck.Safe(profile));
+        if (sem.WaitOne(0)) return new Lease(sem);
+        sem.Dispose();
+        return null;
+    }
+
+    sealed class Lease(Semaphore sem) : IDisposable
+    {
+        public void Dispose() { sem.Release(); sem.Dispose(); }
+    }
+
     /// <summary>Runs the profile and records the live state (even when cancelled midway, so it can still be closed).</summary>
     public static int Run(Profile p, Runner runner, CancellationToken ct)
     {

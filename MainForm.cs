@@ -322,6 +322,11 @@ class MainForm : Form
         RebuildProfiles();
         if (lbProf.Items.Count > 0) lbProf.SelectedIndex = 0;
         SetSidebar(cfg.SidebarCollapsed, false);
+        foreach (var pr in cfg.Profiles)
+        {
+            var bad = Checks.Analyze(pr.Steps).Count(x => x != null);
+            if (bad > 0) Log($"⚠ Profil « {pr.Name} » : {bad} étape(s) en rouge (exécutable introuvable), ignorée(s) au lancement");
+        }
         HandleCreated += (_, _) => { SyncDeck(); if (Autostart.Enabled) Autostart.Set(true); }; // re-register: the install folder may have changed
         UpdateHeader();
         Log("Écrans : " + string.Join(" | ", Screen.AllScreens.Select(s =>
@@ -393,7 +398,7 @@ class MainForm : Form
         g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
         bool sel = (e.State & DrawItemState.Selected) != 0;
-        using (var bg = new SolidBrush(sel ? Ui.Selected : Ui.Card)) g.FillRectangle(bg, e.Bounds);
+        using (var bg = new SolidBrush(sel ? Ui.Selected : s.Issue != null ? ColorTranslator.FromHtml("#FDECEA") : Ui.Card)) g.FillRectangle(bg, e.Bounds);
         if (sel) using (var bar = new SolidBrush(Ui.Primary)) g.FillRectangle(bar, e.Bounds.X, e.Bounds.Y, 4, e.Bounds.Height);
         using (var line = new Pen(Ui.Border)) g.DrawLine(line, e.Bounds.X + 14, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
 
@@ -413,6 +418,7 @@ class MainForm : Form
 
         // one line per step: bold summary, then the details in grey, then the delay on the right
         var (main, sub) = Ui.Describe(s);
+        if (s.Issue != null) sub = s.Issue; // red row: the step will be skipped
         var delay = $"+{s.DelayMs} ms";
         int right = e.Bounds.Right - 14;
         var delaySize = TextRenderer.MeasureText(delay, Ui.Small);
@@ -420,10 +426,10 @@ class MainForm : Form
         int textLeft = badge.Right + 12, textWidth = right - delaySize.Width - 12 - textLeft;
         var fl = TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.Left | TextFormatFlags.VerticalCenter;
         int mainWidth = Math.Min(TextRenderer.MeasureText(main, Ui.Bold).Width + 4, textWidth);
-        TextRenderer.DrawText(g, main, Ui.Bold, new Rectangle(textLeft, e.Bounds.Y, mainWidth, e.Bounds.Height), Ui.Text, fl);
+        TextRenderer.DrawText(g, main, Ui.Bold, new Rectangle(textLeft, e.Bounds.Y, mainWidth, e.Bounds.Height), (s.Issue != null ? Ui.Danger : Ui.Text), fl);
         int subLeft = textLeft + mainWidth + 10;
         if (textWidth - mainWidth - 10 > 40)
-            TextRenderer.DrawText(g, sub, Ui.Small, new Rectangle(subLeft, e.Bounds.Y, textLeft + textWidth - subLeft, e.Bounds.Height), Ui.Muted, fl);
+            TextRenderer.DrawText(g, sub, Ui.Small, new Rectangle(subLeft, e.Bounds.Y, textLeft + textWidth - subLeft, e.Bounds.Height), s.Issue != null ? Ui.Danger : Ui.Muted, fl);
     }
 
     void DrawProfile(object? sender, DrawItemEventArgs e)
@@ -676,7 +682,12 @@ class MainForm : Form
         refreshing = true;
         int sel = select == -2 ? lbSteps.SelectedIndex : select;
         lbSteps.Items.Clear();
-        if (Cur != null) lbSteps.Items.AddRange(Cur.Steps.ToArray<object>());
+        if (Cur != null)
+        {
+            var issues = Checks.Analyze(Cur.Steps);
+            for (int i = 0; i < issues.Length; i++) Cur.Steps[i].Issue = issues[i];
+            lbSteps.Items.AddRange(Cur.Steps.ToArray<object>());
+        }
         if (sel >= lbSteps.Items.Count) sel = lbSteps.Items.Count - 1;
         if (sel >= 0) lbSteps.SelectedIndex = sel;
         refreshing = false;
@@ -772,6 +783,8 @@ class MainForm : Form
     {
         if (cts != null) return;
         if (live && Live.IsLive(p.Name)) { CloseLive(p); return; }
+        var lease = live ? Live.Enter(p.Name) : null;
+        if (live && lease == null) { Log($"« {p.Name} » est déjà en cours d'exécution : lancement ignoré"); return; }
         cts = new CancellationTokenSource();
         SetBusy(true);
         if (Visible) WindowState = FormWindowState.Minimized; // stay out of the way of the clicks
@@ -785,6 +798,7 @@ class MainForm : Form
         catch (OperationCanceledException) { Log("Annulé"); }
         finally
         {
+            lease?.Dispose();
             cts.Dispose();
             cts = null;
             SetBusy(false);
@@ -795,6 +809,8 @@ class MainForm : Form
 
     async void CloseLive(Profile p)
     {
+        using var lease = Live.Enter(p.Name);
+        if (lease == null) { Log($"« {p.Name} » est en cours d'exécution : fermeture ignorée"); return; }
         Log($"=== Fermeture du live : {p.Name} ===");
         int n = await Task.Run(() => Live.Close(p.Name, Log));
         Log($"{n} fenêtre(s) fermée(s)");

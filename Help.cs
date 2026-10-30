@@ -30,9 +30,13 @@ Boutons principaux :
 - ● Enregistrer les clics : transforme tes clics en étapes.
 - ＋ Ajouter une étape ▾ : menu par thèmes (Applications, Fenêtres, Interactions) : application ou fichier, import des fenêtres ouvertes, site web, placer / déplacer / réduire une fenêtre, clic, icône de la zone de notification.
 - Menus du bandeau du haut : « Paramètres » (démarrer avec Windows, canal de mise à jour, identifier ou renommer les écrans), « Outils » (dossier des raccourcis Stream Deck, journal des lancements, liste des icônes de la zone de notification) et « Aide » (guide, mises à jour, à propos).
-- ↑ ↓ Dupliquer Supprimer : réorganisent la liste (même chose par clic droit sur une étape).
+- ↑ ↓ Dupliquer Supprimer : réorganisent la liste (même chose par clic droit sur une étape). Tu peux aussi glisser-déposer une étape à l'endroit voulu : une ligne violette montre où elle sera insérée.
 
 Chaque étape de la liste porte une pastille de couleur (LANCER, PLACER, CLIC, FENÊTRE, TRAY, WEB), un résumé en clair et son temps d'attente. Le panneau de droite n'affiche que les réglages utiles au type d'étape choisi.
+
+Étapes en rouge : au démarrage et à chaque modification, l'application vérifie que les exécutables des étapes « Lancer » existent. Une étape dont l'exécutable est introuvable s'affiche en rouge, et elle est ignorée au lancement, ainsi que les étapes qui visent le même processus (placer, action fenêtre, clic). Les autres étapes continuent. Les adresses (http:, shell:) ne sont pas vérifiées.
+
+Une seule exécution à la fois : si un profil est déjà en cours de lancement ou de fermeture (touche Stream Deck pressée deux fois, ou lancement depuis la fenêtre), l'appel suivant est ignoré. Ouvrir une seconde fenêtre de Stream Launcher ne fait que réafficher la première.
 
 Réglages communs à toutes les étapes :
 - DelayMs : attente avant l'étape (en millisecondes).
