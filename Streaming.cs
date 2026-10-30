@@ -615,7 +615,11 @@ sealed class KickPlatform : Platform
         if (r.TryGetProperty("data", out var res) && res.ValueKind == JsonValueKind.Array)
             foreach (var x in res.EnumerateArray())
                 if (x.TryGetProperty("error", out var err) && err.ValueKind == JsonValueKind.String && err.GetString() is { Length: > 0 } msg)
-                    throw new InvalidOperationException($"Kick : abonnement à {x.GetProperty("name").GetString()} refusé ({msg})");
+                {
+                    var name = x.GetProperty("name").GetString();
+                    RunLog.Write($"Kick : abonnement à {name} refusé ({msg})");
+                    if (name == "chat.message.sent") throw new InvalidOperationException($"Kick : lecture du chat refusée ({msg})"); // the other events are optional
+                }
     }
 
     /// <summary>a chat message as the streamer, in their own channel (scope chat:write)</summary>
