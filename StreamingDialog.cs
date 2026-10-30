@@ -15,6 +15,7 @@ sealed class StreamingDialog : Form
     readonly System.Windows.Forms.Timer searchTimer = new() { Interval = 400 };
     CancellationTokenSource? searchCts;
     bool busy;
+    Button btnApply = null!; // label follows the connected platforms
     readonly FlowLayoutPanel perPlatform = new() { AutoSize = true, WrapContents = true }; // "Appliquer seulement sur Twitch / Kick"
 
     public StreamingDialog()
@@ -65,7 +66,7 @@ sealed class StreamingDialog : Form
         Add(Ui.Heading("COMPTES"));
         Add(accounts);
         Add(Ui.Heading("INFORMATIONS DU LIVE"));
-        Add(new Label { Text = "Mêmes titre, jeu et tags sur toutes les plateformes connectées.", Font = Ui.Small, ForeColor = Ui.Muted, AutoSize = true });
+        Add(new Label { Text = "Mêmes titre, jeu et tags sur toutes les plateformes connectées (seules celles-ci sont proposées).", Font = Ui.Small, ForeColor = Ui.Muted, AutoSize = true });
         Add(new Label { Text = "Titre", Font = Ui.Bold, AutoSize = true });
         Add(tbTitle);
         Add(lblCount);
@@ -76,7 +77,8 @@ sealed class StreamingDialog : Form
         Add(tbTags);
 
         var actions = new FlowLayoutPanel { AutoSize = true, WrapContents = true, Margin = new Padding(0, 8, 0, 0) };
-        actions.Controls.Add(Ui.Btn("Appliquer sur les plateformes", Ui.Kind.Primary, async (_, _) => await ApplyForm()));
+        btnApply = Ui.Btn("Appliquer sur les plateformes", Ui.Kind.Primary, async (_, _) => await ApplyForm());
+        actions.Controls.Add(btnApply);
         actions.Controls.Add(Ui.Btn("Charger depuis le live", Ui.Kind.Secondary, async (_, _) => await LoadFromLive()));
         Add(actions);
         Add(perPlatform);
@@ -135,7 +137,7 @@ sealed class StreamingDialog : Form
             var row = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 0, 0, 4) };
             row.Controls.Add(new Label
             {
-                Text = $"{p.Name} : " + (p.Connected ? $"connecté ({p.UserName})" : p.Configured ? "non connecté" : "indisponible (version de développement)")
+                Text = $"{p.Name} : " + (p.Connected ? $"connecté ({p.UserName})" : p.Configured ? "non connecté" : "indisponible (build local)")
                     + (p.Connected ? p.State switch { Health.Ok => "  ✔ opérationnel", Health.Error => "  ✖ erreur", Health.Checking => "  …", _ => "" } : ""),
                 Font = Ui.Bold, AutoSize = false, Width = 285, Height = 24, Margin = new Padding(0, 8, 8, 0),
                 ForeColor = StatusPill.ColorOf(p.State),
@@ -147,14 +149,16 @@ sealed class StreamingDialog : Form
             if (p.Connected) row.Controls.Add(Ui.Btn("Tester", Ui.Kind.Ghost, async (_, _) => { await plat.CheckAsync(); Say(plat.StateText, plat.State == Health.Error); }));
             accounts.Controls.Add(row);
         }
+        // only the connected platforms are offered: nothing to update on an account that is not connected
+        var on = Streaming.Platforms.Where(p => p.Connected).ToList();
+        btnApply.Text = on.Count == 0 ? "Appliquer sur les plateformes" : "Appliquer sur " + string.Join(" et ", on.Select(p => p.Name));
         perPlatform.Controls.Clear();
-        foreach (var p in Streaming.Platforms)
+        foreach (var p in on)
         {
             var plat = p;
-            var b = Ui.Btn($"Appliquer seulement sur {p.Name}", Ui.Kind.Secondary, async (_, _) => await ApplyForm(new[] { plat }));
-            b.Enabled = p.Connected;
-            perPlatform.Controls.Add(b);
+            perPlatform.Controls.Add(Ui.Btn($"Appliquer seulement sur {p.Name}", Ui.Kind.Secondary, async (_, _) => await ApplyForm(new[] { plat })));
         }
+        perPlatform.Visible = on.Count > 1; // with a single connected platform, the main button already does it
     }
 
     async Task Connect(Platform p)
