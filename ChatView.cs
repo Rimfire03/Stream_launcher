@@ -31,6 +31,33 @@ static class PlatformLogos
     }
 }
 
+/// <summary>A drawn cog in the Android / Material "settings" style (chunky body, 8 flared teeth, big round hole), as a bitmap.</summary>
+static class GearIcon
+{
+    public static Bitmap Make(Color color, int size = 18)
+    {
+        var bmp = new Bitmap(size, size);
+        using var g = Graphics.FromImage(bmp);
+        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        float c = size / 2f, outer = size * 0.47f, inner = size * 0.36f;
+        var pts = new List<PointF>();
+        for (int i = 0; i < 8; i++) // each tooth: wide at the body, narrower at the tip
+            foreach (var (a, r) in new[] { (-0.19, inner), (-0.11, outer), (0.11, outer), (0.19, inner) })
+            {
+                double ang = (i + a) * Math.PI / 4;
+                pts.Add(new PointF(c + (float)Math.Cos(ang) * r, c + (float)Math.Sin(ang) * r));
+            }
+        using var br = new SolidBrush(color);
+        using var pen = new Pen(color, size * 0.06f) { LineJoin = System.Drawing.Drawing2D.LineJoin.Round };
+        g.FillPolygon(br, pts.ToArray());
+        g.DrawPolygon(pen, pts.ToArray()); // rounds the corners of the teeth
+        g.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceCopy;
+        using var hole = new SolidBrush(Color.Transparent);
+        g.FillEllipse(hole, c - size * 0.17f, c - size * 0.17f, size * 0.34f, size * 0.34f);
+        return bmp;
+    }
+}
+
 /// <summary>Twitch badge images (broadcaster, moderator, subscriber months...): urls from Helix, bitmaps downloaded once and cached.</summary>
 static class ChatBadges
 {

@@ -32,7 +32,9 @@ sealed class ChatWindow : Form
             toggles.Add(t);
             top.Controls.Add(t);
         }
-        var settings = Ui.Btn("⚙ Réglages", Ui.Kind.Secondary, (_, _) => ShowSettings());
+        var settings = Ui.Btn("Réglages", Ui.Kind.Secondary, (_, _) => ShowSettings());
+        settings.Image = GearIcon.Make(settings.ForeColor);
+        settings.TextImageRelation = TextImageRelation.ImageBeforeText;
         settings.Margin = new Padding(8, 2, 8, 0);
         top.Controls.Add(settings);
         var pin = new CheckBox { Text = "Au premier plan", AutoSize = true, ForeColor = Color.White, Font = Ui.Small, Margin = new Padding(4, 12, 0, 0) };
@@ -66,7 +68,7 @@ sealed class ChatWindow : Form
         LoadBadges();
         Shown += (_, _) => input.Focus();
         FormClosed += (_, _) => { foreach (var s in sources) s.Dispose(); };
-        AddSystem("Chat unifié : écris ici, le message part sur toutes les plateformes allumées. Clique sur un logo pour l'éteindre ; ⚙ Réglages : son, utilisateurs exclus, ce qui s'affiche.");
+        AddSystem("Chat unifié : écris ici, le message part sur toutes les plateformes allumées. Clique sur un logo pour l'éteindre ; Réglages : son, utilisateurs exclus, ce qui s'affiche.");
     }
 
     void OnUi(Action a)
