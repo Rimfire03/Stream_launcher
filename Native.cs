@@ -17,7 +17,8 @@ static class Native
     [DllImport("user32")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
     [DllImport("user32")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
     [DllImport("user32")] static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
-    [DllImport("user32")] static extern bool ShowWindow(IntPtr h, int cmd);
+    [DllImport("user32")] public static extern bool ShowWindow(IntPtr h, int cmd);
+    [DllImport("user32")] public static extern bool ShowWindowAsync(IntPtr h, int cmd);
     [DllImport("user32")] static extern bool IsIconic(IntPtr h);
     [DllImport("user32")] public static extern bool IsZoomed(IntPtr h);
     [DllImport("user32")] static extern bool SetForegroundWindow(IntPtr h);

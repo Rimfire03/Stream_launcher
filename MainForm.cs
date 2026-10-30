@@ -49,6 +49,8 @@ class MainForm : Form
             Btn("Importer fenêtres ouvertes…", (_, _) => ImportWindows()),
             Btn("+ Application…", (_, _) => AddApp()),
             Btn("+ Clic", (_, _) => AddStep(new Step { Type = StepType.Click })),
+            Btn("+ Déplacer fenêtre", (_, _) => AddStep(new Step { Type = StepType.Window, Action = WindowAction.Deplacer, Zone = Zone.Gauche })),
+            Btn("+ Réduire fenêtre", (_, _) => AddStep(new Step { Type = StepType.Window, Action = WindowAction.Reduire })),
             Btn("↑", (_, _) => MoveStep(-1)),
             Btn("↓", (_, _) => MoveStep(1)),
             Btn("Supprimer l'étape", (_, _) => DeleteStep()),

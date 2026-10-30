@@ -2,7 +2,8 @@ using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-enum StepType { Launch, Place, Click }
+enum StepType { Launch, Place, Click, Window }
+enum WindowAction { Reduire, Agrandir, Restaurer, Deplacer }
 enum ClickMode { Element, Coords }
 enum MouseBtn { Left, Right }
 enum Zone { Manuel, Grille, Gauche, Droite, Haut, Bas, HautGauche, HautDroite, BasGauche, BasDroite, TiersGauche, TiersCentre, TiersDroit }
@@ -34,6 +35,8 @@ class Step
     [Category("Placement")] public int H { get; set; }
     [Category("Placement")] public bool Maximize { get; set; }
 
+    [Category("Action fenêtre"), Description("Type Window : réduire, agrandir, restaurer ou déplacer la fenêtre cible (Process / Title). Déplacer applique le placement (Monitor, Multitâche/Zone, X, Y, W, H) de cette étape.")] public WindowAction Action { get; set; }
+
     [Category("Clic"), Description("Element = cherche le contrôle par nom (UI Automation). Coords = position relative à la fenêtre.")] public ClickMode Mode { get; set; } = ClickMode.Element;
     [Category("Clic")] public string ElementName { get; set; } = "";
     [Category("Clic")] public string ElementId { get; set; } = "";
@@ -51,6 +54,7 @@ class Step
             Zone.Grille => $"Placer {Process} '{Title}' → {Config.Label(Monitor)} grille {Cols}x{Rows} case {Col},{Row} ({SpanCols}x{SpanRows})",
             _ => $"Placer {Process} '{Title}' → {Config.Label(Monitor)} multitâche {Zone}",
         },
+        StepType.Window => $"{Action} la fenêtre {Process} '{Title}'",
         _ => Mode == ClickMode.Element
             ? $"Clic {Button}{(Double ? " x2" : "")} sur « {ElementName} » ({Process})"
             : $"Clic {Button}{(Double ? " x2" : "")} à {RelX},{RelY} ({Process})",

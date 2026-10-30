@@ -23,6 +23,7 @@ class Runner
                 {
                     case StepType.Launch: Launch(s); break;
                     case StepType.Place: Place(s, ct); break;
+                    case StepType.Window: Window(s, ct); break;
                     default: Click(uia, s, ct); break;
                 }
             }
@@ -68,6 +69,14 @@ class Runner
         // many apps restore their own saved position right after showing: apply twice
         Thread.Sleep(600);
         Native.Move(h, s);
+    }
+
+    void Window(Step s, CancellationToken ct)
+    {
+        var h = WaitWindow(s, ct);
+        if (s.Action == WindowAction.Deplacer) { Native.Move(h, s); return; }
+        // async: a plain ShowWindow blocks while the target app is busy
+        Native.ShowWindowAsync(h, s.Action switch { WindowAction.Reduire => 6, WindowAction.Agrandir => 3, _ => 9 }); // SW_MINIMIZE / MAXIMIZE / RESTORE
     }
 
     void Click(UIA3Automation uia, Step s, CancellationToken ct)
