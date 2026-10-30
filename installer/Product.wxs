@@ -17,16 +17,29 @@
       <RegistrySearch Id="PrevInstallDir" Root="HKLM" Key="SOFTWARE\TomLine\StreamLauncher" Name="InstallDir" Type="directory" Bitness="always64" />
     </Property>
 
+    <Property Id="STARTMENU_SHORTCUT" Value="1" />
+    <Property Id="DESKTOP_SHORTCUT" Value="1" />
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Component Id="StartMenuShortcutComp" Guid="*" Bitness="always64">
+        <Shortcut Id="StartMenuShortcut" Name="Stream Launcher" Target="[INSTALLFOLDER]StreamLauncher.exe" WorkingDirectory="INSTALLFOLDER" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\TomLine\StreamLauncher" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+    <StandardDirectory Id="DesktopFolder">
+      <Component Id="DesktopShortcutComp" Guid="*" Bitness="always64">
+        <Shortcut Id="DesktopShortcut" Name="Stream Launcher" Target="[INSTALLFOLDER]StreamLauncher.exe" WorkingDirectory="INSTALLFOLDER" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\TomLine\StreamLauncher" Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
     <StandardDirectory Id="ProgramFilesFolder">
       <Directory Id="INSTALLFOLDER" Name="Stream Launcher">
 
         <!-- profiles.json vit à côté de l'exe : le dossier reste inscriptible pour les utilisateurs standard.
              Les mises à jour passent par un nouveau MSI (releases GitHub). -->
         <Component Id="MainExe" Guid="*">
-          <File Id="StreamLauncherExe" Source="$(ExePath)" KeyPath="yes">
-            <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="Stream Launcher"
-                      WorkingDirectory="INSTALLFOLDER" Advertise="no" />
-          </File>
+          <File Id="StreamLauncherExe" Source="$(ExePath)" KeyPath="yes" />
         </Component>
 
         <Component Id="InstallFolder" Guid="3E9A7B14-85C2-4F60-B1D7-2A4C6E8F0D95">
@@ -47,10 +60,38 @@
       <ComponentRef Id="InstallFolder" />
       <ComponentRef Id="InstallDirRegistry" />
     </Feature>
+    <Feature Id="StartMenuFeature" Title="Raccourci du menu Démarrer" Level="1" Display="hidden">
+      <ComponentRef Id="StartMenuShortcutComp" />
+      <Level Value="0" Condition="NOT STARTMENU_SHORTCUT" />
+    </Feature>
+    <Feature Id="DesktopFeature" Title="Raccourci du bureau" Level="1" Display="hidden">
+      <ComponentRef Id="DesktopShortcutComp" />
+      <Level Value="0" Condition="NOT DESKTOP_SHORTCUT" />
+    </Feature>
 
     <!-- Assistant : accueil, choix du dossier, installation (sans page de licence). -->
     <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
     <UI>
+      <Dialog Id="ShortcutsDlg" Width="370" Height="270" Title="!(loc.InstallDirDlg_Title)">
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="WixUI_Bmp_Banner" />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Raccourcis" />
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="Choisissez où créer les icônes de Stream Launcher." />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+        <Control Id="StartMenuCheck" Type="CheckBox" X="25" Y="70" Width="320" Height="18" CheckBoxValue="1" Property="STARTMENU_SHORTCUT" Text="Créer une icône dans le menu Démarrer" />
+        <Control Id="DesktopCheck" Type="CheckBox" X="25" Y="95" Width="320" Height="18" CheckBoxValue="1" Property="DESKTOP_SHORTCUT" Text="Créer une icône sur le bureau" />
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
+          <Publish Event="NewDialog" Value="InstallDirDlg" />
+        </Control>
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
+          <Publish Event="NewDialog" Value="VerifyReadyDlg" />
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg" />
+        </Control>
+      </Dialog>
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="ShortcutsDlg" Order="5" Condition="NOT Installed AND (WIXUI_DONTVALIDATEPATH OR WIXUI_INSTALLDIR_VALID=&quot;1&quot;)" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="ShortcutsDlg" Order="3" Condition="NOT Installed" />
       <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg" Order="2" Condition="NOT Installed" />
       <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="2" />
     </UI>
