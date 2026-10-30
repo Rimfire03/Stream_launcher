@@ -27,6 +27,9 @@ class MainForm : Form
 
     Profile? Cur => lbProf.SelectedItem as Profile;
     Step? CurStep => lbSteps.SelectedItem as Step;
+    int dragFrom = -1, dropIndex = -1; // reordering steps by drag & drop: row being dragged, insertion position (0..Count)
+    Point dragStart;
+    const string StepDragFormat = "StreamLauncher.StepIndex";
 
     public MainForm(Config cfg, bool startHidden)
     {
@@ -239,6 +242,7 @@ class MainForm : Form
         lbSteps.ContextMenuStrip = stepMenu;
         lbSteps.MouseDown += (_, e) =>
         {
+            if (e.Button == MouseButtons.Left) { dragFrom = lbSteps.IndexFromPoint(e.Location); dragStart = e.Location; }
             if (e.Button != MouseButtons.Right) return;
             int i = lbSteps.IndexFromPoint(e.Location);
             if (i >= 0) lbSteps.SelectedIndex = i;
@@ -248,6 +252,15 @@ class MainForm : Form
         int tipIndex = -1;
         lbSteps.MouseMove += (_, e) =>
         {
+            if (e.Button == MouseButtons.Left && dragFrom >= 0 && cts == null &&
+                (Math.Abs(e.X - dragStart.X) >= SystemInformation.DragSize.Width || Math.Abs(e.Y - dragStart.Y) >= SystemInformation.DragSize.Height))
+            {
+                int from = dragFrom;
+                dragFrom = -1;
+                lbSteps.SelectedIndex = from;
+                lbSteps.DoDragDrop(new DataObject(StepDragFormat, from), DragDropEffects.Move);
+                return;
+            }
             int i = lbSteps.IndexFromPoint(e.Location);
             if (i == tipIndex) return;
             tipIndex = i;
@@ -270,9 +283,38 @@ class MainForm : Form
         foreach (Control c in new Control[] { this, lbSteps, pg, lblEmpty })
         {
             c.AllowDrop = true;
-            c.DragEnter += (_, e) => e.Effect = e.Data?.GetDataPresent(DataFormats.FileDrop) == true ? DragDropEffects.Copy : DragDropEffects.None;
+            c.DragEnter += (_, e) => e.Effect = e.Data?.GetDataPresent(DataFormats.FileDrop) == true ? DragDropEffects.Copy
+                : c == lbSteps && e.Data?.GetDataPresent(StepDragFormat) == true ? DragDropEffects.Move : DragDropEffects.None;
             c.DragDrop += (_, e) => { if (e.Data?.GetData(DataFormats.FileDrop) is string[] files) DropFiles(files); };
         }
+
+        // reorder the steps: the insertion line follows the pointer, the list scrolls near its edges
+        lbSteps.DragOver += (_, e) =>
+        {
+            if (e.Data?.GetDataPresent(StepDragFormat) != true) return;
+            e.Effect = DragDropEffects.Move;
+            var pt = lbSteps.PointToClient(new Point(e.X, e.Y));
+            if (pt.Y < 20 && lbSteps.TopIndex > 0) lbSteps.TopIndex--;
+            else if (pt.Y > lbSteps.Height - 20 && lbSteps.TopIndex < lbSteps.Items.Count - 1) lbSteps.TopIndex++;
+            int i = lbSteps.IndexFromPoint(pt);
+            int pos = i < 0 ? lbSteps.Items.Count : i + (pt.Y > lbSteps.GetItemRectangle(i).Top + lbSteps.ItemHeight / 2 ? 1 : 0);
+            if (pos != dropIndex) { dropIndex = pos; lbSteps.Invalidate(); }
+        };
+        lbSteps.DragLeave += (_, _) => { dropIndex = -1; lbSteps.Invalidate(); };
+        lbSteps.DragDrop += (_, e) =>
+        {
+            int to = dropIndex;
+            dropIndex = -1;
+            lbSteps.Invalidate();
+            if (e.Data?.GetData(StepDragFormat) is not int from || Cur is not { } p || to < 0) return;
+            if (to > from) to--;
+            if (to == from || from >= p.Steps.Count) return;
+            var s = p.Steps[from];
+            p.Steps.RemoveAt(from);
+            p.Steps.Insert(Math.Min(to, p.Steps.Count), s);
+            cfg.Save();
+            RefreshSteps(p.Steps.IndexOf(s));
+        };
 
         tray.Visible = true;
         tray.DoubleClick += (_, _) => ShowMain();
@@ -354,6 +396,13 @@ class MainForm : Form
         using (var bg = new SolidBrush(sel ? Ui.Selected : Ui.Card)) g.FillRectangle(bg, e.Bounds);
         if (sel) using (var bar = new SolidBrush(Ui.Primary)) g.FillRectangle(bar, e.Bounds.X, e.Bounds.Y, 4, e.Bounds.Height);
         using (var line = new Pen(Ui.Border)) g.DrawLine(line, e.Bounds.X + 14, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
+
+        if (dropIndex == e.Index || (dropIndex == lbSteps.Items.Count && e.Index == lbSteps.Items.Count - 1))
+            using (var ins = new Pen(Ui.Primary, 3))
+            {
+                int y = dropIndex == e.Index ? e.Bounds.Top + 1 : e.Bounds.Bottom - 2;
+                g.DrawLine(ins, e.Bounds.Left, y, e.Bounds.Right, y);
+            }
 
         TextRenderer.DrawText(g, (e.Index + 1).ToString(), Ui.Bold, new Rectangle(e.Bounds.X + 12, e.Bounds.Y, 26, e.Bounds.Height), Ui.Muted, TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter);
 
