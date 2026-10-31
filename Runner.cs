@@ -283,11 +283,14 @@ class Runner
     /// <summary>the lasting part of an icon name: tooltips carry status and versions that change ("Discord - 3 messages", "OBS 30.1.2 (64-bit) - Profil : X" become "Discord", "OBS")</summary>
     public static string StableTrayName(string name)
     {
-        var first = name.Split('\n')[0].Trim();
+        var first = Plain(name.Split('\n')[0]);
         var cut = System.Text.RegularExpressions.Regex.Split(first, @"\s[-–—|]\s|\s?[:(]\s?")[0].Trim();
         cut = System.Text.RegularExpressions.Regex.Replace(cut, @"\s+v?\d+(\.\d+)+.*$", "").Trim();
         return cut.Length >= 3 ? cut : first;
     }
+
+    /// <summary>trimmed, without invisible format characters (the hidden-icons flyout prefixes some names with one, e.g. U+200E before "Discord")</summary>
+    static string Plain(string s) => new string(s.Where(c => char.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.Format).ToArray()).Trim();
 
     // Windows' own icons whose tooltip lists other apps ("Confidentialité Microphone utilisé par : Discord, Voicemod"): never the target of a name that is only mentioned in them
     static readonly string[] SystemIcons = { "Confidentialité", "Privacy", "Volume", "Réseau", "Network", "Horloge", "Clock", "Indicateur d", "Input indicator", "Afficher le Bureau", "Show desktop", "Batterie", "Battery" };
@@ -296,10 +299,10 @@ class Runner
     static int TrayScore(AutomationElement b, string saved, string stable)
     {
         if (IsChevron(b)) return 0;
-        var full = (b.Name ?? "").Trim();
-        var first = full.Split('\n')[0].Trim();
+        var full = Plain(b.Name ?? "");
+        var first = Plain(b.Name?.Split('\n')[0] ?? "");
         if (first == "") return 0;
-        if (string.Equals(first, saved.Trim(), StringComparison.OrdinalIgnoreCase)) return 4;
+        if (string.Equals(first, Plain(saved), StringComparison.OrdinalIgnoreCase)) return 4;
         if (string.Equals(StableTrayName(first), stable, StringComparison.OrdinalIgnoreCase)) return 3;
         if (first.StartsWith(stable, StringComparison.OrdinalIgnoreCase)) return 2;
         bool windows = SystemIcons.Any(w => first.StartsWith(w, StringComparison.OrdinalIgnoreCase) && !stable.StartsWith(w, StringComparison.OrdinalIgnoreCase));
@@ -334,6 +337,7 @@ class Runner
             }
             Thread.Sleep(500);
         } while (DateTime.UtcNow < end);
+        Log("  icônes vues : " + string.Join(" | ", TaskbarButtons(uia).Concat(OverflowButtons(uia)).Select(x => Plain(x.Name?.Split('\n')[0] ?? ""))));
         throw new TimeoutException($"icône de la zone de notification introuvable ('{s.TrayName}')");
     }
 
