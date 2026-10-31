@@ -137,9 +137,9 @@ Si la scène n'existe pas, l'étape échoue tout de suite avec le message d'OBS 
 
 Connexion (une fois par plateforme) : dans la fenêtre, clique « Connecter », puis autorise Stream Launcher dans la page de la plateforme qui s'ouvre. Rien à configurer : les versions publiées contiennent déjà les applications Twitch et Kick de Stream Launcher.
 - Twitch : la page Twitch affiche un code à saisir (l'application te le montre).
-- Kick : tu autorises l'application dans la page Kick ; le retour se fait sur http://localhost:43117/callback, ce port doit donc être libre sur ton PC. Droits demandés : channel:read et channel:write (lire et modifier les informations de la chaîne), rien d'autre.
+- Kick : tu autorises l'application dans la page Kick ; le retour se fait sur http://localhost:43117/callback, ce port doit donc être libre sur ton PC. Droits demandés : lire et modifier les informations de la chaîne (titre, jeu, tags), plus ceux du chat unifié (écrire dans le chat, recevoir les événements, modération) si l'application Kick les propose. Si un droit n'est pas accordé, la fonction correspondante reste grisée.
 - YouTube : tu autorises l'application dans la page Google (retour sur 127.0.0.1, port choisi automatiquement). YouTube modifie la diffusion en cours, sinon la prochaine programmée : crée-la d'abord dans YouTube Studio, l'application ne crée pas de diffusion. YouTube n'a pas de champ « jeu » dans son API : le jeu devient la catégorie « Jeux vidéo » et un tag. Le titre est limité à 100 caractères (raccourci avec un avertissement). Tant que l'application Google est en mode test, seuls les comptes de test peuvent se connecter et la connexion expire au bout de 7 jours : reconnecte-toi.
-Si une connexion expire (rouge), reconnecte le compte. Une version compilée à la main (développement) ne contient pas les identifiants Kick : Kick y est indisponible, utilise la version publiée.
+Si une connexion expire (rouge) ou si de nouveaux droits sont nécessaires (mise à jour de Stream Launcher), un bouton « Reconnecter » apparaît à côté de « Déconnecter » avec la raison en infobulle : clique dessus et accepte les droits. Une version compilée à la main (développement) ne contient pas les identifiants Kick : Kick y est indisponible, utilise la version publiée.
 Les jetons sont enregistrés chiffrés (Windows, ton compte uniquement), jamais en clair, et ne quittent jamais ton PC sauf pour parler à Twitch ou Kick.
 
 Indicateur de connexion : en haut à droite, un point par plateforme : vert = connexion opérationnelle, orange = vérification en cours, rouge = erreur (passe la souris pour lire le détail), gris = non connecté. L'état est vérifié au démarrage puis toutes les 5 minutes, et à chaque envoi. Clique sur un point pour ouvrir la fenêtre.
@@ -153,18 +153,43 @@ Favoris : un favori est un combo titre + jeu + tags, qui vont toujours ensemble.
 Historique : les 15 derniers lives (titre, jeu, tags), enregistrés quand tu appliques des valeurs ou que tu lances un live. « Importer mes derniers lives » ajoute les titres de tes dernières diffusions Twitch (VOD) et YouTube (Twitch et YouTube ne donnent pas le jeu). Kick ne fournit pas d'historique. « ★ Mettre en favoris » ajoute ce combo aux favoris ; « Appliquer » renvoie ce live.
 
 Sur Kick, la recherche de jeux par mot-clé utilise une partie de l'API que Kick marque comme obsolète ; le dictionnaire reste utilisable si elle disparaît."),
-        new("Chat unifié", @"Bouton « Chat » (barre du profil) (ou étape « Ouvrir le chat unifié » d'un profil, ou StreamLauncher.exe --chat) : une seule fenêtre avec le chat de Twitch, Kick et YouTube. Chaque message porte le logo de sa plateforme ; sur Twitch, les badges (diffuseur, modérateur, abonné…) s'affichent devant le pseudo.
+        new("Chat unifié", @"Bouton « Chat » (barre du profil) (ou étape « Ouvrir le chat unifié » d'un profil, ou StreamLauncher.exe --chat) : une seule fenêtre avec le chat de Twitch, Kick et YouTube. Chaque message porte le logo de sa plateforme ; sur Twitch, les badges (diffuseur, modérateur, abonné…) s'affichent devant le pseudo. Pendant un Stream Together (chat partagé), la photo ronde de la chaîne d'origine suit le logo.
 
-Les emotes de Twitch et de Kick s'affichent en images dans le texte (les emotes tierces BTTV, 7TV et FFZ restent du texte). Si une image ne peut pas être chargée, son nom s'affiche. Les trois boutons ronds en haut allument ou éteignent une plateforme (le point indique l'état : vert = lecture en cours). Ce que tu écris dans la zone du bas part sur toutes les plateformes allumées. « Au premier plan » garde la fenêtre au-dessus des autres.
+En haut : un bouton rond par plateforme (allume ou éteint ; le point indique l'état : vert = lecture en cours, orange = connexion, rouge = erreur, passe la souris pour le détail) avec, à droite, le nombre de spectateurs du live (relevé toutes les minutes, rien si tu n'es pas en direct). Puis Réglages, « Au premier plan » (garde la fenêtre au-dessus des autres), 🔍 (recherche) et ⚡ Live.
 
-⚙ Réglages :
-- Son : un son est joué à l'arrivée d'un message après un silence (délai réglable, en secondes), quelle que soit la plateforme. Son par défaut intégré ; tu peux choisir ton propre fichier .wav. Une liste de pseudos exclus ne déclenche jamais le son.
-- Une page par plateforme : choisis ce qui s'affiche en plus du texte (Twitch : badges, emotes en images, points de chaîne, bits, messages mis en avant, abonnements et raids, GIF ; Kick : emotes en images, points de chaîne, abonnements, abonnements offerts ; YouTube : Super Chat, Super Stickers, nouveaux membres). Un type décoché est masqué.
+Écrire : la zone du bas envoie sur toutes les plateformes allumées. Les emotes se suggèrent pendant la frappe (↑ ↓ pour choisir, Tab ou Entrée pour valider, Échap pour fermer) ; le bouton ☺ ouvre le sélecteur d'emotes avec recherche. Clic droit sur un pseudo > « Répondre » : la réponse part sur la plateforme du message (Twitch et Kick en vraie réponse, YouTube avec @pseudo) ; ✕ ou Échap annule. Un message qui répond à un autre affiche au-dessus « ↪ pseudo : texte ».
+
+Emotes et images : les emotes de Twitch et de Kick, les emotes 7TV, BetterTTV et FrankerFaceZ de ta chaîne Twitch (animées comprises), les emoji en couleur et les GIF s'affichent en images. Les GIF viennent des liens Giphy et Tenor, des liens .gif et des GIF envoyés avec la fonction GIF de Twitch. Si une image ne peut pas être chargée, son nom s'affiche.
+
+Rechercher : Ctrl+F ou 🔍 ouvre une barre : le chat ne garde que les messages contenant le texte (pseudo, message ou type). « @pseudo » ne garde que les messages de cette personne. Échap ferme la barre et remet tout. Clic droit sur un pseudo > « Voir ses messages » fait la même chose, et « Historique dans une fenêtre » ouvre ses messages dans une fenêtre à part, qui reçoit aussi ses nouveaux messages.
+
+Événements et alertes : tout ce qui n'est pas un message (récompenses de points, cheers, messages mis en avant, abonnements, abonnements offerts, raids, nouveaux followers, hype train, sondages, prédictions, messages retenus par AutoMod, Super Chats, Super Stickers, nouveaux membres) est désactivé par défaut. ⚙ Réglages > page de la plateforme : coche ce que tu veux voir. Les badges, les emotes en images et les liens GIF sont, eux, actifs par défaut.
+
+⚙ Réglages > Son : un son est joué à l'arrivée d'un message après un silence (délai réglable en secondes), quelle que soit la plateforme. Son par défaut intégré ; tu peux choisir ton propre fichier .wav. Une liste de pseudos exclus ne déclenche jamais le son.
 
 Limites :
-- Twitch : reconnecte ton compte une fois (nouvelles autorisations de lecture et d'écriture du chat). Les récompenses de points de chaîne (avec ou sans message) arrivent par EventSub, qui demande un droit en plus (channel:read:redemptions) : reconnecte ton compte Twitch une fois ; sans ce droit, seules les récompenses avec message passent.
-- Kick : la lecture passe par la connexion publique du site (non officielle, peut cesser de fonctionner si Kick la modifie). Pour écrire, l'application Kick doit avoir l'autorisation « Écrire dans le flux du chat », puis reconnecte le compte.
+- Twitch : reconnecte ton compte une fois après une mise à jour : de nouveaux droits sont demandés (bouton « Reconnecter » dans Infos du live). Sans un droit, la fonction qui en dépend est grisée ou absente.
+- Kick : la lecture du chat et des événements passe par les webhooks officiels de Kick, relayés par un petit service Cloudflare (le relais). Si le relais est injoignable ou si la connexion se perd, un message s'affiche une fois dans le chat, le voyant Kick passe au rouge et l'application réessaie toute seule ; « lecture du chat rétablie » s'affiche au retour. L'envoi continue de marcher pendant la panne. Pour écrire, l'application Kick doit avoir l'autorisation « Écrire dans le flux du chat ».
 - YouTube : lecture espacée (une requête toutes les 10 s au minimum) pour ménager le quota quotidien ; l'envoi est limité à 200 caractères. Le chat n'existe que pendant une diffusion en cours."),
+        new("Chat unifié : modération et actions du live", @"Clic droit sur un pseudo dans le chat : « Copier le pseudo », « Répondre », « Voir ses messages », « Historique dans une fenêtre », puis les actions de modération. Une action grisée affiche « (indisponible) » avec la raison en infobulle : droit manquant (reconnecte le compte), message d'une autre chaîne pendant un chat partagé, ou fonction absente de l'API de la plateforme.
+
+Modération (ta chaîne) :
+- Supprimer le message.
+- Exclure temporairement : 1 minute, 5 minutes, 10 minutes, 30 minutes, 1 heure, 6 heures, 1 jour, 1 semaine, 2 semaines (Kick s'arrête à 7 jours).
+- Bannir définitivement (une confirmation est demandée) et Débannir (pas sur YouTube : à faire dans YouTube Studio).
+- Nommer ou retirer modérateur ; nommer ou retirer VIP (Twitch ; YouTube : modérateur seulement ; Kick : ni l'un ni l'autre, l'API de Kick ne les propose pas). Le menu ne propose qu'une des deux actions selon le statut de la personne. Un modérateur ne peut pas être VIP, ni exclu ni banni sur Twitch : retire d'abord son rôle de modérateur.
+- Messages retenus par AutoMod (Twitch, à activer dans les Réglages) : clic droit sur le pseudo > « Autoriser le message » ou « Refuser le message ».
+
+Commandes tapées dans la zone du bas (appliquées aux plateformes allumées) : /ban pseudo, /unban pseudo, /timeout pseudo [secondes] (600 par défaut), /untimeout pseudo, /clear (vide le chat, Twitch), /mod, /unmod, /vip, /unvip pseudo. Le résultat s'écrit dans le chat. Les commandes avec un pseudo ne marchent pas sur YouTube. Les autres textes commençant par / (comme /me) sont envoyés tels quels.
+
+Bouton ⚡ Live (Twitch uniquement : les API de Kick et de YouTube n'offrent pas ces actions) :
+- Créer un clip : l'adresse est copiée dans le presse-papiers et écrite dans le chat (il faut être en direct).
+- Poser un marqueur : description facultative, pour retrouver un moment fort dans la rediffusion.
+- Raid vers… : demande le pseudo puis une confirmation ; le raid part après environ 90 secondes. « Annuler le raid » l'arrête.
+- Shoutout vers… : met une chaîne en avant dans le chat.
+- Annonce : message mis en avant dans le chat, en 5 couleurs.
+
+Droits Twitch nécessaires (un seul « Reconnecter » dans Infos du live les accorde tous) : écrire dans le chat, modération des messages et des bannissements, modérateurs, VIP, AutoMod, followers, hype train, sondages, prédictions, clips, raids, shoutouts, annonces. Droits Kick : écrire dans le chat, événements, modération (à activer aussi sur l'application Kick, puis déconnecte et reconnecte Kick)."),
         new("Retrouver une fenêtre", @"Les étapes Placer, Action fenêtre et Clic doivent retrouver la bonne fenêtre. Critères (catégorie « Fenêtre cible ») :
 
 - Process : nom du processus sans .exe (obligatoire s'il est renseigné).
@@ -238,6 +263,8 @@ Fermer la fenêtre réduit l'application dans la zone de notification ; « Quitt
 - La fenêtre n'est pas retrouvée : vérifie Process, WindowClass, Title ; augmente TimeoutMs si l'application est lente à s'ouvrir ; regarde le journal.
 - Mauvaise fenêtre déplacée : plusieurs fenêtres du même processus ; coche TitleStrict ou utilise OnLastWindow pour un navigateur.
 - Position décalée après un changement d'écrans : relance « Identifier les écrans » et vérifie le champ Monitor.
+- Le chat Kick n'affiche rien : regarde le point Kick (rouge = relais injoignable, message dans le chat) ; reconnecte Kick si le droit « événements » manque ; vérifie que le webhook est activé sur l'application Kick.
+- Une action du chat est grisée : passe la souris dessus pour lire la raison, puis « Reconnecter » dans Infos du live si c'est un droit.
 - Fichier de profils illisible : il est sauvegardé en profiles.json.bak et un fichier neuf est créé.
 - Un test déplace tes fenêtres de travail : utilise « Tester cette étape » plutôt que le profil complet."),
     };

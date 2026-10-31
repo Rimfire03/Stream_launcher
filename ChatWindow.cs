@@ -12,6 +12,7 @@ sealed class ChatWindow : Form
     readonly Label counter = new() { AutoSize = false, Width = 56, Dock = DockStyle.Right, TextAlign = ContentAlignment.MiddleRight, ForeColor = Ui.Muted, Font = Ui.Small };
     readonly ToolTip tip = new() { InitialDelay = 300 };
     readonly List<ChatToggle> toggles = new();
+    readonly List<UserHistoryWindow> histories = new(); // open "history of a user" windows (they keep receiving that user's new messages)
     readonly System.Windows.Forms.Timer viewerTimer = new() { Interval = 60_000 }; // spectators: one look a minute
     readonly Panel searchBar = new() { Dock = DockStyle.Top, Height = 34, BackColor = ColorTranslator.FromHtml("#1B1A24"), Visible = false, Padding = new Padding(10, 5, 10, 5) };
     readonly TextBox searchBox = new() { Dock = DockStyle.Fill, Font = new Font("Segoe UI", 10f), PlaceholderText = "Chercher un pseudo ou un mot (@pseudo : ses messages)" };
@@ -122,7 +123,7 @@ sealed class ChatWindow : Form
         _ = RefreshViewers();
         FormClosed += (_, _) => viewerTimer.Dispose();
         Shown += (_, _) => input.Focus();
-        FormClosed += (_, _) => { foreach (var s in sources) s.Dispose(); };
+        FormClosed += (_, _) => { foreach (var s in sources) s.Dispose(); foreach (var h in histories.ToList()) h.Close(); };
         AddSystem("Chat unifié : écris ici, le message part sur toutes les plateformes allumées. Clique sur un logo pour l'éteindre ; Réglages : son, utilisateurs exclus, ce qui s'affiche.");
     }
 
@@ -183,6 +184,7 @@ sealed class ChatWindow : Form
         {
             if (store.ChatOff.Contains(m.PlatformId) || !ChatKinds.Shown(m.PlatformId, m.Kind)) return;
             view.AddMessage(m);
+            foreach (var h in histories) if (h.Matches(m)) h.Add(m);
             if (m.Emotes != null) foreach (var sp in m.Emotes) if (sp.Start + sp.Length <= m.Text.Length) Emotes.Seen(m.Text.Substring(sp.Start, sp.Length), sp.Url, m.PlatformId);
             if (!m.Mine && !m.System) MaybePlaySound(m);
         }
@@ -289,6 +291,16 @@ sealed class ChatWindow : Form
         };
         p.FormClosed += (_, _) => input.Focus();
         p.Show(this);
+    }
+
+    void OpenHistory(ChatMessage m)
+    {
+        var existing = histories.FirstOrDefault(h => h.Matches(m));
+        if (existing != null) { existing.Activate(); return; }
+        var h = new UserHistoryWindow(m.PlatformId, m.Author, view.Snapshot().Where(x => x.PlatformId == m.PlatformId && string.Equals(x.Author, m.Author, StringComparison.OrdinalIgnoreCase)), view.ShowBadges);
+        histories.Add(h);
+        h.FormClosed += (_, _) => histories.Remove(h);
+        h.Show();
     }
 
     void ToggleSearch(string? text = null)
@@ -409,6 +421,7 @@ sealed class ChatWindow : Form
         var menu = new ContextMenuStrip { ShowItemToolTips = true };
         menu.Items.Add($"Copier le pseudo ({m.Author})", null, (_, _) => { try { Clipboard.SetText(m.Author); } catch (Exception e) { RunLog.Write("presse-papier : " + e.Message); } });
         menu.Items.Add($"Voir ses messages", null, (_, _) => ToggleSearch("@" + m.Author));
+        menu.Items.Add("Historique dans une fenêtre", null, (_, _) => OpenHistory(m));
         var src = sources.FirstOrDefault(s => s.PlatformId == m.PlatformId);
         if (src != null && !m.Mine && m.Kind != "automod") menu.Items.Insert(0, new ToolStripMenuItem("Répondre", null, (_, _) => SetReply(m)));
         if (src != null && !m.Mine)
@@ -695,27 +708,34 @@ sealed class ChatToggle : Control
 /// <summary>Small question box: one line of text.</summary>
 sealed class PromptDialog : Form
 {
-    readonly TextBox box = new() { Dock = DockStyle.Top, Font = new Font("Segoe UI", 10.5f) };
+    readonly TextBox box = new() { Dock = DockStyle.Fill, Font = new Font("Segoe UI", 10.5f), Margin = new Padding(0, 4, 0, 12) };
 
     PromptDialog(string title, string label)
     {
         Text = title;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterParent;
-        MaximizeBox = MinimizeBox = false;
-        ClientSize = new Size(400, 110);
-        var lbl = new Label { Text = label, Dock = DockStyle.Top, Height = 28, Font = Ui.Bold, Padding = new Padding(0, 4, 0, 0) };
+        MaximizeBox = MinimizeBox = ShowInTaskbar = false;
+        BackColor = Ui.Bg;
+        ClientSize = new Size(420, 138);
         var ok = Ui.Btn("OK", Ui.Kind.Primary, (_, _) => { DialogResult = DialogResult.OK; });
         var cancel = Ui.Btn("Annuler", Ui.Kind.Secondary, (_, _) => { DialogResult = DialogResult.Cancel; });
-        var row = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 44, FlowDirection = FlowDirection.RightToLeft };
-        row.Controls.Add(cancel);
-        row.Controls.Add(ok);
-        Padding = new Padding(12);
-        Controls.Add(box);
-        Controls.Add(lbl);
-        Controls.Add(row);
+        ok.Margin = cancel.Margin = new Padding(8, 0, 0, 0);
+        var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft, Margin = new Padding(0) };
+        buttons.Controls.Add(cancel);
+        buttons.Controls.Add(ok);
+        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Padding = new Padding(16, 14, 16, 12) };
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        layout.Controls.Add(new Label { Text = label, AutoSize = true, Font = Ui.Bold, Margin = new Padding(0) }, 0, 0);
+        box.Dock = DockStyle.Top;
+        layout.Controls.Add(box, 0, 1);
+        layout.Controls.Add(buttons, 0, 2);
+        Controls.Add(layout);
         AcceptButton = ok;
         CancelButton = cancel;
+        Shown += (_, _) => box.Focus();
     }
 
     /// <returns>the text (possibly empty), null when cancelled</returns>
@@ -723,5 +743,40 @@ sealed class PromptDialog : Form
     {
         using var d = new PromptDialog(title, label);
         return d.ShowDialog(owner) == DialogResult.OK ? d.box.Text.Trim() : null;
+    }
+}
+
+/// <summary>The messages of one user in a window of their own (the ones the chat still holds, then the new ones as they arrive).</summary>
+sealed class UserHistoryWindow : Form
+{
+    readonly ChatView view = new() { Dock = DockStyle.Fill };
+    readonly Label info = new() { Dock = DockStyle.Top, Height = 28, ForeColor = Ui.Muted, Font = Ui.Small, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(10, 0, 0, 0), BackColor = Ui.Header };
+    readonly string platformId, author;
+    int count;
+
+    public UserHistoryWindow(string platformId, string author, IEnumerable<ChatMessage> messages, bool badges)
+    {
+        this.platformId = platformId;
+        this.author = author;
+        Text = $"Historique de {author}";
+        Size = new Size(480, 520);
+        MinimumSize = new Size(320, 240);
+        StartPosition = FormStartPosition.CenterScreen;
+        Icon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!);
+        info.ForeColor = Color.FromArgb(200, 200, 210);
+        view.ShowBadges = badges;
+        Controls.Add(view);
+        Controls.Add(info);
+        foreach (var m in messages) Add(m);
+        view.ScrollToEnd();
+    }
+
+    public bool Matches(ChatMessage m) => m.PlatformId == platformId && string.Equals(m.Author, author, StringComparison.OrdinalIgnoreCase);
+
+    public void Add(ChatMessage m)
+    {
+        view.AddMessage(m);
+        count++;
+        info.Text = $"{count} message{(count > 1 ? "s" : "")} de {author} depuis l'ouverture du chat (les 600 derniers du chat au plus)";
     }
 }

@@ -544,6 +544,9 @@ sealed class ChatView : Control
         filter == "" || (filter[0] == '@' ? m.Author.Contains(filter[1..], StringComparison.OrdinalIgnoreCase)
             : m.Author.Contains(filter, StringComparison.OrdinalIgnoreCase) || m.Text.Contains(filter, StringComparison.OrdinalIgnoreCase) || (m.Extra?.Contains(filter, StringComparison.OrdinalIgnoreCase) ?? false));
 
+    /// <summary>every message still held (for the history window of a user)</summary>
+    public List<ChatMessage> Snapshot() => all.ToList();
+
     public void SetFilter(string text)
     {
         filter = text.Trim();

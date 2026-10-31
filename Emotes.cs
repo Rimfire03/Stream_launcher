@@ -129,7 +129,16 @@ sealed class EmotePicker : Form
         search.TextChanged += (_, _) => Fill();
         Deactivate += (_, _) => Close();
         Shown += (_, _) => { search.Focus(); Fill(); };
-        void refresh() { if (IsHandleCreated && !IsDisposed) BeginInvoke(Fill); }
+        int pending = 0;
+        void refresh() // images that were still downloading: fill the empty frames (the grid itself is not rebuilt)
+        {
+            if (!IsHandleCreated || IsDisposed || Interlocked.Exchange(ref pending, 1) == 1) return;
+            BeginInvoke(() =>
+            {
+                Interlocked.Exchange(ref pending, 0);
+                foreach (PictureBox pb in grid.Controls) if (pb.Image == null && pb.Tag is string url) pb.Image = ChatBadges.GetUrl(url);
+            });
+        }
         ChatBadges.Loaded += refresh;
         FormClosed += (_, _) => ChatBadges.Loaded -= refresh;
         KeyPreview = true;
@@ -144,7 +153,7 @@ sealed class EmotePicker : Form
         grid.Controls.Clear();
         foreach (var info in Emotes.All.Where(i => q == "" || i.Name.Contains(q, StringComparison.OrdinalIgnoreCase)).Take(300))
         {
-            var pb = new PictureBox { Width = 34, Height = 34, SizeMode = PictureBoxSizeMode.Zoom, Margin = new Padding(2), Cursor = Cursors.Hand, Image = ChatBadges.GetUrl(info.Url) };
+            var pb = new PictureBox { Width = 34, Height = 34, SizeMode = PictureBoxSizeMode.Zoom, Margin = new Padding(2), Cursor = Cursors.Hand, Image = ChatBadges.GetUrl(info.Url), Tag = info.Url };
             tip.SetToolTip(pb, info.Name);
             var name = info.Name;
             pb.Click += (_, _) => { Picked?.Invoke(name); Close(); };
