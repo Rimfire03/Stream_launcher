@@ -144,6 +144,16 @@ sealed class ChatWindow : Form
         ("6 heures", 21600), ("1 jour", 86400), ("1 semaine", 604800), ("2 semaines", 1209600),
     };
 
+    // what was changed from this window wins over the badges of older messages
+    readonly Dictionary<string, bool> roles = new();
+
+    bool IsRole(ChatMessage m, string role)
+    {
+        if (roles.TryGetValue($"{m.PlatformId}:{m.UserId}:{role}", out var known)) return known;
+        var prefix = role == "mod" ? "moderator/" : "vip/";
+        return m.Badges?.Any(b => b.StartsWith(prefix) || (role == "mod" && b == "yt-moderator")) == true;
+    }
+
     void ShowAuthorMenu(ChatMessage m, Point at)
     {
         var menu = new ContextMenuStrip { ShowItemToolTips = true };
@@ -162,6 +172,8 @@ sealed class ChatWindow : Form
                     try
                     {
                         await src.ModerateAsync(kind, m, seconds, CancellationToken.None);
+                        if (kind is ModKind.Mod or ModKind.Unmod) roles[$"{m.PlatformId}:{m.UserId}:mod"] = kind == ModKind.Mod;
+                        if (kind is ModKind.Vip or ModKind.Unvip) roles[$"{m.PlatformId}:{m.UserId}:vip"] = kind == ModKind.Vip;
                         AddSystem($"{PlatformName(m.PlatformId)} : {m.Author} {done}");
                     }
                     catch (Exception e)
@@ -184,10 +196,12 @@ sealed class ChatWindow : Form
             menu.Items.Add(Action("Bannir définitivement", ModKind.Ban, 0, "banni", confirm: true));
             menu.Items.Add(Action("Débannir", ModKind.Unban, 0, "débanni"));
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add(Action("Nommer modérateur", ModKind.Mod, 0, "est modérateur"));
-            menu.Items.Add(Action("Retirer modérateur", ModKind.Unmod, 0, "n'est plus modérateur"));
-            menu.Items.Add(Action("Nommer VIP", ModKind.Vip, 0, "est VIP"));
-            menu.Items.Add(Action("Retirer VIP", ModKind.Unvip, 0, "n'est plus VIP"));
+            bool isMod = IsRole(m, "mod"), isVip = IsRole(m, "vip");
+            if (m.Badges?.Contains("broadcaster/1") != true) // the streamer is neither promoted nor demoted
+            {
+                menu.Items.Add(isMod ? Action("Retirer modérateur", ModKind.Unmod, 0, "n'est plus modérateur") : Action("Nommer modérateur", ModKind.Mod, 0, "est modérateur"));
+                menu.Items.Add(isVip ? Action("Retirer VIP", ModKind.Unvip, 0, "n'est plus VIP") : Action("Nommer VIP", ModKind.Vip, 0, "est VIP"));
+            }
         }
         menu.Show(view, at);
     }

@@ -568,13 +568,14 @@ sealed class YouTubeChatSource : ChatSource
         var sn = i.GetProperty("snippet");
         var author = i.GetProperty("authorDetails").GetProperty("displayName").GetString() ?? "?";
         var authorId = i.GetProperty("authorDetails").TryGetProperty("channelId", out var ch) ? ch.GetString() : null;
+        var ytBadges = i.GetProperty("authorDetails").TryGetProperty("isChatModerator", out var ism) && ism.ValueKind == JsonValueKind.True ? new[] { "yt-moderator" } : null; // not a Twitch badge: never drawn
         var itemId = i.TryGetProperty("id", out var iid) ? iid.GetString() : null;
         string D(string name, string child) => sn.TryGetProperty(name, out var d) && d.TryGetProperty(child, out var c) ? c.GetString() ?? "" : "";
         switch (sn.GetProperty("type").GetString())
         {
             case "textMessageEvent":
                 var text = sn.GetProperty("displayMessage").GetString() ?? "";
-                return new ChatMessage(DateTime.Now, "youtube", author, text, Kind: ChatKinds.GifLink.IsMatch(text) ? "gif" : "message", UserId: authorId, MessageId: itemId);
+                return new ChatMessage(DateTime.Now, "youtube", author, text, Kind: ChatKinds.GifLink.IsMatch(text) ? "gif" : "message", Badges: ytBadges, UserId: authorId, MessageId: itemId);
             case "superChatEvent":
                 return new ChatMessage(DateTime.Now, "youtube", author, D("superChatDetails", "userComment"), Kind: "superchat", Extra: D("superChatDetails", "amountDisplayString") + " Super Chat");
             case "superStickerEvent":
