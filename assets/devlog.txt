@@ -1,0 +1,24 @@
+## V1.0.8
+- Zone de notification : l'icône Discord (et les autres icônes cachées) est de nouveau retrouvée de façon fiable.
+- Placement des fenêtres : les écrans sont suivis par leur identité matérielle, plus de fenêtres sur le mauvais écran après un redémarrage de Windows.
+- Les lanceurs « profil - bascule.exe » (Stream Deck) ont maintenant l'icône de l'application.
+- Après une mise à jour, cette fenêtre « Nouveautés » s'affiche une fois.
+## V1.0.7
+- Zone de notification : noms d'icônes comparés sans caractères invisibles, liste des icônes vues dans le journal en cas d'échec.
+## V1.0.6
+- Zone de notification : l'icône est choisie par meilleure ressemblance de nom (plus de confusion entre Discord et l'icône Confidentialité Microphone).
+## V1.0.5
+- Sélection d'une icône du menu des icônes cachées plus tolérante.
+## V1.0.4
+- Sélection d'une icône de la zone de notification plus fiable (délai, élément parent, journal).
+## V1.0.3
+- Bouton « Resélectionner » : refaire la sélection d'une étape créée par un clic sans la supprimer.
+## V1.0.2
+- Étape OBS Studio : scène, démarrer/arrêter le live, enregistrement, caméra virtuelle, arrêt automatique avec le live.
+- Icône de la zone de notification : option « Garder ouverte à l'arrêt du live », icône retrouvée par son nom.
+- Commandes tapées dans le chat unifié : /raid, /shoutout, /clip, etc.
+## V1.0.1
+- Fenêtre d'historique des messages d'un utilisateur (clic droit sur son pseudo).
+- Boîtes de dialogue corrigées, aide mise à jour.
+## V1.0.0
+- Chat unifié complet : modération au clic droit, réponses, recherche, émotes, GIFs, évènements (désactivables), spectateurs, clips, marqueurs, raids.

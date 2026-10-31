@@ -125,6 +125,8 @@ class Config
     public string UpdateChannel { get; set; } = "main";
     /// <summary>device name (\\.\DISPLAY2) -> custom name</summary>
     public Dictionary<string, string> ScreenNames { get; set; } = new();
+    /// <summary>last version whose "Nouveautés" window was shown</summary>
+    public string LastSeenVersion { get; set; } = "";
 
     /// <summary>device name -> identity of the physical monitor when last saved: Windows renumbers \.\DISPLAYn (after a restart, a replug), steps are moved to follow their monitor</summary>
     public Dictionary<string, string> ScreenIds { get; set; } = new();

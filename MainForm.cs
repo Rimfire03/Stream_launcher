@@ -276,7 +276,7 @@ class MainForm : Form
         header.Controls.Add(menu);
         healthTimer.Tick += (_, _) => CheckConnections();
         healthTimer.Start();
-        Shown += (_, _) => { CheckConnections(); RefreshGames(); };
+        Shown += (_, _) => { CheckConnections(); RefreshGames(); ShowDevlog(); };
 
         // ---- step list: right-click menu and drawing ----
         var stepMenu = new ContextMenuStrip { Font = Ui.Base };
@@ -437,6 +437,17 @@ class MainForm : Form
     // ---- redo the selection of a step that was captured with a click (the step keeps its delay, timeout and position in the list)
 
     static bool CanRePick(Step? s) => s is { Type: StepType.Click or StepType.Tray } || s is { Type: StepType.Window, Action: WindowAction.Deplacer or WindowAction.Reduire };
+
+    // after an update: the new entries of the devlog, once (a fresh install only records the version)
+    void ShowDevlog()
+    {
+        var now = Updater.Format(Updater.Current);
+        if (cfg.LastSeenVersion == now) return;
+        var text = cfg.Profiles.Count == 0 && cfg.LastSeenVersion == "" ? "" : DevlogDialog.Since(cfg.LastSeenVersion);
+        cfg.LastSeenVersion = now;
+        cfg.Save();
+        if (text != "") BeginInvoke(() => { using var d = new DevlogDialog(text); d.ShowDialog(this); });
+    }
 
     void RePick()
     {

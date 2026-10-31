@@ -299,3 +299,47 @@ class HelpDialog : Form
         KeyDown += (_, e) => { if (e.KeyCode == Keys.Escape) Close(); };
     }
 }
+
+/// <summary>Fenêtre « Nouveautés » : entrées de assets/devlog.txt (« ## Va.b.c » puis des lignes « - ») plus récentes que la dernière version vue.</summary>
+class DevlogDialog : Form
+{
+    static Version? Parse(string tag) => Version.TryParse(tag.TrimStart('V', 'v'), out var v) ? v : null;
+
+    /// <summary>text of the versions in (seen, current], newest first; "" when there is nothing to show</summary>
+    public static string Since(string seen)
+    {
+        using var s = typeof(DevlogDialog).Assembly.GetManifestResourceStream("devlog.txt");
+        if (s == null) return "";
+        var cur = Updater.Current;
+        var current = new Version(cur.Major, cur.Minor, Math.Max(cur.Build, 0));
+        var from = Parse(seen);
+        var sb = new System.Text.StringBuilder();
+        bool keep = false;
+        foreach (var line in new StreamReader(s).ReadToEnd().Replace("\r", "").Split('\n'))
+        {
+            if (line.StartsWith("## "))
+            {
+                var v = Parse(line[3..].Trim());
+                keep = v != null && v <= current && (from == null ? v == current : v > from);
+                if (keep) sb.AppendLine().AppendLine(line[3..].Trim());
+            }
+            else if (keep && line.Trim() != "") sb.AppendLine("  " + line.Trim().Replace("- ", "• "));
+        }
+        return sb.ToString().Trim();
+    }
+
+    public DevlogDialog(string text)
+    {
+        Text = "Nouveautés - Stream Launcher " + Updater.Format(Updater.Current);
+        Size = new Size(640, 460);
+        StartPosition = FormStartPosition.CenterParent;
+        var box = new TextBox { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Font = new Font("Segoe UI", 10f), BackColor = SystemColors.Window, Text = text };
+        var ok = new Button { Text = "Fermer", Dock = DockStyle.Bottom, Height = 36 };
+        ok.Click += (_, _) => Close();
+        Controls.Add(box);
+        Controls.Add(ok);
+        AcceptButton = ok;
+        CancelButton = ok;
+        box.Select(0, 0);
+    }
+}
