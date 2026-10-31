@@ -132,11 +132,13 @@ class TrayPicker : IDisposable
                     {
                         var el = (uia ??= new FlaUI.UIA3.UIA3Automation()).FromPoint(new System.Drawing.Point(pt.X, pt.Y));
                         // the click can land on the picture inside the button: go up to the element that carries the name
-                        for (int up = 0; el != null && up < 4; up++, el = el.Parent)
+                        for (int up = 0; el != null && up < 4; up++, el = SafeParent(el))
                         {
-                            var c = el.ClassName ?? "";
+                            // ValueOrDefault: some elements of the flyout do not support these properties (reading them directly throws)
+                            var c = el.Properties.ClassName.ValueOrDefault ?? "";
                             if (c.Contains("TaskListButton") || c == "ToggleButton") return (null, c);
-                            if (!string.IsNullOrWhiteSpace(el.Name)) return (el.Name, c);
+                            var n = el.Properties.Name.ValueOrDefault;
+                            if (!string.IsNullOrWhiteSpace(n)) return (n, c);
                         }
                         return (null, "");
                     });
@@ -155,6 +157,11 @@ class TrayPicker : IDisposable
             catch (Exception e) { RunLog.Write("sélection d'icône : " + e.Message); }
         }
         return Native.CallNextHookEx(hook, code, w, l);
+    }
+
+    static FlaUI.Core.AutomationElements.AutomationElement? SafeParent(FlaUI.Core.AutomationElements.AutomationElement e)
+    {
+        try { return e.Parent; } catch { return null; }
     }
 
     public void Dispose()
