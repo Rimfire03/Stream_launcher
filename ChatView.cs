@@ -207,7 +207,16 @@ static class ChatGifs
                     var bytes = await Web.GetByteArrayAsync(src);
                     if (bytes.Length > MaxBytes) throw new InvalidOperationException("GIF trop gros");
                     var ms = new MemoryStream(bytes);
-                    Cache[url] = new Gif(Image.FromStream(ms), ms);
+                    Image img;
+                    try { img = Image.FromStream(ms); }
+                    catch (ArgumentException) when (src.Contains(".webp", StringComparison.OrdinalIgnoreCase)) // GDI+ cannot read WebP: Giphy serves the same animation as a GIF
+                    {
+                        bytes = await Web.GetByteArrayAsync(Regex.Replace(src, @"\.webp", ".gif", RegexOptions.IgnoreCase));
+                        if (bytes.Length > MaxBytes) throw new InvalidOperationException("GIF trop gros");
+                        ms = new MemoryStream(bytes);
+                        img = Image.FromStream(ms);
+                    }
+                    Cache[url] = new Gif(img, ms);
                 }
                 catch (Exception e) { RunLog.Write($"gif {url} : {e.Message}"); Cache[url] = null; }
                 ChatBadges.RaiseLoaded();
@@ -405,7 +414,7 @@ sealed class ChatView : Control
         Words(m.Text[pos..]);
 
         // a GIF link: the animation is shown under the text (the link stays readable)
-        if (m.Kind == "gif" && ChatGifs.Find(m.Text) is { } gifUrl && ChatGifs.Get(gifUrl) is { } gif)
+        if (m.Kind == "gif" && (m.GifUrl ?? ChatGifs.Find(m.Text)) is { } gifUrl && ChatGifs.Get(gifUrl) is { } gif)
         {
             double s = Math.Min(1.0, Math.Min(Math.Min(280.0, right - left) / gif.Width, 200.0 / gif.Height));
             if (x > (line == 0 ? prefixWidth : left)) NewLine();
