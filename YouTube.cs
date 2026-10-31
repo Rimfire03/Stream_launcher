@@ -198,21 +198,25 @@ sealed class YouTubePlatform : Platform
         var id = b.GetProperty("id").GetString()!;
         var bs = b.GetProperty("snippet");
         var currentTitle = bs.GetProperty("title").GetString() ?? "";
+        bool titleViaVideo = false;
 
         if (!string.IsNullOrWhiteSpace(title))
         {
             if (title.Length > TitleMax) { title = title[..TitleMax]; warnings.Add($"titre raccourci à {TitleMax} caractères (limite de YouTube)"); }
-            // the update replaces the whole snippet: keep the schedule and the description
-            // a live started without being scheduled has no scheduledStartTime: the API still wants one, its real start does
-            var start = bs.TryGetProperty("scheduledStartTime", out var st) ? st.GetString() : bs.TryGetProperty("actualStartTime", out var at) ? at.GetString() : DateTime.UtcNow.ToString("o");
-            var snippet = new Dictionary<string, object?> { ["title"] = title, ["scheduledStartTime"] = start };
-            if (bs.TryGetProperty("description", out var d)) snippet["description"] = d.GetString();
-            await SendAsync(HttpMethod.Put, "/liveBroadcasts?part=snippet", new { id, snippet }, ct);
+            // a live already started (or started without being scheduled) refuses any write of scheduledStartTime: its title goes through the video instead
+            if (bs.TryGetProperty("scheduledStartTime", out var st) && !bs.TryGetProperty("actualStartTime", out _))
+            {
+                // the update replaces the whole snippet: keep the schedule and the description
+                var snippet = new Dictionary<string, object?> { ["title"] = title, ["scheduledStartTime"] = st.GetString() };
+                if (bs.TryGetProperty("description", out var d)) snippet["description"] = d.GetString();
+                await SendAsync(HttpMethod.Put, "/liveBroadcasts?part=snippet", new { id, snippet }, ct);
+            }
+            else titleViaVideo = true;
             currentTitle = title;
         }
 
         bool game = !string.IsNullOrWhiteSpace(gameName);
-        if (tags != null || game)
+        if (tags != null || game || titleViaVideo)
         {
             var v = await VideoSnippetAsync(id, ct);
             var newTags = tags != null ? tags.ToList()

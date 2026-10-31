@@ -1,3 +1,5 @@
+## V1.0.10
+- YouTube : le titre d'un live déjà démarré est modifié sans erreur 403 (scheduledStartTime).
 ## V1.0.9
 - YouTube : application du titre, du jeu et des tags corrigée pour un live lancé sans programmation (erreur « The given key was not present in the dictionary »).
 ## V1.0.8
