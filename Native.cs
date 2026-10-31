@@ -10,6 +10,24 @@ static class Native
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
     [StructLayout(LayoutKind.Sequential)] public struct MSLL { public POINT pt; public uint data, flags, time; public IntPtr extra; }
 
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    struct DISPLAY_DEVICE
+    {
+        public int cb;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string DeviceName;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceString;
+        public int StateFlags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceID;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceKey;
+    }
+    [DllImport("user32", CharSet = CharSet.Unicode)] static extern bool EnumDisplayDevices(string? device, uint index, ref DISPLAY_DEVICE dd, uint flags);
+
+    /// <summary>identity of the physical monitor behind a \.\DISPLAYn name (those names are renumbered by Windows, e.g. after a restart); "" if unknown</summary>
+    public static string MonitorId(string deviceName)
+    {
+        var dd = new DISPLAY_DEVICE { cb = Marshal.SizeOf<DISPLAY_DEVICE>() };
+        return EnumDisplayDevices(deviceName, 0, ref dd, 0) ? dd.DeviceID : "";
+    }
     [DllImport("user32")] static extern bool EnumWindows(EnumProc p, IntPtr l);
     [DllImport("user32")] static extern bool IsWindowVisible(IntPtr h);
     [DllImport("user32", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);

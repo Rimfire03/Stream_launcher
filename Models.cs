@@ -126,6 +126,9 @@ class Config
     /// <summary>device name (\\.\DISPLAY2) -> custom name</summary>
     public Dictionary<string, string> ScreenNames { get; set; } = new();
 
+    /// <summary>device name -> identity of the physical monitor when last saved: Windows renumbers \.\DISPLAYn (after a restart, a replug), steps are moved to follow their monitor</summary>
+    public Dictionary<string, string> ScreenIds { get; set; } = new();
+
     [JsonIgnore] public static Config Current { get; private set; } = new();
 
     public static string Label(string device) =>
@@ -150,7 +153,28 @@ class Config
         Converters = { new JsonStringEnumConverter() },
     };
 
-    public static Config Load() => Current = LoadFile();
+    public static Config Load()
+    {
+        var c = LoadFile();
+        c.FollowMonitors();
+        return Current = c;
+    }
+
+    void FollowMonitors()
+    {
+        var now = Screen.AllScreens.Select(s => (Dev: s.DeviceName, Id: Native.MonitorId(s.DeviceName))).Where(x => x.Id != "").ToList();
+        var move = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (dev, id) in ScreenIds)
+            if (now.FirstOrDefault(x => x.Id == id).Dev is { } nd && !nd.Equals(dev, StringComparison.OrdinalIgnoreCase)) move[dev] = nd;
+        if (move.Count > 0)
+        {
+            foreach (var st in Profiles.SelectMany(p => p.Steps))
+                if (move.TryGetValue(st.Monitor, out var nd)) st.Monitor = nd;
+            ScreenNames = ScreenNames.ToDictionary(kv => move.GetValueOrDefault(kv.Key, kv.Key), kv => kv.Value, StringComparer.OrdinalIgnoreCase);
+        }
+        ScreenIds = now.ToDictionary(x => x.Dev, x => x.Id);
+        if (move.Count > 0) { try { Save(); } catch { } }
+    }
 
     static Config LoadFile()
     {

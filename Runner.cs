@@ -237,8 +237,11 @@ class Runner
                 .Where(b => b.ClassName != "ToggleButton" && b.ClassName?.Contains("TaskListButton") != true);
     }
 
+    /// <summary>name of an element; some hidden-flyout elements throw when it is read directly</summary>
+    static string NameOf(AutomationElement e) { try { return e.Properties.Name.ValueOrDefault ?? ""; } catch { return ""; } }
+
     static bool IsChevron(AutomationElement b) =>
-        b.Name is { } n && (n.Contains("cach", StringComparison.OrdinalIgnoreCase) || n.Contains("hidden", StringComparison.OrdinalIgnoreCase));
+        NameOf(b) is { } n && (n.Contains("cach", StringComparison.OrdinalIgnoreCase) || n.Contains("hidden", StringComparison.OrdinalIgnoreCase));
 
     // buttons of the overflow flyout (hidden icons), opened through the taskbar chevron
     static IEnumerable<AutomationElement> OverflowButtons(UIA3Automation uia)
@@ -256,8 +259,8 @@ class Runner
     public static List<string> ListTray()
     {
         using var uia = new UIA3Automation();
-        var names = TaskbarButtons(uia).Where(b => !IsChevron(b)).Select(b => b.Name).ToList();
-        names.AddRange(OverflowButtons(uia).Select(b => b.Name));
+        var names = TaskbarButtons(uia).Where(b => !IsChevron(b)).Select(b => NameOf(b)).ToList();
+        names.AddRange(OverflowButtons(uia).Select(b => NameOf(b)));
         System.Windows.Forms.SendKeys.SendWait("{ESC}");
         return names.Where(n => !string.IsNullOrWhiteSpace(n)).Distinct().ToList();
     }
@@ -299,8 +302,8 @@ class Runner
     static int TrayScore(AutomationElement b, string saved, string stable)
     {
         if (IsChevron(b)) return 0;
-        var full = Plain(b.Name ?? "");
-        var first = Plain(b.Name?.Split('\n')[0] ?? "");
+        var full = Plain(NameOf(b));
+        var first = Plain(NameOf(b).Split('\n')[0]);
         if (first == "") return 0;
         if (string.Equals(first, Plain(saved), StringComparison.OrdinalIgnoreCase)) return 4;
         if (string.Equals(StableTrayName(first), stable, StringComparison.OrdinalIgnoreCase)) return 3;
@@ -329,7 +332,7 @@ class Runner
             }
             if (best.El != null && best.El.TryGetClickablePoint(out var p))
             {
-                Log($"  icône « {best.El.Name?.Split('\n')[0].Trim()} » (correspondance {best.Score}/4)");
+                Log($"  icône « {NameOf(best.El).Split('\n')[0].Trim()} » (correspondance {best.Score}/4)");
                 var seen = s.KeepOpen ? Native.TopWindows().Select(w => w.H).ToHashSet() : null;
                 Native.Click(p.X, p.Y, s.Button == MouseBtn.Right, s.Double);
                 if (seen != null) KeepShownWindows(seen, ct);
@@ -337,7 +340,7 @@ class Runner
             }
             Thread.Sleep(500);
         } while (DateTime.UtcNow < end);
-        Log("  icônes vues : " + string.Join(" | ", TaskbarButtons(uia).Concat(OverflowButtons(uia)).Select(x => Plain(x.Name?.Split('\n')[0] ?? ""))));
+        Log("  icônes vues : " + string.Join(" | ", TaskbarButtons(uia).Concat(OverflowButtons(uia)).Select(x => Plain(NameOf(x).Split('\n')[0]))));
         throw new TimeoutException($"icône de la zone de notification introuvable ('{s.TrayName}')");
     }
 
