@@ -289,19 +289,44 @@ class Runner
         return cut.Length >= 3 ? cut : first;
     }
 
+    // Windows' own icons whose tooltip lists other apps ("Confidentialité Microphone utilisé par : Discord, Voicemod"): never the target of a name that is only mentioned in them
+    static readonly string[] SystemIcons = { "Confidentialité", "Privacy", "Volume", "Réseau", "Network", "Horloge", "Clock", "Indicateur d", "Input indicator", "Afficher le Bureau", "Show desktop", "Batterie", "Battery" };
+
+    /// <summary>how well an icon fits the saved name: 4 same name, 3 same lasting name (status and version aside), 2 starts with it, 1 only mentions it (not a Windows icon), 0 no</summary>
+    static int TrayScore(AutomationElement b, string saved, string stable)
+    {
+        if (IsChevron(b)) return 0;
+        var full = (b.Name ?? "").Trim();
+        var first = full.Split('\n')[0].Trim();
+        if (first == "") return 0;
+        if (string.Equals(first, saved.Trim(), StringComparison.OrdinalIgnoreCase)) return 4;
+        if (string.Equals(StableTrayName(first), stable, StringComparison.OrdinalIgnoreCase)) return 3;
+        if (first.StartsWith(stable, StringComparison.OrdinalIgnoreCase)) return 2;
+        bool windows = SystemIcons.Any(w => first.StartsWith(w, StringComparison.OrdinalIgnoreCase) && !stable.StartsWith(w, StringComparison.OrdinalIgnoreCase));
+        return !windows && full.Contains(stable, StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+    }
+
     void Tray(UIA3Automation uia, Step s, CancellationToken ct)
     {
         if (s.TrayName == "") throw new InvalidOperationException("TrayName vide");
-        // the icon is found by its name each time (never by where it was clicked: icons move): the saved name, then its lasting part
+        // the icon is found by its name each time (never by where it was clicked: icons move, and some change their picture, like Discord in a voice channel):
+        // the best fitting name wins, so an icon that merely mentions the app is never taken for it
         var stable = StableTrayName(s.TrayName);
-        bool Match(AutomationElement b) => !IsChevron(b) && (b.Name?.Contains(s.TrayName, StringComparison.OrdinalIgnoreCase) == true || b.Name?.Contains(stable, StringComparison.OrdinalIgnoreCase) == true);
+        (AutomationElement? El, int Score) Best(IEnumerable<AutomationElement> buttons) =>
+            buttons.Select(x => (El: (AutomationElement?)x, Score: TrayScore(x, s.TrayName, stable))).Where(x => x.Score > 0).OrderByDescending(x => x.Score).FirstOrDefault();
         var end = DateTime.UtcNow.AddMilliseconds(s.TimeoutMs);
         do
         {
             ct.ThrowIfCancellationRequested();
-            var el = TaskbarButtons(uia).FirstOrDefault(Match) ?? OverflowButtons(uia).FirstOrDefault(Match);
-            if (el != null && el.TryGetClickablePoint(out var p))
+            var best = Best(TaskbarButtons(uia));
+            if (best.Score < 3) // not clearly the right one in the visible icons: look in the hidden ones too
             {
+                var hidden = Best(OverflowButtons(uia));
+                if (hidden.Score > best.Score) best = hidden;
+            }
+            if (best.El != null && best.El.TryGetClickablePoint(out var p))
+            {
+                Log($"  icône « {best.El.Name?.Split('\n')[0].Trim()} » (correspondance {best.Score}/4)");
                 var seen = s.KeepOpen ? Native.TopWindows().Select(w => w.H).ToHashSet() : null;
                 Native.Click(p.X, p.Y, s.Button == MouseBtn.Right, s.Double);
                 if (seen != null) KeepShownWindows(seen, ct);
