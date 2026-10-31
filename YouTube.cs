@@ -114,6 +114,19 @@ sealed class YouTubePlatform : Platform
         throw new InvalidOperationException("YouTube : aucune diffusion en cours ni programmée. Crée-la dans YouTube Studio (Créer > Passer en direct).");
     }
 
+    public override async Task<int?> ViewersAsync(CancellationToken ct)
+    {
+        try
+        {
+            var id = (await FindBroadcastAsync(ct)).GetProperty("id").GetString();
+            var r = await SendAsync(HttpMethod.Get, "/videos?part=liveStreamingDetails&id=" + Uri.EscapeDataString(id ?? ""), null, ct);
+            YouTubeQuota.Add(2);
+            var items = r.GetProperty("items");
+            return items.GetArrayLength() > 0 && items[0].TryGetProperty("liveStreamingDetails", out var d) && d.TryGetProperty("concurrentViewers", out var v) && int.TryParse(v.GetString(), out var n) ? n : null;
+        }
+        catch (InvalidOperationException e) when (e.Message.Contains("aucune diffusion")) { return null; }
+    }
+
     // ---- live chat (unified chat window)
 
     /// <summary>chat id of the active broadcast, else of the next scheduled one; null when there is none</summary>

@@ -258,7 +258,10 @@ sealed class ChatView : Control
     int MaxOffset => Math.Max(0, total - ClientSize.Height);
     bool AtBottom() => offset >= MaxOffset - 40;
 
-    int RowHeight(ChatMessage m) => Flow(m, Prefix(m).Width, Wide).Height;
+    const int ReplyH = 16; // the line "↪ name : text" above a message that answers another one
+    static int Hdr(ChatMessage m) => m.ReplyName == null ? 0 : ReplyH;
+
+    int RowHeight(ChatMessage m) => Flow(m, Prefix(m).Width, Wide).Height + Hdr(m);
 
     void Sync()
     {
@@ -310,7 +313,7 @@ sealed class ChatView : Control
                 int x = 46 + Logo + 4 + (m.SourceRoom != null ? Logo + 4 : 0);
                 if (ShowBadges && m.Badges != null) foreach (var b in m.Badges) if (ChatBadges.Known(b)) x += Logo + 2;
                 int w = TextRenderer.MeasureText(m.Author, bold, new Size(int.MaxValue, 0), TextFormatFlags.NoPadding).Width;
-                if (e.X >= x && e.X <= x + w + 2 && e.Y <= y + 3 + Logo + 6) AuthorRightClicked?.Invoke(m, e.Location);
+                if (e.X >= x && e.X <= x + w + 2 && e.Y >= y + Hdr(m) && e.Y <= y + Hdr(m) + 3 + Logo + 6) AuthorRightClicked?.Invoke(m, e.Location);
                 return;
             }
             y += heights[i];
@@ -379,10 +382,17 @@ sealed class ChatView : Control
             }
         }
         bool emojis = ChatKinds.Shown(m.PlatformId, "emotes");
+        void ThirdParty(Emotes.Info tp, string word) // 7TV, BetterTTV, FrankerFaceZ: plain words in the message, shown as images here
+        {
+            var img = tp.Animated ? ChatGifs.Get(tp.Url) : ChatBadges.GetUrl(tp.Url);
+            if (img == null && (tp.Animated ? ChatGifs.Failed(tp.Url) : ChatBadges.Failed(tp.Url))) { Word(word); return; }
+            Place(null, img, img == null ? Emote : Math.Max(8, (int)Math.Round(Emote * (double)img.Width / img.Height)), Emote + 2, gif: tp.Animated && img != null);
+        }
         void Words(string s)
         {
             foreach (var w in s.Split(' ', StringSplitOptions.RemoveEmptyEntries))
             {
+                if (emojis && m.PlatformId == "twitch" && Emotes.TryThirdParty(w, out var tp)) { ThirdParty(tp, w); continue; }
                 if (!emojis || !w.Any(c => c >= 0x2190)) { Word(w); continue; } // no emoji can be in this word
                 var run = new StringBuilder();
                 for (var en = StringInfo.GetTextElementEnumerator(w); en.MoveNext();)
@@ -460,11 +470,17 @@ sealed class ChatView : Control
         {
             "message" => Color.Transparent, "gif" => ColorTranslator.FromHtml("#3B6FD4"),
             "highlight" => ColorTranslator.FromHtml("#9146FF"), "bits" or "superchat" or "sticker" => ColorTranslator.FromHtml("#E0A030"),
-            "reward" => ColorTranslator.FromHtml("#2EB8A6"), "raid" => ColorTranslator.FromHtml("#D9822B"), _ => ColorTranslator.FromHtml("#E0508A"),
+            "reward" => ColorTranslator.FromHtml("#2EB8A6"), "raid" => ColorTranslator.FromHtml("#D9822B"), "follow" => ColorTranslator.FromHtml("#2E9D5B"),
+            "hype" => ColorTranslator.FromHtml("#E8590C"), "poll" => ColorTranslator.FromHtml("#4C6EF5"), "prediction" => ColorTranslator.FromHtml("#9B59D0"), "automod" => ColorTranslator.FromHtml("#D64535"), _ => ColorTranslator.FromHtml("#E0508A"),
         };
         using (var bg = new SolidBrush(special ? Color.FromArgb(40, accent) : m.Mine ? ColorTranslator.FromHtml("#17141F") : BackColor)) g.FillRectangle(bg, r);
         if (special) using (var bar = new SolidBrush(accent)) g.FillRectangle(bar, r.X, r.Y, 3, r.Height);
 
+        if (m.ReplyName != null)
+        {
+            TextRenderer.DrawText(g, $"↪ {m.ReplyName} : {m.ReplyBody}", small, new Rectangle(r.X + 46, r.Y + 2, r.Width - 54, ReplyH - 2), Ui.Muted, TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter);
+            r = new Rectangle(r.X, r.Y + ReplyH, r.Width, r.Height - ReplyH);
+        }
         var (px, badges) = Prefix(m);
         var (pieces, lines, _) = Flow(m, px, r.Width);
         int top = r.Y + 3 + (lines[0] - bodyH) / 2; // the prefix is centred on the first line when an emote makes it taller
@@ -519,8 +535,30 @@ sealed class ChatView : Control
 
     // ---- content
 
+    // ---- search: "@name" keeps one author, anything else must be in the author, the text or the label
+
+    readonly List<ChatMessage> all = new(); // every message; items is what the filter lets through
+    string filter = "";
+
+    bool Matches(ChatMessage m) =>
+        filter == "" || (filter[0] == '@' ? m.Author.Contains(filter[1..], StringComparison.OrdinalIgnoreCase)
+            : m.Author.Contains(filter, StringComparison.OrdinalIgnoreCase) || m.Text.Contains(filter, StringComparison.OrdinalIgnoreCase) || (m.Extra?.Contains(filter, StringComparison.OrdinalIgnoreCase) ?? false));
+
+    public void SetFilter(string text)
+    {
+        filter = text.Trim();
+        items.Clear(); heights.Clear(); total = 0;
+        foreach (var m in all.Where(Matches)) { items.Add(m); heights.Add(0); }
+        for (int i = 0; i < items.Count; i++) { heights[i] = RowHeight(items[i]); total += heights[i]; }
+        offset = MaxOffset;
+        Sync();
+    }
+
     public void AddMessage(ChatMessage m)
     {
+        all.Add(m);
+        if (all.Count > MaxItems) all.RemoveAt(0);
+        if (!Matches(m)) return;
         bool follow = AtBottom();
         int h = RowHeight(m);
         items.Add(m); heights.Add(h); total += h;
@@ -531,7 +569,7 @@ sealed class ChatView : Control
 
     public void ScrollToEnd() { offset = MaxOffset; Sync(); }
 
-    public void ClearMessages() { items.Clear(); heights.Clear(); total = offset = 0; Sync(); }
+    public void ClearMessages() { all.Clear(); items.Clear(); heights.Clear(); total = offset = 0; Sync(); }
 
     /// <summary>the messages in the list, for tests</summary>
     public string DumpText() => string.Join(Environment.NewLine, items.Select(m => $"{m.Time:HH:mm} [{m.PlatformId}] {m.Author}{(m.Extra != null ? " <" + m.Extra + ">" : "")}{(m.Badges != null ? " {" + string.Join(",", m.Badges) + "}" : "")}: {m.Text}"));

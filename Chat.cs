@@ -11,12 +11,13 @@ using System.Text.RegularExpressions;
 
 /// <param name="Kind">message, highlight, bits, reward, sub, gift, raid, gif (Twitch / Kick) ; superchat, sticker, member, gift (YouTube) : each kind can be hidden per platform</param>
 /// <param name="Extra">short label shown before the text for special messages ("100 bits", "Raid"...)</param>
+/// <param name="ReplyName">when the message answers another one: its author and its text (shown above the message)</param>
 /// <param name="GifUrl">Twitch native GIF (tag "gifs"): full url of the image, to use as given</param>
 /// <param name="UserId">id of the author on the platform, MessageId: id of the message (both needed to moderate)</param>
 /// <param name="SourceRoom">Twitch shared chat: id of the channel the message was sent from</param>
 /// <param name="Badges">Twitch badges as "set/version" (broadcaster/1, subscriber/12...)</param>
 record ChatMessage(DateTime Time, string PlatformId, string Author, string Text, string? Color = null, bool Mine = false, bool System = false,
-    string Kind = "message", string? Extra = null, string[]? Badges = null, EmoteSpan[]? Emotes = null, string? SourceRoom = null, string? UserId = null, string? MessageId = null, string? GifUrl = null);
+    string Kind = "message", string? Extra = null, string[]? Badges = null, EmoteSpan[]? Emotes = null, string? SourceRoom = null, string? UserId = null, string? MessageId = null, string? GifUrl = null, string? ReplyName = null, string? ReplyBody = null);
 
 /// <summary>an emote inside the text of a message: UTF-16 position and length of its name, and the image url</summary>
 readonly record struct EmoteSpan(int Start, int Length, string Url);
@@ -31,10 +32,11 @@ static class ChatKinds
             ("badges", "Badges des utilisateurs"), ("emotes", "Emotes (images)"), ("highlight", "Messages mis en avant"), ("bits", "Cheers (bits)"),
             ("reward", "Messages de récompense de points de chaîne"), ("sub", "Abonnements et réabonnements"),
             ("gift", "Abonnements offerts"), ("raid", "Raids"), ("gif", "Messages avec un lien GIF"),
+            ("follow", "Nouveaux followers"), ("hype", "Hype train"), ("poll", "Sondages"), ("prediction", "Prédictions"), ("automod", "Messages retenus par AutoMod"),
         },
         ["kick"] = new[]
         {
-            ("emotes", "Emotes (images)"), ("reward", "Récompenses de points"), ("sub", "Abonnements"), ("gift", "Abonnements offerts"), ("gif", "Messages avec un lien GIF"),
+            ("emotes", "Emotes (images)"), ("reward", "Récompenses de points"), ("sub", "Abonnements"), ("gift", "Abonnements offerts"), ("gif", "Messages avec un lien GIF"), ("follow", "Nouveaux followers"),
         },
         ["youtube"] = new[]
         {
@@ -42,13 +44,17 @@ static class ChatKinds
         },
     };
 
-    public static bool Shown(string platformId, string kind) => kind == "message" || !StreamingStore.Current.ChatHidden.Contains(platformId + ":" + kind);
+    /// <summary>events and alerts: hidden until the user switches them on (the other kinds, badges, emotes and GIF links, are display options shown by default)</summary>
+    public static readonly HashSet<string> EventKinds = new() { "highlight", "bits", "reward", "sub", "gift", "raid", "follow", "hype", "poll", "prediction", "automod", "superchat", "sticker", "member" };
+
+    public static bool Shown(string platformId, string kind) =>
+        kind == "message" || (EventKinds.Contains(kind) ? StreamingStore.Current.ChatShown.Contains(platformId + ":" + kind) : !StreamingStore.Current.ChatHidden.Contains(platformId + ":" + kind));
 
     public static readonly Regex GifLink = new(@"(giphy\.com|tenor\.com|\.gif(\?|$|\s))", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 }
 
 /// <summary>what a moderator can do from the chat</summary>
-enum ModKind { Delete, Timeout, Ban, Unban, Mod, Unmod, Vip, Unvip }
+enum ModKind { Delete, Timeout, Ban, Unban, Mod, Unmod, Vip, Unvip, Allow, Deny, Clear }
 
 abstract class ChatSource : IDisposable
 {
@@ -71,6 +77,9 @@ abstract class ChatSource : IDisposable
     /// <param name="seconds">length of a timeout</param>
     public virtual Task ModerateAsync(ModKind kind, ChatMessage m, int seconds, CancellationToken ct) => throw new NotSupportedException();
 
+    /// <summary>id of a user from their name (for typed commands such as /ban name), null when the platform cannot tell</summary>
+    public virtual Task<string?> UserIdAsync(string login, CancellationToken ct) => Task.FromResult<string?>(null);
+
     protected string? MissingRight(string scope, string how) => !P.Connected ? "compte non connecté" : P.HasScope(scope) ? null : how;
 
     public void Start()
@@ -91,6 +100,9 @@ abstract class ChatSource : IDisposable
     public void Dispose() => Stop();
 
     public abstract Task SendAsync(string text, CancellationToken ct);
+
+    /// <summary>an answer to a message; a platform without replies gets "@name text"</summary>
+    public virtual Task SendReplyAsync(string text, ChatMessage parent, CancellationToken ct) => SendAsync($"@{parent.Author} {text}", ct);
     protected abstract Task ReadAsync(CancellationToken ct);
 
     protected void SetStatus(string status, bool reading)
@@ -154,17 +166,21 @@ sealed class TwitchChatSource : ChatSource
 
     public override string? ModerationBlocked(ModKind kind, ChatMessage m)
     {
+        if (kind == ModKind.Clear) return MissingRight("moderator:manage:chat_messages", "reconnecte Twitch (nouveau droit de modération)");
         if (m.SourceRoom != null) return "message d'une autre chaîne (chat partagé)";
-        if (m.UserId == null || (kind == ModKind.Delete && m.MessageId == null)) return "message sans identifiant";
+        if (m.UserId == null || (kind is ModKind.Delete or ModKind.Allow or ModKind.Deny && m.MessageId == null)) return "message sans identifiant";
         const string how = "reconnecte Twitch (nouveau droit de modération)";
         return kind switch
         {
+            ModKind.Allow or ModKind.Deny => MissingRight("moderator:manage:automod", how),
             ModKind.Delete => MissingRight("moderator:manage:chat_messages", how),
             ModKind.Mod or ModKind.Unmod => MissingRight("channel:manage:moderators", how),
             ModKind.Vip or ModKind.Unvip => MissingRight("channel:manage:vips", how),
             _ => MissingRight("moderator:manage:banned_users", how),
         };
     }
+
+    public override Task<string?> UserIdAsync(string login, CancellationToken ct) => ((TwitchPlatform)P).UserIdByLoginAsync(login, ct);
 
     public override Task ModerateAsync(ModKind kind, ChatMessage m, int seconds, CancellationToken ct)
     {
@@ -178,6 +194,9 @@ sealed class TwitchChatSource : ChatSource
             ModKind.Unmod => tw.SetRoleAsync("moderation/moderators", m.UserId!, false, ct),
             ModKind.Vip => tw.SetRoleAsync("channels/vips", m.UserId!, true, ct),
             ModKind.Unvip => tw.SetRoleAsync("channels/vips", m.UserId!, false, ct),
+            ModKind.Clear => tw.DeleteMessageAsync(null, ct),
+            ModKind.Allow => tw.AutomodAsync(m.MessageId!, true, ct),
+            ModKind.Deny => tw.AutomodAsync(m.MessageId!, false, ct),
             _ => tw.UnbanAsync(m.UserId!, ct),
         };
     }
@@ -195,7 +214,7 @@ sealed class TwitchChatSource : ChatSource
         await socket.ConnectAsync(new Uri(Url), ct);
         ws = socket;
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        _ = RedemptionsAsync(twitch, linked.Token);
+        _ = EventsAsync(twitch, linked.Token);
         try
         {
             await SendTextAsync(socket, "CAP REQ :twitch.tv/tags twitch.tv/commands", ct);
@@ -218,8 +237,8 @@ sealed class TwitchChatSource : ChatSource
         finally { ws = null; redemptions = false; linked.Cancel(); }
     }
 
-    /// <summary>channel point rewards (with or without a message) come from EventSub; reconnects by itself while the chat is open</summary>
-    async Task RedemptionsAsync(TwitchPlatform twitch, CancellationToken ct)
+    /// <summary>channel point rewards, follows, hype train, polls, predictions and AutoMod come from EventSub; reconnects by itself while the chat is open</summary>
+    async Task EventsAsync(TwitchPlatform twitch, CancellationToken ct)
     {
         int delay = 3;
         bool hinted = false;
@@ -227,9 +246,9 @@ sealed class TwitchChatSource : ChatSource
         {
             try
             {
-                if (!twitch.HasScope("channel:read:redemptions")) // not granted yet: check again, so that reconnecting the account is enough (no need to reopen the chat)
+                if (!TwitchPlatform.EventTypes.Any(t => twitch.HasScope(t.Scope))) // not granted yet: check again, so that reconnecting the account is enough (no need to reopen the chat)
                 {
-                    if (!hinted) Emit(new ChatMessage(DateTime.Now, "twitch", "Stream Launcher", "Reconnecte Twitch (Infos du live > Twitch > Connecter) pour afficher les récompenses de points de chaîne : nouveau droit à accepter.", System: true));
+                    if (!hinted) Emit(new ChatMessage(DateTime.Now, "twitch", "Stream Launcher", "Reconnecte Twitch (Infos du live > Reconnecter) pour afficher récompenses, followers, hype train, sondages, prédictions et AutoMod : nouveaux droits à accepter.", System: true));
                     hinted = true;
                     await Task.Delay(TimeSpan.FromSeconds(10), ct);
                     continue;
@@ -245,12 +264,13 @@ sealed class TwitchChatSource : ChatSource
                     switch (root.GetProperty("metadata").GetProperty("message_type").GetString())
                     {
                         case "session_welcome":
-                            await twitch.SubscribeRedemptionsAsync(root.GetProperty("payload").GetProperty("session").GetProperty("id").GetString()!, ct);
-                            redemptions = true;
+                            var done = await twitch.SubscribeEventsAsync(root.GetProperty("payload").GetProperty("session").GetProperty("id").GetString()!, ct);
+                            redemptions = done.Contains("channel.channel_points_custom_reward_redemption.add");
                             delay = 3;
                             break;
                         case "notification":
-                            if (ParseRedemption(root.GetProperty("payload").GetProperty("event")) is { } m) Emit(m);
+                            var payload = root.GetProperty("payload");
+                            if (ParseNotification(payload.GetProperty("subscription").GetProperty("type").GetString() ?? "", payload.GetProperty("event")) is { } m) Emit(m);
                             break;
                         case "session_reconnect": case "revocation": goto reconnect;
                     }
@@ -258,11 +278,49 @@ sealed class TwitchChatSource : ChatSource
                 reconnect:;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { break; }
-            catch (Exception e) { RunLog.Write("récompenses Twitch (EventSub) : " + e.Message); }
+            catch (Exception e) { RunLog.Write("événements Twitch (EventSub) : " + e.Message); }
             redemptions = false;
             try { await Task.Delay(TimeSpan.FromSeconds(delay), ct); } catch (OperationCanceledException) { break; }
             delay = Math.Min(delay * 2, 60);
         }
+    }
+
+    /// <summary>one EventSub notification as a chat row (null when it is not worth a row)</summary>
+    public static ChatMessage? ParseNotification(string type, JsonElement e)
+    {
+        try
+        {
+            string Str(JsonElement o, string name) => o.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
+            ChatMessage Row(string author, string text, string kind, string label) => new(DateTime.Now, "twitch", author, text, null, Kind: kind, Extra: label);
+            switch (type)
+            {
+                case "channel.channel_points_custom_reward_redemption.add":
+                    return ParseRedemption(e);
+                case "channel.follow":
+                    return Row(Str(e, "user_name"), "suit la chaîne", "follow", "Follow");
+                case "channel.hype_train.begin":
+                    return Row("Hype train", $"commence (niveau {(e.TryGetProperty("level", out var lv) ? lv.GetInt32() : 1)})", "hype", "Hype train");
+                case "channel.hype_train.end":
+                    return Row("Hype train", $"terminé au niveau {(e.TryGetProperty("level", out var lv2) ? lv2.GetInt32() : 1)}", "hype", "Hype train");
+                case "channel.poll.begin":
+                    return Row("Sondage", Str(e, "title") + " : " + string.Join(" / ", e.GetProperty("choices").EnumerateArray().Select(c => Str(c, "title"))), "poll", "Sondage");
+                case "channel.poll.end":
+                    return Row("Sondage", Str(e, "title") + " : " + string.Join(" / ", e.GetProperty("choices").EnumerateArray().Select(c => $"{Str(c, "title")} ({(c.TryGetProperty("votes", out var vo) ? vo.GetInt32() : 0)})")), "poll", "Sondage terminé");
+                case "channel.prediction.begin":
+                    return Row("Prédiction", Str(e, "title") + " : " + string.Join(" / ", e.GetProperty("outcomes").EnumerateArray().Select(o => Str(o, "title"))), "prediction", "Prédiction");
+                case "channel.prediction.lock":
+                    return Row("Prédiction", Str(e, "title") + " : les paris sont fermés", "prediction", "Prédiction");
+                case "channel.prediction.end":
+                    var winner = Str(e, "winning_outcome_id");
+                    var won = e.GetProperty("outcomes").EnumerateArray().FirstOrDefault(o => Str(o, "id") == winner);
+                    return Row("Prédiction", Str(e, "title") + (Str(e, "status") == "resolved" && won.ValueKind == JsonValueKind.Object ? " : gagnant « " + Str(won, "title") + " »" : " : annulée"), "prediction", "Prédiction terminée");
+                case "automod.message.hold":
+                    var text = e.TryGetProperty("message", out var msg) ? Str(msg, "text") : "";
+                    return new ChatMessage(DateTime.Now, "twitch", Str(e, "user_name"), text, null, Kind: "automod", Extra: "AutoMod : à valider", UserId: Str(e, "user_id"), MessageId: Str(e, "message_id"));
+            }
+        }
+        catch (Exception ex) { RunLog.Write($"événement Twitch {type} illisible : {ex.Message}"); }
+        return null;
     }
 
     public static ChatMessage? ParseRedemption(JsonElement e)
@@ -284,6 +342,14 @@ sealed class TwitchChatSource : ChatSource
         if (socket is not { State: WebSocketState.Open }) throw new InvalidOperationException("chat Twitch non connecté");
         if (!P.HasScope("chat:edit")) throw new InvalidOperationException("reconnecte Twitch (droit d'écriture manquant)");
         await SendTextAsync(socket, $"PRIVMSG {channel} :{text}", ct);
+    }
+
+    public override async Task SendReplyAsync(string text, ChatMessage parent, CancellationToken ct)
+    {
+        var socket = ws;
+        if (socket is not { State: WebSocketState.Open }) throw new InvalidOperationException("chat Twitch non connecté");
+        if (!P.HasScope("chat:edit")) throw new InvalidOperationException("reconnecte Twitch (droit d'écriture manquant)");
+        await SendTextAsync(socket, parent.MessageId == null ? $"PRIVMSG {channel} :{text}" : $"@reply-parent-msg-id={parent.MessageId} PRIVMSG {channel} :{text}", ct);
     }
 
     static readonly Regex Irc = new(@"^(?:@(?<tags>\S+) )?(?::(?<prefix>\S+) )?(?<cmd>[A-Z]+) (?<rest>.*)$", RegexOptions.Compiled);
@@ -347,7 +413,7 @@ sealed class TwitchChatSource : ChatSource
         // Twitch's own GIF messages: the text is only "[GIF by Name]", the image is in the "gifs" tag ("start-end|id|url", comma separated)
         var gif = Tag("gifs").Split(',', StringSplitOptions.RemoveEmptyEntries).Select(g => g.Split('|', 3)).FirstOrDefault(p => p.Length == 3 && p[2].StartsWith("https://"))?[2];
         if (gif != null && k == "message") k = "gif";
-        return new ChatMessage(DateTime.Now, "twitch", name, text, color, Kind: k, Extra: ex, Badges: badges, Emotes: emotes, SourceRoom: Tag("source-room-id") is { Length: > 0 } room ? room : null, UserId: Tag("user-id") is { Length: > 0 } uid2 ? uid2 : null, MessageId: Tag("id") is { Length: > 0 } mid ? mid : null, GifUrl: gif); // source-room-id only exists during a shared chat (Stream Together)
+        return new ChatMessage(DateTime.Now, "twitch", name, text, color, Kind: k, Extra: ex, Badges: badges, Emotes: emotes, SourceRoom: Tag("source-room-id") is { Length: > 0 } room ? room : null, UserId: Tag("user-id") is { Length: > 0 } uid2 ? uid2 : null, MessageId: Tag("id") is { Length: > 0 } mid ? mid : null, GifUrl: gif, ReplyName: Tag("reply-parent-display-name") is { Length: > 0 } rn ? rn : null, ReplyBody: Tag("reply-parent-msg-body") is { Length: > 0 } rb ? rb : null); // source-room-id only exists during a shared chat (Stream Together)
     }
 
     /// <summary>the "emotes" tag ("25:0-4,12-16/1902:6-10": id, then first-last positions in code points) as spans of the text</summary>
@@ -380,18 +446,20 @@ sealed class KickChatSource : ChatSource
 {
     // the relay address is filled in after "wrangler deploy" (see relay/README.md)
     const string RelayUrl = "wss://streamlauncher-kick-relay.slide598.workers.dev/ws";
-    static readonly string[] Events = { "chat.message.sent", "channel.subscription.new", "channel.subscription.renewal", "channel.subscription.gifts", "channel.reward.redemption.updated" };
+    static readonly string[] Events = { "chat.message.sent", "channel.subscription.new", "channel.subscription.renewal", "channel.subscription.gifts", "channel.reward.redemption.updated", "channel.followed" };
 
     public override string PlatformId => "kick";
     public override bool CanSend => P.Connected && P.HasScope("chat:write");
 
     public override string? ModerationBlocked(ModKind kind, ChatMessage m)
     {
-        if (kind is ModKind.Mod or ModKind.Unmod or ModKind.Vip or ModKind.Unvip) return "pas dans l'API de Kick";
+        if (kind is ModKind.Mod or ModKind.Unmod or ModKind.Vip or ModKind.Unvip or ModKind.Clear) return "pas dans l'API de Kick";
         if (m.UserId == null || (kind == ModKind.Delete && m.MessageId == null)) return "message sans identifiant";
         const string how = "reconnecte Kick (la modération doit être activée sur l'application Kick)";
         return kind == ModKind.Delete ? MissingRight("moderation:chat_message:manage", how) : MissingRight("moderation:ban", how);
     }
+
+    public override async Task<string?> UserIdAsync(string login, CancellationToken ct) => await ((KickPlatform)P).UserIdBySlugAsync(login, ct);
 
     public override Task ModerateAsync(ModKind kind, ChatMessage m, int seconds, CancellationToken ct)
     {
@@ -405,19 +473,50 @@ sealed class KickChatSource : ChatSource
         };
     }
 
+    bool relayDown; // the user was told that the relay cannot be reached (told once, then once more when it is back)
+
+    void Alert(string text) => Emit(new ChatMessage(DateTime.Now, "kick", "Stream Launcher", text, System: true));
+
+    InvalidOperationException RelayLost(string status, string alert)
+    {
+        if (!relayDown) { relayDown = true; Alert(alert); }
+        return new InvalidOperationException(status);
+    }
+
     protected override async Task ReadAsync(CancellationToken ct)
     {
         if (!P.HasScope("events:subscribe")) { SetStatus("Reconnecte Kick pour lire le chat (nouveau droit « événements »)", false); await Task.Delay(TimeSpan.FromSeconds(20), ct); return; }
         SetStatus("Connexion…", false);
-        await ((KickPlatform)P).SubscribeEventsAsync(Events, ct);
+        await ((KickPlatform)P).SubscribeEventsAsync(Events, ct); // a refusal here comes from Kick itself, not from the relay
 
         using var socket = new ClientWebSocket();
-        await socket.ConnectAsync(new Uri($"{Environment.GetEnvironmentVariable("STREAMLAUNCHER_KICK_RELAY") ?? RelayUrl}/{P.UserId}"), ct);
-        SetStatus($"Connecté (lecture : {P.UserName})", true);
-        using var keepAlive = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        _ = Task.Run(async () => // the relay answers "pong" by itself: the connection is never idle
+        try
         {
-            try { while (true) { await Task.Delay(TimeSpan.FromSeconds(30), keepAlive.Token); await SendTextAsync(socket, "ping", keepAlive.Token); } }
+            using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            limit.CancelAfter(TimeSpan.FromSeconds(15));
+            await socket.ConnectAsync(new Uri($"{Environment.GetEnvironmentVariable("STREAMLAUNCHER_KICK_RELAY") ?? RelayUrl}/{P.UserId}"), limit.Token);
+        }
+        catch (Exception e) when (!ct.IsCancellationRequested && e is WebSocketException or HttpRequestException or IOException or OperationCanceledException)
+        {
+            throw RelayLost("relais du chat Kick injoignable, nouvelle tentative automatique",
+                "Kick : le relais du chat est injoignable (service Cloudflare ou connexion Internet). La lecture du chat Kick est interrompue, l'envoi reste possible. L'application réessaie toute seule.");
+        }
+        if (relayDown) { relayDown = false; Alert("Kick : lecture du chat rétablie."); }
+        SetStatus($"Connecté (lecture : {P.UserName})", true);
+
+        var lastFrame = new long[] { DateTime.UtcNow.Ticks };
+        using var keepAlive = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        _ = Task.Run(async () => // the relay answers "pong" by itself: no frame for 80 s means the connection died silently
+        {
+            try
+            {
+                while (true)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(30), keepAlive.Token);
+                    if (DateTime.UtcNow.Ticks - Volatile.Read(ref lastFrame[0]) > TimeSpan.FromSeconds(80).Ticks) { socket.Abort(); return; }
+                    await SendTextAsync(socket, "ping", keepAlive.Token);
+                }
+            }
             catch { }
         });
         try
@@ -425,7 +524,8 @@ sealed class KickChatSource : ChatSource
             while (true)
             {
                 var frame = await ReceiveTextAsync(socket, ct);
-                if (frame == null) throw new InvalidOperationException("connexion fermée par le relais");
+                if (frame == null) throw new WebSocketException("fermée");
+                Volatile.Write(ref lastFrame[0], DateTime.UtcNow.Ticks);
                 if (frame == "pong") continue;
                 try
                 {
@@ -438,13 +538,24 @@ sealed class KickChatSource : ChatSource
                 catch (JsonException) { }
             }
         }
+        catch (Exception e) when (!ct.IsCancellationRequested && e is WebSocketException or IOException or OperationCanceledException)
+        {
+            throw RelayLost("connexion au relais du chat Kick perdue, reconnexion automatique",
+                "Kick : la connexion au relais du chat est perdue. Les messages Kick n'arrivent plus pour l'instant ; l'application se reconnecte toute seule.");
+        }
         finally { keepAlive.Cancel(); }
     }
 
     public override Task SendAsync(string text, CancellationToken ct)
     {
         if (!P.HasScope("chat:write")) throw new InvalidOperationException("reconnecte Kick (droit « écrire dans le chat » non accordé : à activer sur l'application Kick)");
-        return ((KickPlatform)P).SendChatAsync(text, ct);
+        return ((KickPlatform)P).SendChatAsync(Emotes.ToKick(text), null, ct);
+    }
+
+    public override Task SendReplyAsync(string text, ChatMessage parent, CancellationToken ct)
+    {
+        if (!P.HasScope("chat:write")) throw new InvalidOperationException("reconnecte Kick (droit « écrire dans le chat » non accordé : à activer sur l'application Kick)");
+        return ((KickPlatform)P).SendChatAsync(Emotes.ToKick(text), parent.MessageId, ct);
     }
 
     static readonly Regex Emote = new(@"\[emote:(\d+):([^\]]+)\]", RegexOptions.Compiled);
@@ -472,7 +583,9 @@ sealed class KickChatSource : ChatSource
             var text = sb.ToString();
             return new ChatMessage(DateTime.Now, "kick", sender.GetProperty("username").GetString() ?? "?", text, color, Kind: ChatKinds.GifLink.IsMatch(text) ? "gif" : "message", Emotes: spans.Count == 0 ? null : spans.ToArray(),
                 UserId: sender.TryGetProperty("user_id", out var uid) && uid.ValueKind == JsonValueKind.Number ? uid.GetInt64().ToString() : null,
-                MessageId: r.TryGetProperty("message_id", out var mid) ? mid.GetString() : null);
+                MessageId: r.TryGetProperty("message_id", out var mid) ? mid.GetString() : null,
+                ReplyName: r.TryGetProperty("replies_to", out var rt) && rt.ValueKind == JsonValueKind.Object && rt.TryGetProperty("sender", out var rs) && rs.ValueKind == JsonValueKind.Object && rs.TryGetProperty("username", out var ru) ? ru.GetString() : null,
+                ReplyBody: rt.ValueKind == JsonValueKind.Object && rt.TryGetProperty("content", out var rc) ? Emote.Replace(rc.GetString() ?? "", "$2") : null);
         }
         catch { return null; }
     }
@@ -492,6 +605,8 @@ sealed class KickChatSource : ChatSource
                     var reward = r.GetProperty("reward");
                     var input = r.TryGetProperty("user_input", out var ui) ? ui.GetString() : "";
                     return new ChatMessage(DateTime.Now, "kick", User("redeemer"), $"{reward.GetProperty("title").GetString()} {input}".Trim(), null, Kind: "reward", Extra: "Récompense");
+                case "channel.followed":
+                    return new ChatMessage(DateTime.Now, "kick", User("follower"), "suit la chaîne", null, Kind: "follow", Extra: "Follow");
                 case "channel.subscription.new":
                     return new ChatMessage(DateTime.Now, "kick", User("subscriber"), "s'abonne", null, Kind: "sub", Extra: "Abonnement");
                 case "channel.subscription.renewal":
@@ -518,7 +633,7 @@ sealed class YouTubeChatSource : ChatSource
     public override string? ModerationBlocked(ModKind kind, ChatMessage m)
     {
         if (kind == ModKind.Unban) return "à faire dans YouTube Studio";
-        if (kind is ModKind.Vip or ModKind.Unvip) return "pas dans l'API de YouTube";
+        if (kind is ModKind.Vip or ModKind.Unvip or ModKind.Clear) return "pas dans l'API de YouTube";
         if (chatId == null) return "aucune diffusion YouTube active";
         return m.UserId == null || (kind == ModKind.Delete && m.MessageId == null) ? "message sans identifiant" : null;
     }

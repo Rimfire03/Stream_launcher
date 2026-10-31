@@ -69,6 +69,8 @@ class StreamingStore
     public List<string> ChatOff { get; set; } = new();
     /// <summary>"platform:kind" pairs hidden in the unified chat (everything is shown by default)</summary>
     public List<string> ChatHidden { get; set; } = new();
+    /// <summary>"platform:kind" events and alerts switched on (they are all off by default; see ChatKinds.EventKinds)</summary>
+    public List<string> ChatShown { get; set; } = new();
     /// <summary>sound when a message arrives after a quiet moment</summary>
     public bool ChatSoundOn { get; set; } = true;
     public int ChatSoundDelay { get; set; } = 60;
@@ -208,6 +210,9 @@ abstract class Platform
     public bool Configured => ClientId != "" && (!NeedsSecret || Secret != "");
     public bool Connected => Auth.Refresh != "" || Auth.Access != "";
 
+    /// <summary>people watching the live right now, null when not live (or unknown)</summary>
+    public virtual Task<int?> ViewersAsync(CancellationToken ct) => Task.FromResult<int?>(null);
+
     /// <summary>rights the unified chat needs; an account connected before they existed has to be connected again</summary>
     protected virtual string[] WantedScopes => Array.Empty<string>();
 
@@ -327,8 +332,8 @@ sealed class TwitchPlatform : Platform
 {
     static string Api => Environment.GetEnvironmentVariable("STREAMLAUNCHER_TWITCH_API") ?? "https://api.twitch.tv/helix";
     static string OAuth => Environment.GetEnvironmentVariable("STREAMLAUNCHER_TWITCH_AUTH") ?? "https://id.twitch.tv/oauth2";
-    protected override string[] WantedScopes => new[] { "chat:read", "chat:edit", "channel:read:redemptions", "moderator:manage:banned_users", "moderator:manage:chat_messages", "channel:manage:moderators", "channel:manage:vips" };
-    const string Scope = "channel:manage:broadcast chat:read chat:edit channel:read:redemptions moderator:manage:banned_users moderator:manage:chat_messages channel:manage:moderators channel:manage:vips"; // chat:* = unified chat window (IRC), redemptions = channel point rewards (EventSub)
+    protected override string[] WantedScopes => new[] { "chat:read", "chat:edit", "channel:read:redemptions", "moderator:manage:banned_users", "moderator:manage:chat_messages", "channel:manage:moderators", "channel:manage:vips", "moderator:read:followers", "channel:read:hype_train", "channel:read:polls", "channel:read:predictions", "moderator:manage:automod", "clips:edit", "channel:manage:raids", "moderator:manage:shoutouts", "moderator:manage:announcements" };
+    const string Scope = "channel:manage:broadcast chat:read chat:edit channel:read:redemptions moderator:manage:banned_users moderator:manage:chat_messages channel:manage:moderators channel:manage:vips moderator:read:followers channel:read:hype_train channel:read:polls channel:read:predictions moderator:manage:automod clips:edit channel:manage:raids moderator:manage:shoutouts moderator:manage:announcements"; // chat:* = unified chat window (IRC), redemptions = channel point rewards (EventSub)
 
     protected override string DefaultClientId => "gwjqrmds3c2ewc58x51mnr99v2d74z"; // Stream Launcher's Twitch application (public client)
     public override string Id => "twitch";
@@ -387,14 +392,76 @@ sealed class TwitchPlatform : Platform
     protected override async Task RefreshAsync(CancellationToken ct) =>
         Store(await PostFormAsync(OAuth + "/token", new() { ["grant_type"] = "refresh_token", ["refresh_token"] = Auth.Refresh, ["client_id"] = ClientId }, ct));
 
-    /// <summary>asks Twitch to push the channel point reward redemptions of the channel to this EventSub WebSocket session</summary>
-    public Task SubscribeRedemptionsAsync(string sessionId, CancellationToken ct) => SendAsync(HttpMethod.Post, "/eventsub/subscriptions", new
+    /// <summary>EventSub events shown in the chat: (type, version, right needed, also needs the moderator id)</summary>
+    public static readonly (string Type, string Version, string Scope, bool Moderator)[] EventTypes =
     {
-        type = "channel.channel_points_custom_reward_redemption.add",
-        version = "1",
-        condition = new { broadcaster_user_id = Auth.UserId },
-        transport = new { method = "websocket", session_id = sessionId },
-    }, ct);
+        ("channel.channel_points_custom_reward_redemption.add", "1", "channel:read:redemptions", false),
+        ("channel.follow", "2", "moderator:read:followers", true),
+        ("channel.hype_train.begin", "2", "channel:read:hype_train", false),
+        ("channel.hype_train.end", "2", "channel:read:hype_train", false),
+        ("channel.poll.begin", "1", "channel:read:polls", false),
+        ("channel.poll.end", "1", "channel:read:polls", false),
+        ("channel.prediction.begin", "1", "channel:read:predictions", false),
+        ("channel.prediction.lock", "1", "channel:read:predictions", false),
+        ("channel.prediction.end", "1", "channel:read:predictions", false),
+        ("automod.message.hold", "2", "moderator:manage:automod", true),
+    };
+
+    /// <summary>asks Twitch to push these events of the channel to this EventSub WebSocket session (only those whose right was granted)</summary>
+    /// <returns>the types that were subscribed</returns>
+    public async Task<HashSet<string>> SubscribeEventsAsync(string sessionId, CancellationToken ct)
+    {
+        var done = new HashSet<string>();
+        foreach (var (type, version, scope, moderator) in EventTypes)
+        {
+            if (!HasScope(scope)) continue;
+            try
+            {
+                await SendAsync(HttpMethod.Post, "/eventsub/subscriptions", new
+                {
+                    type, version,
+                    condition = moderator ? (object)new { broadcaster_user_id = Auth.UserId, moderator_user_id = Auth.UserId } : new { broadcaster_user_id = Auth.UserId },
+                    transport = new { method = "websocket", session_id = sessionId },
+                }, ct);
+                done.Add(type);
+            }
+            catch (Exception e) { RunLog.Write($"EventSub {type} : {e.Message}"); }
+        }
+        return done;
+    }
+
+    // ---- during the live
+
+    public override async Task<int?> ViewersAsync(CancellationToken ct)
+    {
+        var d = (await SendAsync(HttpMethod.Get, "/streams?user_id=" + Auth.UserId, null, ct)).GetProperty("data");
+        return d.GetArrayLength() > 0 ? d[0].GetProperty("viewer_count").GetInt32() : null;
+    }
+
+    /// <returns>the address of the new clip</returns>
+    public async Task<string> ClipAsync(CancellationToken ct)
+    {
+        var r = await SendAsync(HttpMethod.Post, $"/clips?broadcaster_id={Auth.UserId}", null, ct);
+        return "https://clips.twitch.tv/" + r.GetProperty("data")[0].GetProperty("id").GetString();
+    }
+
+    public Task MarkerAsync(string description, CancellationToken ct) =>
+        SendAsync(HttpMethod.Post, "/streams/markers", new { user_id = Auth.UserId, description = description.Length > 140 ? description[..140] : description }, ct);
+
+    public Task RaidAsync(string toUserId, CancellationToken ct) => SendAsync(HttpMethod.Post, $"/raids?from_broadcaster_id={Auth.UserId}&to_broadcaster_id={toUserId}", null, ct);
+
+    public Task CancelRaidAsync(CancellationToken ct) => SendAsync(HttpMethod.Delete, $"/raids?broadcaster_id={Auth.UserId}", null, ct);
+
+    public Task ShoutoutAsync(string toUserId, CancellationToken ct) =>
+        SendAsync(HttpMethod.Post, $"/chat/shoutouts?from_broadcaster_id={Auth.UserId}&to_broadcaster_id={toUserId}&moderator_id={Auth.UserId}", null, ct);
+
+    /// <param name="color">primary (channel colour), blue, green, orange or purple</param>
+    public Task AnnounceAsync(string message, string color, CancellationToken ct) =>
+        SendAsync(HttpMethod.Post, $"/chat/announcements?broadcaster_id={Auth.UserId}&moderator_id={Auth.UserId}", new { message = message.Length > 500 ? message[..500] : message, color }, ct);
+
+    /// <summary>accepts or refuses a message held by AutoMod</summary>
+    public Task AutomodAsync(string messageId, bool allow, CancellationToken ct) =>
+        SendAsync(HttpMethod.Post, "/moderation/automod/message", new { user_id = Auth.UserId, msg_id = messageId, action = allow ? "ALLOW" : "DENY" }, ct);
 
     async Task<JsonElement> SendAsync(HttpMethod method, string path, object? body, CancellationToken ct)
     {
@@ -419,7 +486,25 @@ sealed class TwitchPlatform : Platform
     public Task SetRoleAsync(string path, string userId, bool give, CancellationToken ct) =>
         SendAsync(give ? HttpMethod.Post : HttpMethod.Delete, $"/{path}?broadcaster_id={Auth.UserId}&user_id={Uri.EscapeDataString(userId)}", null, ct);
 
-    public Task DeleteMessageAsync(string messageId, CancellationToken ct) => SendAsync(HttpMethod.Delete, $"/moderation/chat?{Mod}&message_id={Uri.EscapeDataString(messageId)}", null, ct);
+    /// <param name="messageId">null clears the whole chat</param>
+    public Task DeleteMessageAsync(string? messageId, CancellationToken ct) =>
+        SendAsync(HttpMethod.Delete, $"/moderation/chat?{Mod}" + (messageId == null ? "" : "&message_id=" + Uri.EscapeDataString(messageId)), null, ct);
+
+    /// <summary>the emotes of Twitch itself and of the streamer's channel: (name, image url)</summary>
+    public async Task<List<(string Name, string Url)>> EmotesAsync(CancellationToken ct)
+    {
+        var list = new List<(string, string)>();
+        foreach (var path in new[] { "/chat/emotes/global", "/chat/emotes?broadcaster_id=" + Auth.UserId })
+            foreach (var e in (await SendAsync(HttpMethod.Get, path, null, ct)).GetProperty("data").EnumerateArray())
+                list.Add((e.GetProperty("name").GetString() ?? "", $"https://static-cdn.jtvnw.net/emoticons/v2/{e.GetProperty("id").GetString()}/default/dark/2.0"));
+        return list;
+    }
+
+    public async Task<string?> UserIdByLoginAsync(string login, CancellationToken ct)
+    {
+        var d = (await SendAsync(HttpMethod.Get, "/users?login=" + Uri.EscapeDataString(login.TrimStart('@')), null, ct)).GetProperty("data");
+        return d.GetArrayLength() > 0 ? d[0].GetProperty("id").GetString() : null;
+    }
 
     /// <summary>badge images: "set/version" -> url (global badges, then the channel's own: subscriber months, bits...)</summary>
     public async Task<Dictionary<string, string>> BadgeUrlsAsync(CancellationToken ct)
@@ -664,12 +749,26 @@ sealed class KickPlatform : Platform
     public Task UnbanAsync(long userId, CancellationToken ct) =>
         SendAsync(HttpMethod.Delete, "/v1/moderation/bans", new { broadcaster_user_id = long.Parse(Auth.UserId), user_id = userId }, ct);
 
+    public override async Task<int?> ViewersAsync(CancellationToken ct)
+    {
+        var r = await SendAsync(HttpMethod.Get, "/v1/livestreams?broadcaster_user_id=" + Auth.UserId, null, ct);
+        return r.TryGetProperty("data", out var d) && d.ValueKind == JsonValueKind.Array && d.GetArrayLength() > 0 && d[0].TryGetProperty("viewer_count", out var v) ? v.GetInt32() : null;
+    }
+
+    public async Task<string?> UserIdBySlugAsync(string slug, CancellationToken ct)
+    {
+        var r = await SendAsync(HttpMethod.Get, "/v1/channels?slug=" + Uri.EscapeDataString(slug.TrimStart('@')), null, ct);
+        return r.TryGetProperty("data", out var d) && d.ValueKind == JsonValueKind.Array && d.GetArrayLength() > 0 ? d[0].GetProperty("broadcaster_user_id").GetInt64().ToString() : null;
+    }
+
     public Task DeleteMessageAsync(string messageId, CancellationToken ct) => SendAsync(HttpMethod.Delete, "/v1/chat/" + Uri.EscapeDataString(messageId), null, ct);
 
     /// <summary>a chat message as the streamer, in their own channel (scope chat:write)</summary>
-    public async Task SendChatAsync(string text, CancellationToken ct)
+    public async Task SendChatAsync(string text, string? replyTo, CancellationToken ct)
     {
-        var r = await SendAsync(HttpMethod.Post, "/v1/chat", new { broadcaster_user_id = long.Parse(Auth.UserId), content = text, type = "user" }, ct);
+        var body = new Dictionary<string, object> { ["broadcaster_user_id"] = long.Parse(Auth.UserId), ["content"] = text, ["type"] = "user" };
+        if (replyTo != null) body["reply_to_message_id"] = replyTo;
+        var r = await SendAsync(HttpMethod.Post, "/v1/chat", body, ct);
         if (r.ValueKind == JsonValueKind.Object && r.TryGetProperty("data", out var d) && d.TryGetProperty("is_sent", out var ok) && !ok.GetBoolean())
             throw new InvalidOperationException("Kick : message non envoyé");
     }
