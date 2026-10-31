@@ -150,8 +150,7 @@ sealed class ChatWindow : Form
     bool IsRole(ChatMessage m, string role)
     {
         if (roles.TryGetValue($"{m.PlatformId}:{m.UserId}:{role}", out var known)) return known;
-        var prefix = role == "mod" ? "moderator/" : "vip/";
-        return m.Badges?.Any(b => b.StartsWith(prefix) || (role == "mod" && b == "yt-moderator")) == true;
+        return m.Badges?.Any(b => role == "mod" ? b.StartsWith("moderator/") || b.StartsWith("lead_moderator/") || b == "yt-moderator" : b.StartsWith("vip/")) == true; // Twitch lead moderators carry their own badge
     }
 
     void ShowAuthorMenu(ChatMessage m, Point at)
@@ -162,9 +161,11 @@ sealed class ChatWindow : Form
         if (src != null && !m.Mine)
         {
             menu.Items.Add(new ToolStripSeparator());
+            bool modNow = IsRole(m, "mod");
             ToolStripMenuItem Action(string text, ModKind kind, int seconds, string done, bool confirm = false)
             {
                 var blocked = src.ModerationBlocked(kind, m);
+                if (blocked == null && m.PlatformId == "twitch" && modNow && kind is ModKind.Timeout or ModKind.Ban) blocked = "Twitch refuse d'exclure un modérateur : retire d'abord son rôle de modérateur";
                 var item = new ToolStripMenuItem(blocked == null ? text : text + " (indisponible)") { Enabled = blocked == null, ToolTipText = blocked };
                 item.Click += async (_, _) =>
                 {
@@ -196,11 +197,12 @@ sealed class ChatWindow : Form
             menu.Items.Add(Action("Bannir définitivement", ModKind.Ban, 0, "banni", confirm: true));
             menu.Items.Add(Action("Débannir", ModKind.Unban, 0, "débanni"));
             menu.Items.Add(new ToolStripSeparator());
-            bool isMod = IsRole(m, "mod"), isVip = IsRole(m, "vip");
+            bool isMod = modNow, isVip = IsRole(m, "vip");
             if (m.Badges?.Contains("broadcaster/1") != true) // the streamer is neither promoted nor demoted
             {
-                menu.Items.Add(isMod ? Action("Retirer modérateur", ModKind.Unmod, 0, "n'est plus modérateur") : Action("Nommer modérateur", ModKind.Mod, 0, "est modérateur"));
-                menu.Items.Add(isVip ? Action("Retirer VIP", ModKind.Unvip, 0, "n'est plus VIP") : Action("Nommer VIP", ModKind.Vip, 0, "est VIP"));
+                menu.Items.Add(isMod ? Action(m.Badges?.Any(b => b.StartsWith("lead_moderator/")) == true ? "Retirer modérateur principal" : "Retirer modérateur", ModKind.Unmod, 0, "n'est plus modérateur") : Action("Nommer modérateur", ModKind.Mod, 0, "est modérateur"));
+                if (isVip) menu.Items.Add(Action("Retirer VIP", ModKind.Unvip, 0, "n'est plus VIP"));
+                else if (!isMod) menu.Items.Add(Action("Nommer VIP", ModKind.Vip, 0, "est VIP")); // a moderator cannot be VIP
             }
         }
         menu.Show(view, at);
