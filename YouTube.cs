@@ -126,6 +126,21 @@ sealed class YouTubePlatform : Platform
     public Task<JsonElement> LiveChatMessagesAsync(string chatId, string? pageToken, CancellationToken ct) =>
         SendAsync(HttpMethod.Get, $"/liveChat/messages?liveChatId={Uri.EscapeDataString(chatId)}&part=snippet,authorDetails&maxResults=200" + (pageToken == null ? "" : "&pageToken=" + Uri.EscapeDataString(pageToken)), null, ct);
 
+    /// <param name="seconds">length of a temporary ban, null for a permanent one</param>
+    public Task BanAsync(string chatId, string channelId, int? seconds, CancellationToken ct) =>
+        SendAsync(HttpMethod.Post, "/liveChat/bans?part=snippet", new
+        {
+            snippet = new
+            {
+                liveChatId = chatId,
+                type = seconds == null ? "permanent" : "temporary",
+                banDurationSeconds = seconds,
+                bannedUserDetails = new { channelId },
+            },
+        }, ct);
+
+    public Task DeleteMessageAsync(string messageId, CancellationToken ct) => SendAsync(HttpMethod.Delete, "/liveChat/messages?id=" + Uri.EscapeDataString(messageId), null, ct);
+
     /// <summary>sends a message (YouTube refuses more than 200 characters)</summary>
     public Task LiveChatSendAsync(string chatId, string text, CancellationToken ct) =>
         SendAsync(HttpMethod.Post, "/liveChat/messages?part=snippet",

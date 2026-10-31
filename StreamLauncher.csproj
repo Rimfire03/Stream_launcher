@@ -10,7 +10,7 @@
     <ApplicationIcon>assets\app.ico</ApplicationIcon>
     <Product>Stream Launcher</Product>
     <Company>TomLine prod&amp;co</Company>
-    <Version>0.1.46</Version>
+    <Version>0.1.47</Version>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>

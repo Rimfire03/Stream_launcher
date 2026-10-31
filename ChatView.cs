@@ -284,6 +284,31 @@ sealed class ChatView : Control
         Sync();
     }
 
+    // ---- right click on an author name (copy the name, moderation: see ChatWindow)
+    public event Action<ChatMessage, Point>? AuthorRightClicked;
+
+    protected override void OnMouseUp(MouseEventArgs e)
+    {
+        base.OnMouseUp(e);
+        if (e.Button != MouseButtons.Right) return;
+        int y = -offset;
+        for (int i = 0; i < items.Count; i++)
+        {
+            if (e.Y >= y && e.Y < y + heights[i])
+            {
+                var m = items[i];
+                if (m.System || m.PlatformId == "system") return;
+                int x = 46 + Logo + 4 + (m.SourceRoom != null ? Logo + 4 : 0);
+                if (ShowBadges && m.Badges != null) foreach (var b in m.Badges) if (ChatBadges.Known(b)) x += Logo + 2;
+                int w = TextRenderer.MeasureText(m.Author, bold, new Size(int.MaxValue, 0), TextFormatFlags.NoPadding).Width;
+                if (e.X >= x && e.X <= x + w + 2 && e.Y <= y + 3 + Logo + 6) AuthorRightClicked?.Invoke(m, e.Location);
+                return;
+            }
+            y += heights[i];
+            if (y > ClientSize.Height) return;
+        }
+    }
+
     // ---- layout: the prefix (time, logo, badges, name, label) is drawn by hand, then the text is flowed word by word and emote by emote
 
     const int Emote = 24, EmojiSize = 20;

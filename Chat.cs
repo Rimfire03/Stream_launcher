@@ -11,10 +11,11 @@ using System.Text.RegularExpressions;
 
 /// <param name="Kind">message, highlight, bits, reward, sub, gift, raid, gif (Twitch / Kick) ; superchat, sticker, member, gift (YouTube) : each kind can be hidden per platform</param>
 /// <param name="Extra">short label shown before the text for special messages ("100 bits", "Raid"...)</param>
+/// <param name="UserId">id of the author on the platform, MessageId: id of the message (both needed to moderate)</param>
 /// <param name="SourceRoom">Twitch shared chat: id of the channel the message was sent from</param>
 /// <param name="Badges">Twitch badges as "set/version" (broadcaster/1, subscriber/12...)</param>
 record ChatMessage(DateTime Time, string PlatformId, string Author, string Text, string? Color = null, bool Mine = false, bool System = false,
-    string Kind = "message", string? Extra = null, string[]? Badges = null, EmoteSpan[]? Emotes = null, string? SourceRoom = null);
+    string Kind = "message", string? Extra = null, string[]? Badges = null, EmoteSpan[]? Emotes = null, string? SourceRoom = null, string? UserId = null, string? MessageId = null);
 
 /// <summary>an emote inside the text of a message: UTF-16 position and length of its name, and the image url</summary>
 readonly record struct EmoteSpan(int Start, int Length, string Url);
@@ -45,6 +46,9 @@ static class ChatKinds
     public static readonly Regex GifLink = new(@"(giphy\.com|tenor\.com|\.gif(\?|$|\s))", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 }
 
+/// <summary>what a moderator can do from the chat</summary>
+enum ModKind { Delete, Timeout, Ban, Unban }
+
 abstract class ChatSource : IDisposable
 {
     CancellationTokenSource? cts;
@@ -59,6 +63,14 @@ abstract class ChatSource : IDisposable
 
     /// <summary>true when a message can be sent to this platform now</summary>
     public abstract bool CanSend { get; }
+
+    /// <summary>why this moderation action cannot be done now (null: it can)</summary>
+    public virtual string? ModerationBlocked(ModKind kind, ChatMessage m) => "pas disponible sur cette plateforme";
+
+    /// <param name="seconds">length of a timeout</param>
+    public virtual Task ModerateAsync(ModKind kind, ChatMessage m, int seconds, CancellationToken ct) => throw new NotSupportedException();
+
+    protected string? MissingRight(string scope, string how) => !P.Connected ? "compte non connecté" : P.HasScope(scope) ? null : how;
 
     public void Start()
     {
@@ -138,6 +150,27 @@ sealed class TwitchChatSource : ChatSource
 
     public override string PlatformId => "twitch";
     public override bool CanSend => ws is { State: WebSocketState.Open } && P.HasScope("chat:edit");
+
+    public override string? ModerationBlocked(ModKind kind, ChatMessage m)
+    {
+        if (m.SourceRoom != null) return "message d'une autre chaîne (chat partagé)";
+        if (m.UserId == null || (kind == ModKind.Delete && m.MessageId == null)) return "message sans identifiant";
+        return kind == ModKind.Delete
+            ? MissingRight("moderator:manage:chat_messages", "reconnecte Twitch (nouveau droit de modération)")
+            : MissingRight("moderator:manage:banned_users", "reconnecte Twitch (nouveau droit de modération)");
+    }
+
+    public override Task ModerateAsync(ModKind kind, ChatMessage m, int seconds, CancellationToken ct)
+    {
+        var tw = (TwitchPlatform)P;
+        return kind switch
+        {
+            ModKind.Delete => tw.DeleteMessageAsync(m.MessageId!, ct),
+            ModKind.Timeout => tw.BanAsync(m.UserId!, seconds, ct),
+            ModKind.Ban => tw.BanAsync(m.UserId!, null, ct),
+            _ => tw.UnbanAsync(m.UserId!, ct),
+        };
+    }
 
     protected override async Task ReadAsync(CancellationToken ct)
     {
@@ -293,7 +326,7 @@ sealed class TwitchChatSource : ChatSource
             };
             int offset = sys == "" ? 0 : sys.Length + 3; // the viewer's own text comes after "<system text> : ", the emotes shift with it
             var shifted = emotes?.Select(s => s with { Start = s.Start + offset }).ToArray();
-            return new ChatMessage(DateTime.Now, "twitch", name, sys == "" ? text : sys + (text != "" ? " : " + text : ""), color, Kind: kind, Extra: extra, Badges: badges, Emotes: shifted);
+            return new ChatMessage(DateTime.Now, "twitch", name, sys == "" ? text : sys + (text != "" ? " : " + text : ""), color, Kind: kind, Extra: extra, Badges: badges, Emotes: shifted, UserId: Tag("user-id") is { Length: > 0 } uid ? uid : null);
         }
 
         string k = "message"; string? ex = null;
@@ -301,7 +334,7 @@ sealed class TwitchChatSource : ChatSource
         else if (Tag("custom-reward-id") != "") { k = "reward"; ex = "Récompense"; }
         else if (Tag("msg-id") == "highlighted-message") { k = "highlight"; ex = "Mis en avant"; }
         else if (ChatKinds.GifLink.IsMatch(text)) k = "gif";
-        return new ChatMessage(DateTime.Now, "twitch", name, text, color, Kind: k, Extra: ex, Badges: badges, Emotes: emotes, SourceRoom: Tag("source-room-id") is { Length: > 0 } room ? room : null); // source-room-id only exists during a shared chat (Stream Together)
+        return new ChatMessage(DateTime.Now, "twitch", name, text, color, Kind: k, Extra: ex, Badges: badges, Emotes: emotes, SourceRoom: Tag("source-room-id") is { Length: > 0 } room ? room : null, UserId: Tag("user-id") is { Length: > 0 } uid2 ? uid2 : null, MessageId: Tag("id") is { Length: > 0 } mid ? mid : null); // source-room-id only exists during a shared chat (Stream Together)
     }
 
     /// <summary>the "emotes" tag ("25:0-4,12-16/1902:6-10": id, then first-last positions in code points) as spans of the text</summary>
@@ -338,6 +371,25 @@ sealed class KickChatSource : ChatSource
 
     public override string PlatformId => "kick";
     public override bool CanSend => P.Connected && P.HasScope("chat:write");
+
+    public override string? ModerationBlocked(ModKind kind, ChatMessage m)
+    {
+        if (m.UserId == null || (kind == ModKind.Delete && m.MessageId == null)) return "message sans identifiant";
+        const string how = "reconnecte Kick (la modération doit être activée sur l'application Kick)";
+        return kind == ModKind.Delete ? MissingRight("moderation:chat_message:manage", how) : MissingRight("moderation:ban", how);
+    }
+
+    public override Task ModerateAsync(ModKind kind, ChatMessage m, int seconds, CancellationToken ct)
+    {
+        var k = (KickPlatform)P;
+        return kind switch
+        {
+            ModKind.Delete => k.DeleteMessageAsync(m.MessageId!, ct),
+            ModKind.Timeout => k.BanAsync(long.Parse(m.UserId!), Math.Clamp((seconds + 59) / 60, 1, 10080), ct),
+            ModKind.Ban => k.BanAsync(long.Parse(m.UserId!), null, ct),
+            _ => k.UnbanAsync(long.Parse(m.UserId!), ct),
+        };
+    }
 
     protected override async Task ReadAsync(CancellationToken ct)
     {
@@ -404,7 +456,9 @@ sealed class KickChatSource : ChatSource
             }
             sb.Append(content, pos, content.Length - pos);
             var text = sb.ToString();
-            return new ChatMessage(DateTime.Now, "kick", sender.GetProperty("username").GetString() ?? "?", text, color, Kind: ChatKinds.GifLink.IsMatch(text) ? "gif" : "message", Emotes: spans.Count == 0 ? null : spans.ToArray());
+            return new ChatMessage(DateTime.Now, "kick", sender.GetProperty("username").GetString() ?? "?", text, color, Kind: ChatKinds.GifLink.IsMatch(text) ? "gif" : "message", Emotes: spans.Count == 0 ? null : spans.ToArray(),
+                UserId: sender.TryGetProperty("user_id", out var uid) && uid.ValueKind == JsonValueKind.Number ? uid.GetInt64().ToString() : null,
+                MessageId: r.TryGetProperty("message_id", out var mid) ? mid.GetString() : null);
         }
         catch { return null; }
     }
@@ -447,6 +501,21 @@ sealed class YouTubeChatSource : ChatSource
     public override string PlatformId => "youtube";
     public override bool CanSend => P.Connected && chatId != null;
 
+    public override string? ModerationBlocked(ModKind kind, ChatMessage m)
+    {
+        if (kind == ModKind.Unban) return "à faire dans YouTube Studio";
+        if (chatId == null) return "aucune diffusion YouTube active";
+        return m.UserId == null || (kind == ModKind.Delete && m.MessageId == null) ? "message sans identifiant" : null;
+    }
+
+    public override async Task ModerateAsync(ModKind kind, ChatMessage m, int seconds, CancellationToken ct)
+    {
+        var yt = (YouTubePlatform)P;
+        if (kind == ModKind.Delete) await yt.DeleteMessageAsync(m.MessageId!, ct);
+        else await yt.BanAsync(chatId!, m.UserId!, kind == ModKind.Timeout ? seconds : null, ct);
+        YouTubeQuota.Add(50);
+    }
+
     protected override async Task ReadAsync(CancellationToken ct)
     {
         var yt = (YouTubePlatform)P;
@@ -482,12 +551,14 @@ sealed class YouTubeChatSource : ChatSource
     {
         var sn = i.GetProperty("snippet");
         var author = i.GetProperty("authorDetails").GetProperty("displayName").GetString() ?? "?";
+        var authorId = i.GetProperty("authorDetails").TryGetProperty("channelId", out var ch) ? ch.GetString() : null;
+        var itemId = i.TryGetProperty("id", out var iid) ? iid.GetString() : null;
         string D(string name, string child) => sn.TryGetProperty(name, out var d) && d.TryGetProperty(child, out var c) ? c.GetString() ?? "" : "";
         switch (sn.GetProperty("type").GetString())
         {
             case "textMessageEvent":
                 var text = sn.GetProperty("displayMessage").GetString() ?? "";
-                return new ChatMessage(DateTime.Now, "youtube", author, text, Kind: ChatKinds.GifLink.IsMatch(text) ? "gif" : "message");
+                return new ChatMessage(DateTime.Now, "youtube", author, text, Kind: ChatKinds.GifLink.IsMatch(text) ? "gif" : "message", UserId: authorId, MessageId: itemId);
             case "superChatEvent":
                 return new ChatMessage(DateTime.Now, "youtube", author, D("superChatDetails", "userComment"), Kind: "superchat", Extra: D("superChatDetails", "amountDisplayString") + " Super Chat");
             case "superStickerEvent":

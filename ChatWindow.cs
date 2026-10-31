@@ -58,6 +58,7 @@ sealed class ChatWindow : Form
         input.TextChanged += (_, _) => counter.Text = input.TextLength == 0 ? "" : $"{input.TextLength}/500";
 
         view.ShowBadges = ChatKinds.Shown("twitch", "badges");
+        view.AuthorRightClicked += ShowAuthorMenu;
         foreach (var s in sources)
         {
             s.Message += m => OnUi(() => Append(m));
@@ -134,6 +135,59 @@ sealed class ChatWindow : Form
     }
 
     void AddSystem(string text) => view.AddMessage(new ChatMessage(DateTime.Now, "system", "Stream Launcher", text));
+
+    // ---- right click on a name: copy it, and moderate (timeout with the usual durations, ban, unban, delete the message)
+
+    static readonly (string Label, int Seconds)[] Timeouts =
+    {
+        ("1 minute", 60), ("5 minutes", 300), ("10 minutes", 600), ("30 minutes", 1800), ("1 heure", 3600),
+        ("6 heures", 21600), ("1 jour", 86400), ("1 semaine", 604800), ("2 semaines", 1209600),
+    };
+
+    void ShowAuthorMenu(ChatMessage m, Point at)
+    {
+        var menu = new ContextMenuStrip { ShowItemToolTips = true };
+        menu.Items.Add($"Copier le pseudo ({m.Author})", null, (_, _) => { try { Clipboard.SetText(m.Author); } catch (Exception e) { RunLog.Write("presse-papier : " + e.Message); } });
+        var src = sources.FirstOrDefault(s => s.PlatformId == m.PlatformId);
+        if (src != null && !m.Mine)
+        {
+            menu.Items.Add(new ToolStripSeparator());
+            ToolStripMenuItem Action(string text, ModKind kind, int seconds, string done, bool confirm = false)
+            {
+                var blocked = src.ModerationBlocked(kind, m);
+                var item = new ToolStripMenuItem(blocked == null ? text : text + " (indisponible)") { Enabled = blocked == null, ToolTipText = blocked };
+                item.Click += async (_, _) =>
+                {
+                    if (confirm && MessageBox.Show(this, $"{text} {m.Author} sur {PlatformName(m.PlatformId)} ?", "Modération", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+                    try
+                    {
+                        await src.ModerateAsync(kind, m, seconds, CancellationToken.None);
+                        AddSystem($"{PlatformName(m.PlatformId)} : {m.Author} {done}");
+                    }
+                    catch (Exception e)
+                    {
+                        RunLog.Write($"modération {kind} {m.Author} : {e.Message}");
+                        AddSystem($"Modération impossible ({PlatformName(m.PlatformId)}, {m.Author}) : {e.Message}");
+                    }
+                };
+                return item;
+            }
+            menu.Items.Add(Action("Supprimer le message", ModKind.Delete, 0, "message supprimé"));
+            var timeout = new ToolStripMenuItem("Exclure temporairement");
+            foreach (var (label, seconds) in Timeouts)
+            {
+                if (m.PlatformId == "kick" && seconds > 604800) continue; // Kick stops at 7 days
+                timeout.DropDownItems.Add(Action(label, ModKind.Timeout, seconds, $"exclu pour {label}"));
+            }
+            if (timeout.DropDownItems.Cast<ToolStripMenuItem>().All(i => !i.Enabled)) { timeout.Enabled = false; timeout.ToolTipText = src.ModerationBlocked(ModKind.Timeout, m); }
+            menu.Items.Add(timeout);
+            menu.Items.Add(Action("Bannir définitivement", ModKind.Ban, 0, "banni", confirm: true));
+            menu.Items.Add(Action("Débannir", ModKind.Unban, 0, "débanni"));
+        }
+        menu.Show(view, at);
+    }
+
+    static string PlatformName(string id) => id switch { "twitch" => "Twitch", "kick" => "Kick", "youtube" => "YouTube", _ => id };
 
     // ---- sound: one sound when a message arrives after a quiet moment (users in the exclusion list never count)
 

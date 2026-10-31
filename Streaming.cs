@@ -208,6 +208,20 @@ abstract class Platform
     public bool Configured => ClientId != "" && (!NeedsSecret || Secret != "");
     public bool Connected => Auth.Refresh != "" || Auth.Access != "";
 
+    /// <summary>rights the unified chat needs; an account connected before they existed has to be connected again</summary>
+    protected virtual string[] WantedScopes => Array.Empty<string>();
+
+    /// <summary>why the account should be connected again (shown with a "Reconnecter" button), or null</summary>
+    public string? ReconnectReason
+    {
+        get
+        {
+            if (!Connected) return null;
+            if (WantedScopes.Any(sc => !HasScope(sc))) return "nouveaux droits à accepter";
+            return State == Health.Error && StateText.Contains("reconnecte", StringComparison.OrdinalIgnoreCase) ? "session expirée" : null;
+        }
+    }
+
     public void Disconnect()
     {
         Auth.Access = Auth.Refresh = Auth.UserName = Auth.UserId = "";
@@ -313,7 +327,8 @@ sealed class TwitchPlatform : Platform
 {
     static string Api => Environment.GetEnvironmentVariable("STREAMLAUNCHER_TWITCH_API") ?? "https://api.twitch.tv/helix";
     static string OAuth => Environment.GetEnvironmentVariable("STREAMLAUNCHER_TWITCH_AUTH") ?? "https://id.twitch.tv/oauth2";
-    const string Scope = "channel:manage:broadcast chat:read chat:edit channel:read:redemptions"; // chat:* = unified chat window (IRC), redemptions = channel point rewards (EventSub)
+    protected override string[] WantedScopes => new[] { "chat:read", "chat:edit", "channel:read:redemptions", "moderator:manage:banned_users", "moderator:manage:chat_messages" };
+    const string Scope = "channel:manage:broadcast chat:read chat:edit channel:read:redemptions moderator:manage:banned_users moderator:manage:chat_messages"; // chat:* = unified chat window (IRC), redemptions = channel point rewards (EventSub)
 
     protected override string DefaultClientId => "gwjqrmds3c2ewc58x51mnr99v2d74z"; // Stream Launcher's Twitch application (public client)
     public override string Id => "twitch";
@@ -390,6 +405,17 @@ sealed class TwitchPlatform : Platform
         using var r = await Http.SendAsync(req, ct);
         return await ReadAsync("Twitch", r, ct);
     }
+
+    // ---- moderation (the streamer is the moderator of their own channel)
+    string Mod => $"broadcaster_id={Auth.UserId}&moderator_id={Auth.UserId}";
+
+    /// <param name="seconds">timeout length, null for a ban</param>
+    public Task BanAsync(string userId, int? seconds, CancellationToken ct) =>
+        SendAsync(HttpMethod.Post, $"/moderation/bans?{Mod}", new { data = seconds == null ? (object)new { user_id = userId } : new { user_id = userId, duration = Math.Clamp(seconds.Value, 1, 1209600) } }, ct);
+
+    public Task UnbanAsync(string userId, CancellationToken ct) => SendAsync(HttpMethod.Delete, $"/moderation/bans?{Mod}&user_id={Uri.EscapeDataString(userId)}", null, ct);
+
+    public Task DeleteMessageAsync(string messageId, CancellationToken ct) => SendAsync(HttpMethod.Delete, $"/moderation/chat?{Mod}&message_id={Uri.EscapeDataString(messageId)}", null, ct);
 
     /// <summary>badge images: "set/version" -> url (global badges, then the channel's own: subscriber months, bits...)</summary>
     public async Task<Dictionary<string, string>> BadgeUrlsAsync(CancellationToken ct)
@@ -489,8 +515,10 @@ sealed class KickPlatform : Platform
     static string OAuth => Environment.GetEnvironmentVariable("STREAMLAUNCHER_KICK_AUTH") ?? "https://id.kick.com/oauth";
     public const int CallbackPort = 43117;
     public const string RedirectUri = "http://localhost:43117/callback"; // to declare as-is in the Kick application settings
+    protected override string[] WantedScopes => new[] { "chat:write", "events:subscribe" };
     const string Scope = "channel:read channel:write";
     const string ChatScope = "channel:read channel:write chat:write events:subscribe"; // chat:write and events:subscribe must be enabled on the Kick application
+    const string ModScope = ChatScope + " moderation:ban moderation:chat_message:manage"; // moderation too (optional: also to enable on the Kick application)
     const string SendScope = "channel:read channel:write chat:write";
 
     protected override string DefaultClientId => BuiltIn.KickId;
@@ -505,7 +533,7 @@ sealed class KickPlatform : Platform
     /// <summary>asks for the chat right too; if Kick refuses it (not enabled on the application), connects again without it</summary>
     public override async Task ConnectAsync(Action<string> info, CancellationToken ct)
     {
-        foreach (var scope in new[] { ChatScope, SendScope })
+        foreach (var scope in new[] { ModScope, ChatScope, SendScope })
         {
             try { await ConnectWithAsync(scope, info, ct); return; }
             catch (InvalidOperationException e) when (e.Message.StartsWith("Kick : ")) { }
@@ -621,6 +649,18 @@ sealed class KickPlatform : Platform
                     if (name == "chat.message.sent") throw new InvalidOperationException($"Kick : lecture du chat refusée ({msg})"); // the other events are optional
                 }
     }
+
+    // ---- moderation
+    /// <param name="minutes">timeout length (1 to 10080), null for a ban</param>
+    public Task BanAsync(long userId, int? minutes, CancellationToken ct) =>
+        SendAsync(HttpMethod.Post, "/v1/moderation/bans", minutes == null
+            ? new { broadcaster_user_id = long.Parse(Auth.UserId), user_id = userId }
+            : (object)new { broadcaster_user_id = long.Parse(Auth.UserId), user_id = userId, duration = minutes.Value }, ct);
+
+    public Task UnbanAsync(long userId, CancellationToken ct) =>
+        SendAsync(HttpMethod.Delete, "/v1/moderation/bans", new { broadcaster_user_id = long.Parse(Auth.UserId), user_id = userId }, ct);
+
+    public Task DeleteMessageAsync(string messageId, CancellationToken ct) => SendAsync(HttpMethod.Delete, "/v1/chat/" + Uri.EscapeDataString(messageId), null, ct);
 
     /// <summary>a chat message as the streamer, in their own channel (scope chat:write)</summary>
     public async Task SendChatAsync(string text, CancellationToken ct)

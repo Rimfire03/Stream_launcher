@@ -150,11 +150,17 @@ sealed class StreamingDialog : Form
             {
                 Text = $"{p.Name} : " + (p.Connected ? $"connecté ({p.UserName})" : p.Configured ? "non connecté" : "indisponible (build local)")
                     + (p.Connected && store.Skipped.Contains(p.Id) ? "  (envoi désactivé)" : "")
-                    + (p.Connected ? p.State switch { Health.Ok => "  ✔ opérationnel", Health.Error => "  ✖ erreur", Health.Checking => "  …", _ => "" } : ""),
+                    + (p.ReconnectReason != null ? "  ⚠ reconnexion nécessaire" : p.Connected ? p.State switch { Health.Ok => "  ✔ opérationnel", Health.Error => "  ✖ erreur", Health.Checking => "  …", _ => "" } : ""),
                 Font = Ui.Bold, AutoSize = false, Width = 300, Height = 24, Margin = new Padding(0, 8, 8, 0),
                 ForeColor = StatusPill.ColorOf(p.State),
             });
             var plat = p;
+            if (p.ReconnectReason is { } why)
+            {
+                var again = Ui.Btn("Reconnecter", Ui.Kind.Primary, async (_, _) => await Connect(p));
+                tip.SetToolTip(again, $"{p.Name} : {why}");
+                row.Controls.Add(again);
+            }
             row.Controls.Add(p.Connected
                 ? Ui.Btn("Déconnecter", Ui.Kind.Secondary, (_, _) => { plat.Disconnect(); RebuildAccounts(); ShowGameInfo(); })
                 : Ui.Btn("Connecter", Ui.Kind.Primary, async (_, _) => await Connect(plat)));
