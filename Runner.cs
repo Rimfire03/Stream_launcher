@@ -280,10 +280,21 @@ class Runner
         Log("  zone de notification : aucune fenêtre n'est apparue (« garder ouverte » sans effet)");
     }
 
+    /// <summary>the lasting part of an icon name: tooltips carry status and versions that change ("Discord - 3 messages", "OBS 30.1.2 (64-bit) - Profil : X" become "Discord", "OBS")</summary>
+    public static string StableTrayName(string name)
+    {
+        var first = name.Split('\n')[0].Trim();
+        var cut = System.Text.RegularExpressions.Regex.Split(first, @"\s[-–—|]\s|\s?[:(]\s?")[0].Trim();
+        cut = System.Text.RegularExpressions.Regex.Replace(cut, @"\s+v?\d+(\.\d+)+.*$", "").Trim();
+        return cut.Length >= 3 ? cut : first;
+    }
+
     void Tray(UIA3Automation uia, Step s, CancellationToken ct)
     {
         if (s.TrayName == "") throw new InvalidOperationException("TrayName vide");
-        bool Match(AutomationElement b) => b.Name?.Contains(s.TrayName, StringComparison.OrdinalIgnoreCase) == true && !IsChevron(b);
+        // the icon is found by its name each time (never by where it was clicked: icons move): the saved name, then its lasting part
+        var stable = StableTrayName(s.TrayName);
+        bool Match(AutomationElement b) => !IsChevron(b) && (b.Name?.Contains(s.TrayName, StringComparison.OrdinalIgnoreCase) == true || b.Name?.Contains(stable, StringComparison.OrdinalIgnoreCase) == true);
         var end = DateTime.UtcNow.AddMilliseconds(s.TimeoutMs);
         do
         {

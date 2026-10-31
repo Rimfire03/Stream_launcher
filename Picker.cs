@@ -136,7 +136,7 @@ class TrayPicker : IDisposable
                     if (!string.IsNullOrWhiteSpace(name) && !name.Contains("cach", StringComparison.OrdinalIgnoreCase) && !name.Contains("hidden", StringComparison.OrdinalIgnoreCase))
                     {
                         done = true;
-                        var first = name.Split('\n')[0].Trim(); // tooltips can carry several lines of live status
+                        var first = Runner.StableTrayName(name); // saved without the status and version that tooltips carry (they change)
                         bool right = msg == WM_RBUTTONDOWN;
                         sync.BeginInvoke(() => found(first, right));
                     }

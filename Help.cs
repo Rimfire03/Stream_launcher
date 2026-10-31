@@ -115,7 +115,7 @@ Ces options ne fonctionnent pas avec Defaut."),
 Enregistrer : clique « + Icône du tray », puis clique toi-même l'icône de l'application dans la zone de notification. Si l'icône est cachée, ouvre d'abord le menu des icônes cachées (ce clic est ignoré). Ton clic passe aussi à l'application. L'étape garde le nom de l'icône et le bouton utilisé (gauche ou droit).
 
 Propriétés :
-- TrayName : fragment du nom (info-bulle) de l'icône.
+- TrayName : fragment du nom (info-bulle) de l'icône. L'icône est retrouvée par son nom à chaque exécution, jamais par l'endroit où tu as cliqué (les icônes se déplacent, passent dans les icônes cachées). À l'enregistrement, seule la partie durable du nom est gardée (« Discord - 3 messages » devient « Discord », « OBS 30.1.2 - Profil : X » devient « OBS »), car l'info-bulle contient souvent un état ou une version qui change. Si deux icônes ont un nom proche, précise le nom à la main.
 - Button, Double : clic droit ou double-clic selon l'application (voir catégorie « Clic »).
 - KeepOpen (« Garder ouverte à l'arrêt du live ») : si vrai, la fenêtre qui apparaît après le clic sur l'icône, et les autres fenêtres de la même application, ne sont pas fermées quand on arrête le live. L'étape attend jusqu'à 6 secondes l'apparition de la fenêtre ; sans fenêtre nouvelle, l'option est sans effet (une application déjà visible avant le clic n'est jamais fermée).
 
@@ -226,6 +226,11 @@ Précisions :
 - Un « Tester une étape » ne démarre pas de live.
 - --start et --stop (ligne de commande) forcent le lancement ou la fermeture au lieu de basculer."),
 
+        new("Refaire la sélection d'une étape", @"Une étape créée en cliquant (étapes Clic, Icône du tray, Action fenêtre « Déplacer » ou « Réduire ») peut être sélectionnée à nouveau sans la supprimer : sélectionne l'étape, puis bouton « Resélectionner » (ou clic droit > « Resélectionner »).
+- Clic : clique à nouveau dans l'application ; la fenêtre, l'élément (ou la position) et le bouton de l'étape sont remplacés.
+- Icône du tray : clique à nouveau sur l'icône (ouvre d'abord les icônes cachées si besoin) ; son nom et le bouton sont remplacés.
+- Action fenêtre : « Réduire » : clique sur la fenêtre voulue ; « Déplacer » : déplace ou redimensionne la fenêtre voulue, sa fenêtre et sa position sont remplacées.
+L'étape garde sa place dans la liste, son délai, son délai maximum et son état (activée ou non). « Annuler » dans la petite barre en haut de l'écran abandonne la sélection. Impossible pendant un live en cours : ferme-le d'abord."),
         new("Tester une étape", @"Clic droit sur une étape dans la liste :
 - « Tester cette étape » : exécute uniquement cette étape ;
 - « Tester à partir de cette étape » : exécute cette étape et toutes les suivantes.

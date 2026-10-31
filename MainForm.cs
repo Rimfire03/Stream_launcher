@@ -28,7 +28,7 @@ class MainForm : Form
     Profile? Cur => lbProf.SelectedItem as Profile;
     Step? CurStep => lbSteps.SelectedItem as Step;
     ChatWindow? chatWindow;
-    Button btnToggle = null!;
+    Button btnToggle = null!, btnRepick = null!;
 
     /// <summary>opens the unified chat (one window); not modal, it stays next to the other windows</summary>
     public void OpenChatWindow()
@@ -138,7 +138,7 @@ class MainForm : Form
         Group("INTERACTIONS");
         Item("Enregistrer mes clics (j'utilise mes applications)", ToggleRec);
         Item("Clic (réglé à la main)", () => AddStep(new Step { Type = StepType.Click }));
-        Item("Icône de la zone de notification (je clique dessus)", PickTray);
+        Item("Icône de la zone de notification (je clique dessus)", () => PickTray());
         Item("OBS Studio (scène, live, enregistrement)…", () => AddStep(new Step { Type = StepType.Obs }));
         Item("Ouvrir le chat unifié", () => AddStep(new Step { Type = StepType.Chat }));
         var addBtn = Ui.Btn("＋  Ajouter une étape  ▾", Ui.Kind.Primary, (s, _) => addMenu.Show((Control)s!, new Point(0, ((Control)s!).Height)));
@@ -177,6 +177,7 @@ class MainForm : Form
         settingsMenu.DropDownItems.Add(screensMenu);
 
         btnToggle = Ui.Btn("Désactiver", Ui.Kind.Secondary, (_, _) => ToggleStep());
+        btnRepick = Ui.Btn("Resélectionner", Ui.Kind.Secondary, (_, _) => RePick());
         var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 44, BackColor = Ui.Bg, Padding = new Padding(18, 6, 14, 0), WrapContents = false };
         toolbar.Controls.AddRange(new Control[]
         {
@@ -184,6 +185,7 @@ class MainForm : Form
             Ui.Btn("↑", Ui.Kind.Secondary, (_, _) => MoveStep(-1)),
             Ui.Btn("↓", Ui.Kind.Secondary, (_, _) => MoveStep(1)),
             btnToggle,
+            btnRepick,
             Ui.Btn("Dupliquer", Ui.Kind.Secondary, (_, _) => DuplicateStep()),
             Ui.Btn("Supprimer", Ui.Kind.Secondary, (_, _) => DeleteStep()),
         });
@@ -284,9 +286,10 @@ class MainForm : Form
         var toggleItem = stepMenu.Items.Add("Désactiver cette étape", null, (_, _) => ToggleStep());
         stepMenu.Items.Add("Monter", null, (_, _) => MoveStep(-1));
         stepMenu.Items.Add("Descendre", null, (_, _) => MoveStep(1));
+        var repickItem = stepMenu.Items.Add("Resélectionner (je clique à nouveau)", null, (_, _) => RePick());
         stepMenu.Items.Add("Dupliquer", null, (_, _) => DuplicateStep());
         stepMenu.Items.Add("Supprimer", null, (_, _) => DeleteStep());
-        stepMenu.Opening += (_, e) => { e.Cancel = CurStep == null || cts != null; toggleItem.Text = CurStep is { Enabled: false } ? "Activer cette étape" : "Désactiver cette étape"; };
+        stepMenu.Opening += (_, e) => { e.Cancel = CurStep == null || cts != null; toggleItem.Text = CurStep is { Enabled: false } ? "Activer cette étape" : "Désactiver cette étape"; repickItem.Enabled = CanRePick(CurStep); };
         lbSteps.ContextMenuStrip = stepMenu;
         lbSteps.MouseDown += (_, e) =>
         {
@@ -427,6 +430,53 @@ class MainForm : Form
     {
         pg.SelectedObject = CurStep == null ? null : new StepView(CurStep);
         btnToggle.Text = CurStep is { Enabled: false } ? "Activer" : "Désactiver";
+        btnRepick.Enabled = CanRePick(CurStep);
+        sideTip.SetToolTip(btnRepick, CanRePick(CurStep) ? "Refaire la sélection de cette étape : clique à nouveau sur l'icône, la fenêtre ou l'élément voulu" : "Disponible pour les étapes Clic, Icône du tray et Action fenêtre (Déplacer, Réduire)");
+    }
+
+    // ---- redo the selection of a step that was captured with a click (the step keeps its delay, timeout and position in the list)
+
+    static bool CanRePick(Step? s) => s is { Type: StepType.Click or StepType.Tray } || s is { Type: StepType.Window, Action: WindowAction.Deplacer or WindowAction.Reduire };
+
+    void RePick()
+    {
+        if (CurStep is not { } s || !CanRePick(s)) return;
+        if (picker != null || rec != null || cts != null) return;
+        if (Live.IsLive(Cur!.Name)) { Log("Ferme d'abord le live de ce profil avant de refaire une sélection."); return; }
+        switch (s.Type)
+        {
+            case StepType.Tray: PickTray(s); break;
+            case StepType.Window: PickWindow(s.Action == WindowAction.Deplacer, s); break;
+            default: PickClick(s); break;
+        }
+    }
+
+    void Replaced(Step s)
+    {
+        cfg.Save();
+        RefreshSteps(Cur!.Steps.IndexOf(s));
+        Log("Sélection refaite : " + s);
+    }
+
+    // Click: the next click of the user replaces the target of the step (window, element or position, button)
+    void PickClick(Step s)
+    {
+        var got = new List<Step>();
+        try
+        {
+            picker = new Recorder(got, () => BeginInvoke(() =>
+            {
+                if (picker == null || got.Count == 0) return;
+                var n = got[0];
+                StopPick();
+                s.Process = n.Process; s.Title = n.Title; s.WindowClass = n.WindowClass;
+                s.Mode = n.Mode; s.ElementName = n.ElementName; s.ElementId = n.ElementId;
+                s.RelX = n.RelX; s.RelY = n.RelY; s.Button = n.Button;
+                Replaced(s);
+            }));
+        }
+        catch (Exception e) { Log("ERREUR : " + e.Message); return; }
+        ShowPickBar("Refaire le clic", "Clique maintenant à l'endroit voulu dans l'application : le clic de l'étape sera remplacé.");
     }
 
     void UpdateHeader()
@@ -907,7 +957,7 @@ class MainForm : Form
     // ---- window capture (move / minimize) ----
 
     // Move: the user drags the window, the new position is recorded. Minimize: the user clicks the window to minimize.
-    void PickWindow(bool move)
+    void PickWindow(bool move, Step? replace = null)
     {
         if (Cur is not { } p || picker != null || rec != null) return;
         try
@@ -929,6 +979,13 @@ class MainForm : Form
                     s.H = r.Bottom - r.Top;
                     s.Maximize = Native.IsZoomed(h);
                 }
+                if (replace != null)
+                {
+                    replace.Process = s.Process; replace.Title = s.Title; replace.WindowClass = s.WindowClass;
+                    if (move) { replace.Zone = s.Zone; replace.Monitor = s.Monitor; replace.X = s.X; replace.Y = s.Y; replace.W = s.W; replace.H = s.H; replace.Maximize = s.Maximize; }
+                    Replaced(replace);
+                    return;
+                }
                 AddStep(s);
                 Log("Capturé : " + s);
             });
@@ -940,7 +997,7 @@ class MainForm : Form
     }
 
     // Tray: the user clicks the icon (open the hidden-icons flyout first if needed); the click goes through and is recorded.
-    void PickTray()
+    void PickTray(Step? replace = null)
     {
         if (Cur == null || picker != null || rec != null) return;
         try
@@ -948,6 +1005,7 @@ class MainForm : Form
             picker = new TrayPicker(this, (name, right) =>
             {
                 StopPick();
+                if (replace != null) { replace.TrayName = name; replace.Button = right ? MouseBtn.Right : MouseBtn.Left; Replaced(replace); return; }
                 var s = new Step { Type = StepType.Tray, TrayName = name, Button = right ? MouseBtn.Right : MouseBtn.Left };
                 AddStep(s);
                 Log("Capturé : " + s);
