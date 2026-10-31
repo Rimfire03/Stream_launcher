@@ -327,8 +327,8 @@ sealed class TwitchPlatform : Platform
 {
     static string Api => Environment.GetEnvironmentVariable("STREAMLAUNCHER_TWITCH_API") ?? "https://api.twitch.tv/helix";
     static string OAuth => Environment.GetEnvironmentVariable("STREAMLAUNCHER_TWITCH_AUTH") ?? "https://id.twitch.tv/oauth2";
-    protected override string[] WantedScopes => new[] { "chat:read", "chat:edit", "channel:read:redemptions", "moderator:manage:banned_users", "moderator:manage:chat_messages" };
-    const string Scope = "channel:manage:broadcast chat:read chat:edit channel:read:redemptions moderator:manage:banned_users moderator:manage:chat_messages"; // chat:* = unified chat window (IRC), redemptions = channel point rewards (EventSub)
+    protected override string[] WantedScopes => new[] { "chat:read", "chat:edit", "channel:read:redemptions", "moderator:manage:banned_users", "moderator:manage:chat_messages", "channel:manage:moderators", "channel:manage:vips" };
+    const string Scope = "channel:manage:broadcast chat:read chat:edit channel:read:redemptions moderator:manage:banned_users moderator:manage:chat_messages channel:manage:moderators channel:manage:vips"; // chat:* = unified chat window (IRC), redemptions = channel point rewards (EventSub)
 
     protected override string DefaultClientId => "gwjqrmds3c2ewc58x51mnr99v2d74z"; // Stream Launcher's Twitch application (public client)
     public override string Id => "twitch";
@@ -414,6 +414,10 @@ sealed class TwitchPlatform : Platform
         SendAsync(HttpMethod.Post, $"/moderation/bans?{Mod}", new { data = seconds == null ? (object)new { user_id = userId } : new { user_id = userId, duration = Math.Clamp(seconds.Value, 1, 1209600) } }, ct);
 
     public Task UnbanAsync(string userId, CancellationToken ct) => SendAsync(HttpMethod.Delete, $"/moderation/bans?{Mod}&user_id={Uri.EscapeDataString(userId)}", null, ct);
+
+    /// <param name="path">moderation/moderators or channels/vips</param>
+    public Task SetRoleAsync(string path, string userId, bool give, CancellationToken ct) =>
+        SendAsync(give ? HttpMethod.Post : HttpMethod.Delete, $"/{path}?broadcaster_id={Auth.UserId}&user_id={Uri.EscapeDataString(userId)}", null, ct);
 
     public Task DeleteMessageAsync(string messageId, CancellationToken ct) => SendAsync(HttpMethod.Delete, $"/moderation/chat?{Mod}&message_id={Uri.EscapeDataString(messageId)}", null, ct);
 

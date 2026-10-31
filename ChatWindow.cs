@@ -183,6 +183,11 @@ sealed class ChatWindow : Form
             menu.Items.Add(timeout);
             menu.Items.Add(Action("Bannir définitivement", ModKind.Ban, 0, "banni", confirm: true));
             menu.Items.Add(Action("Débannir", ModKind.Unban, 0, "débanni"));
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add(Action("Nommer modérateur", ModKind.Mod, 0, "est modérateur"));
+            menu.Items.Add(Action("Retirer modérateur", ModKind.Unmod, 0, "n'est plus modérateur"));
+            menu.Items.Add(Action("Nommer VIP", ModKind.Vip, 0, "est VIP"));
+            menu.Items.Add(Action("Retirer VIP", ModKind.Unvip, 0, "n'est plus VIP"));
         }
         menu.Show(view, at);
     }

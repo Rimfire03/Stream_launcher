@@ -139,6 +139,20 @@ sealed class YouTubePlatform : Platform
             },
         }, ct);
 
+    /// <summary>makes a viewer a moderator of the live chat, or removes them (removal needs the id of the moderator entry: looked up first)</summary>
+    public async Task SetModeratorAsync(string chatId, string channelId, bool give, CancellationToken ct)
+    {
+        if (give)
+        {
+            await SendAsync(HttpMethod.Post, "/liveChat/moderators?part=snippet", new { snippet = new { liveChatId = chatId, moderatorDetails = new { channelId } } }, ct);
+            return;
+        }
+        var list = await SendAsync(HttpMethod.Get, $"/liveChat/moderators?liveChatId={Uri.EscapeDataString(chatId)}&part=snippet&maxResults=50", null, ct);
+        var entry = list.GetProperty("items").EnumerateArray().FirstOrDefault(i => i.GetProperty("snippet").GetProperty("moderatorDetails").GetProperty("channelId").GetString() == channelId);
+        if (entry.ValueKind != JsonValueKind.Object) throw new InvalidOperationException("ce spectateur n'est pas modérateur");
+        await SendAsync(HttpMethod.Delete, "/liveChat/moderators?id=" + Uri.EscapeDataString(entry.GetProperty("id").GetString()!), null, ct);
+    }
+
     public Task DeleteMessageAsync(string messageId, CancellationToken ct) => SendAsync(HttpMethod.Delete, "/liveChat/messages?id=" + Uri.EscapeDataString(messageId), null, ct);
 
     /// <summary>sends a message (YouTube refuses more than 200 characters)</summary>

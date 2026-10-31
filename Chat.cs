@@ -47,7 +47,7 @@ static class ChatKinds
 }
 
 /// <summary>what a moderator can do from the chat</summary>
-enum ModKind { Delete, Timeout, Ban, Unban }
+enum ModKind { Delete, Timeout, Ban, Unban, Mod, Unmod, Vip, Unvip }
 
 abstract class ChatSource : IDisposable
 {
@@ -155,9 +155,14 @@ sealed class TwitchChatSource : ChatSource
     {
         if (m.SourceRoom != null) return "message d'une autre chaîne (chat partagé)";
         if (m.UserId == null || (kind == ModKind.Delete && m.MessageId == null)) return "message sans identifiant";
-        return kind == ModKind.Delete
-            ? MissingRight("moderator:manage:chat_messages", "reconnecte Twitch (nouveau droit de modération)")
-            : MissingRight("moderator:manage:banned_users", "reconnecte Twitch (nouveau droit de modération)");
+        const string how = "reconnecte Twitch (nouveau droit de modération)";
+        return kind switch
+        {
+            ModKind.Delete => MissingRight("moderator:manage:chat_messages", how),
+            ModKind.Mod or ModKind.Unmod => MissingRight("channel:manage:moderators", how),
+            ModKind.Vip or ModKind.Unvip => MissingRight("channel:manage:vips", how),
+            _ => MissingRight("moderator:manage:banned_users", how),
+        };
     }
 
     public override Task ModerateAsync(ModKind kind, ChatMessage m, int seconds, CancellationToken ct)
@@ -168,6 +173,10 @@ sealed class TwitchChatSource : ChatSource
             ModKind.Delete => tw.DeleteMessageAsync(m.MessageId!, ct),
             ModKind.Timeout => tw.BanAsync(m.UserId!, seconds, ct),
             ModKind.Ban => tw.BanAsync(m.UserId!, null, ct),
+            ModKind.Mod => tw.SetRoleAsync("moderation/moderators", m.UserId!, true, ct),
+            ModKind.Unmod => tw.SetRoleAsync("moderation/moderators", m.UserId!, false, ct),
+            ModKind.Vip => tw.SetRoleAsync("channels/vips", m.UserId!, true, ct),
+            ModKind.Unvip => tw.SetRoleAsync("channels/vips", m.UserId!, false, ct),
             _ => tw.UnbanAsync(m.UserId!, ct),
         };
     }
@@ -374,6 +383,7 @@ sealed class KickChatSource : ChatSource
 
     public override string? ModerationBlocked(ModKind kind, ChatMessage m)
     {
+        if (kind is ModKind.Mod or ModKind.Unmod or ModKind.Vip or ModKind.Unvip) return "pas dans l'API de Kick";
         if (m.UserId == null || (kind == ModKind.Delete && m.MessageId == null)) return "message sans identifiant";
         const string how = "reconnecte Kick (la modération doit être activée sur l'application Kick)";
         return kind == ModKind.Delete ? MissingRight("moderation:chat_message:manage", how) : MissingRight("moderation:ban", how);
@@ -504,6 +514,7 @@ sealed class YouTubeChatSource : ChatSource
     public override string? ModerationBlocked(ModKind kind, ChatMessage m)
     {
         if (kind == ModKind.Unban) return "à faire dans YouTube Studio";
+        if (kind is ModKind.Vip or ModKind.Unvip) return "pas dans l'API de YouTube";
         if (chatId == null) return "aucune diffusion YouTube active";
         return m.UserId == null || (kind == ModKind.Delete && m.MessageId == null) ? "message sans identifiant" : null;
     }
@@ -512,6 +523,7 @@ sealed class YouTubeChatSource : ChatSource
     {
         var yt = (YouTubePlatform)P;
         if (kind == ModKind.Delete) await yt.DeleteMessageAsync(m.MessageId!, ct);
+        else if (kind is ModKind.Mod or ModKind.Unmod) await yt.SetModeratorAsync(chatId!, m.UserId!, kind == ModKind.Mod, ct);
         else await yt.BanAsync(chatId!, m.UserId!, kind == ModKind.Timeout ? seconds : null, ct);
         YouTubeQuota.Add(50);
     }
