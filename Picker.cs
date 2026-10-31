@@ -110,6 +110,7 @@ class TrayPicker : IDisposable
         proc = Callback;
         hook = Native.SetWindowsHookEx(WH_MOUSE_LL, proc, Native.GetModuleHandle(null), 0);
         if (hook == IntPtr.Zero) throw new InvalidOperationException("Hook souris impossible");
+        Task.Run(() => uia ??= new FlaUI.UIA3.UIA3Automation()); // the first UI Automation call is slow: prepare it before the click
     }
 
     IntPtr Callback(int code, IntPtr w, IntPtr l)
@@ -123,16 +124,24 @@ class TrayPicker : IDisposable
                 var hw = Native.WindowFromPoint(pt);
                 var root = hw == IntPtr.Zero ? IntPtr.Zero : Native.GetAncestor(hw, 3);
                 var cls = root == IntPtr.Zero ? "" : Native.ClassOf(root);
-                if (cls == "Shell_TrayWnd" || cls.Contains("Overflow", StringComparison.OrdinalIgnoreCase))
+                // the taskbar, the hidden-icons flyout and its variants between Windows builds
+                if (cls == "Shell_TrayWnd" || cls == "Shell_SecondaryTrayWnd" || cls.Contains("Overflow", StringComparison.OrdinalIgnoreCase) || cls.Contains("TrayNotify", StringComparison.OrdinalIgnoreCase) || cls.Contains("NotifyIcon", StringComparison.OrdinalIgnoreCase))
                 {
                     // the hook runs before the app gets the click: the element is still under the cursor
                     var t = Task.Run(() =>
                     {
                         var el = (uia ??= new FlaUI.UIA3.UIA3Automation()).FromPoint(new System.Drawing.Point(pt.X, pt.Y));
-                        var c = el?.ClassName ?? "";
-                        return c.Contains("TaskListButton") || c == "ToggleButton" ? null : el?.Name;
+                        // the click can land on the picture inside the button: go up to the element that carries the name
+                        for (int up = 0; el != null && up < 4; up++, el = el.Parent)
+                        {
+                            var c = el.ClassName ?? "";
+                            if (c.Contains("TaskListButton") || c == "ToggleButton") return (null, c);
+                            if (!string.IsNullOrWhiteSpace(el.Name)) return (el.Name, c);
+                        }
+                        return (null, "");
                     });
-                    var name = t.Wait(400) ? t.Result : null;
+                    var (name, elClass) = t.Wait(2000) ? t.Result : (null, "délai dépassé");
+                    RunLog.Write($"sélection d'icône : fenêtre « {cls} », élément « {elClass} », nom « {name} »");
                     if (!string.IsNullOrWhiteSpace(name) && !name.Contains("cach", StringComparison.OrdinalIgnoreCase) && !name.Contains("hidden", StringComparison.OrdinalIgnoreCase))
                     {
                         done = true;
@@ -141,8 +150,9 @@ class TrayPicker : IDisposable
                         sync.BeginInvoke(() => found(first, right));
                     }
                 }
+                else RunLog.Write($"sélection d'icône : clic ignoré (fenêtre « {cls} »)");
             }
-            catch { }
+            catch (Exception e) { RunLog.Write("sélection d'icône : " + e.Message); }
         }
         return Native.CallNextHookEx(hook, code, w, l);
     }
