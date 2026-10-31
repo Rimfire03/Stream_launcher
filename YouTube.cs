@@ -203,7 +203,9 @@ sealed class YouTubePlatform : Platform
         {
             if (title.Length > TitleMax) { title = title[..TitleMax]; warnings.Add($"titre raccourci à {TitleMax} caractères (limite de YouTube)"); }
             // the update replaces the whole snippet: keep the schedule and the description
-            var snippet = new Dictionary<string, object?> { ["title"] = title, ["scheduledStartTime"] = bs.GetProperty("scheduledStartTime").GetString() };
+            // a live started without being scheduled has no scheduledStartTime: the API still wants one, its real start does
+            var start = bs.TryGetProperty("scheduledStartTime", out var st) ? st.GetString() : bs.TryGetProperty("actualStartTime", out var at) ? at.GetString() : DateTime.UtcNow.ToString("o");
+            var snippet = new Dictionary<string, object?> { ["title"] = title, ["scheduledStartTime"] = start };
             if (bs.TryGetProperty("description", out var d)) snippet["description"] = d.GetString();
             await SendAsync(HttpMethod.Put, "/liveBroadcasts?part=snippet", new { id, snippet }, ct);
             currentTitle = title;
@@ -219,7 +221,7 @@ sealed class YouTubePlatform : Platform
             var snippet = new Dictionary<string, object?>
             {
                 ["title"] = currentTitle,
-                ["categoryId"] = game ? GamingCategory : v.GetProperty("categoryId").GetString(),
+                ["categoryId"] = game || !v.TryGetProperty("categoryId", out var cat) ? GamingCategory : cat.GetString(),
                 ["tags"] = newTags,
             };
             if (v.TryGetProperty("description", out var vd)) snippet["description"] = vd.GetString();
