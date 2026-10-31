@@ -139,7 +139,7 @@ class MainForm : Form
         Item("Enregistrer mes clics (j'utilise mes applications)", ToggleRec);
         Item("Clic (réglé à la main)", () => AddStep(new Step { Type = StepType.Click }));
         Item("Icône de la zone de notification (je clique dessus)", PickTray);
-        Item("Scène OBS Studio…", () => AddStep(new Step { Type = StepType.Obs }));
+        Item("OBS Studio (scène, live, enregistrement)…", () => AddStep(new Step { Type = StepType.Obs }));
         Item("Ouvrir le chat unifié", () => AddStep(new Step { Type = StepType.Chat }));
         var addBtn = Ui.Btn("＋  Ajouter une étape  ▾", Ui.Kind.Primary, (s, _) => addMenu.Show((Control)s!, new Point(0, ((Control)s!).Height)));
 

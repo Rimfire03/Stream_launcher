@@ -108,6 +108,35 @@ sealed class ObsSession : IDisposable
         }).GetAwaiter().GetResult();
     }
 
+    /// <summary>start / stop of the live, the recording or the virtual camera; does nothing when OBS is already in the wanted state</summary>
+    public static void RunAction(string host, string password, ObsActionKind action, int timeoutMs, CancellationToken ct)
+    {
+        var (status, request, wanted) = action switch
+        {
+            ObsActionKind.StartStream => ("GetStreamStatus", "StartStream", true),
+            ObsActionKind.StopStream => ("GetStreamStatus", "StopStream", false),
+            ObsActionKind.StartRecord => ("GetRecordStatus", "StartRecord", true),
+            ObsActionKind.StopRecord => ("GetRecordStatus", "StopRecord", false),
+            ObsActionKind.StartVirtualCam => ("GetVirtualCamStatus", "StartVirtualCam", true),
+            ObsActionKind.StopVirtualCam => ("GetVirtualCamStatus", "StopVirtualCam", false),
+            _ => throw new InvalidOperationException("action OBS inconnue"),
+        };
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(timeoutMs);
+        Task.Run(async () =>
+        {
+            using var s = await ConnectAsync(host, password, cts.Token);
+            async Task<bool> Active() => (await s.RequestAsync(status, null, cts.Token)).GetProperty("outputActive").GetBoolean();
+            if (await Active() == wanted) return;
+            await s.RequestAsync(request, null, cts.Token);
+            if (action == ObsActionKind.StartStream) // a refused stream (wrong key, no network) only shows as "not active"
+            {
+                for (int i = 0; i < 16 && !await Active(); i++) await Task.Delay(500, cts.Token);
+                if (!await Active()) throw new InvalidOperationException("OBS n'a pas démarré le live (clé de diffusion ? réseau ?)");
+            }
+        }).GetAwaiter().GetResult();
+    }
+
     /// <summary>switches the OBS profile / scene collection when it is not already the current one, and waits until OBS has loaded it</summary>
     async Task SwitchAsync(string listRequest, string currentKey, string setRequest, string setField, string target, CancellationToken ct)
     {

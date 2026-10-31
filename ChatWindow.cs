@@ -203,11 +203,60 @@ sealed class ChatWindow : Form
         ["vip"] = (ModKind.Vip, true, "est VIP"), ["unvip"] = (ModKind.Unvip, true, "n'est plus VIP"),
     };
 
+    static readonly HashSet<string> LiveCommands = new() { "raid", "unraid", "shoutout", "so", "announce", "annonce", "announceblue", "announcegreen", "announceorange", "announcepurple", "clip", "marker" };
+
+    /// <summary>/raid name, /unraid, /shoutout name (or /so), /announce text (+ blue, green, orange, purple), /clip, /marker [text]: Twitch only</summary>
+    async Task LiveCommandAsync(string name, string arg)
+    {
+        var tw = Streaming.Platforms.OfType<TwitchPlatform>().First();
+        string? Need(string scope) => !tw.Connected ? "compte Twitch non connecté" : tw.HasScope(scope) ? null : "reconnecte Twitch (Infos du live > Reconnecter) : nouveau droit à accepter";
+        try
+        {
+            switch (name)
+            {
+                case "raid" or "shoutout" or "so":
+                    var login = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()?.TrimStart('@');
+                    if (login == null) { AddSystem($"/{name} : il faut un pseudo (exemple : /{name} pseudo)."); return; }
+                    if (Need(name == "raid" ? "channel:manage:raids" : "moderator:manage:shoutouts") is { } why) { AddSystem($"Twitch : impossible ({why})."); return; }
+                    var id = await tw.UserIdByLoginAsync(login, CancellationToken.None);
+                    if (id == null) { AddSystem($"Twitch : pseudo « {login} » introuvable."); return; }
+                    if (name == "raid") { await tw.RaidAsync(id, CancellationToken.None); AddSystem($"Twitch : raid vers {login} lancé (il part dans environ 90 secondes ; /unraid pour l'annuler)."); }
+                    else { await tw.ShoutoutAsync(id, CancellationToken.None); AddSystem($"Twitch : shoutout envoyé à {login}."); }
+                    break;
+                case "unraid":
+                    if (Need("channel:manage:raids") is { } w1) { AddSystem($"Twitch : impossible ({w1})."); return; }
+                    await tw.CancelRaidAsync(CancellationToken.None);
+                    AddSystem("Twitch : raid annulé.");
+                    break;
+                case "clip":
+                    if (Need("clips:edit") is { } w2) { AddSystem($"Twitch : impossible ({w2})."); return; }
+                    var url = await tw.ClipAsync(CancellationToken.None);
+                    try { Clipboard.SetText(url); } catch { }
+                    AddSystem($"Twitch : clip créé (adresse copiée) : {url}");
+                    break;
+                case "marker":
+                    if (Need("channel:manage:broadcast") is { } w3) { AddSystem($"Twitch : impossible ({w3})."); return; }
+                    await tw.MarkerAsync(arg, CancellationToken.None);
+                    AddSystem("Twitch : marqueur posé dans le live.");
+                    break;
+                default: // announce, annonce, announceblue...
+                    if (arg == "") { AddSystem($"/{name} : il faut un texte (exemple : /{name} bonne soirée à tous)."); return; }
+                    if (Need("moderator:manage:announcements") is { } w4) { AddSystem($"Twitch : impossible ({w4})."); return; }
+                    var color = name switch { "announceblue" => "blue", "announcegreen" => "green", "announceorange" => "orange", "announcepurple" => "purple", _ => "primary" };
+                    await tw.AnnounceAsync(arg, color, CancellationToken.None);
+                    AddSystem("Twitch : annonce envoyée.");
+                    break;
+            }
+        }
+        catch (Exception e) { AddSystem($"Twitch : {e.Message}"); }
+    }
+
     /// <returns>true when the text was a moderation command (then it is not sent as a message)</returns>
     async Task<bool> TryCommandAsync(string text)
     {
         if (!text.StartsWith('/')) return false;
         var parts = text[1..].Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length > 0 && LiveCommands.Contains(parts[0].ToLowerInvariant())) { await LiveCommandAsync(parts[0].ToLowerInvariant(), text[1..].Substring(parts[0].Length).Trim()); return true; }
         if (parts.Length == 0 || !Commands.TryGetValue(parts[0].ToLowerInvariant(), out var cmd)) return false; // /me and the like go through as text
         if (cmd.NeedsUser && parts.Length < 2) { AddSystem($"/{parts[0]} : il faut un pseudo (exemple : /{parts[0]} pseudo)."); return true; }
         int seconds = cmd.Kind == ModKind.Timeout && parts.Length > 2 && int.TryParse(parts[2], out var sec) ? sec : 600;

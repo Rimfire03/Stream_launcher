@@ -11,7 +11,9 @@ class Runner
     /// <summary>windows the profile placed, clicked or opened (used to close the live)</summary>
     public readonly HashSet<(IntPtr H, uint Pid)> Touched = new();
     public Action? OpenChat; // opens the unified chat window (set by the GUI, or by the command line which starts the GUI)
+    public readonly List<ObsStop> ObsStops = new(); // OBS outputs to stop when the live is stopped (steps with the box ticked)
     public readonly HashSet<IntPtr> KeepWindows = new(); // browser windows left open at stop (KeepOpen)
+    public readonly HashSet<string> KeepProcesses = new(StringComparer.OrdinalIgnoreCase); // applications shown from the tray with KeepOpen: none of their windows is closed at stop
 
     void Touch(IntPtr h)
     {
@@ -158,14 +160,17 @@ class Runner
     // OBS may still be starting (an earlier step launched it): retry while it is unreachable, fail at once when it answers with an error
     void Obs(Step s, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(s.ObsScene) && string.IsNullOrWhiteSpace(s.ObsCollection) && string.IsNullOrWhiteSpace(s.ObsProfile)) throw new InvalidOperationException("profil, collection et scène OBS vides");
+        if (s.ObsAction == ObsActionKind.Scene && string.IsNullOrWhiteSpace(s.ObsScene) && string.IsNullOrWhiteSpace(s.ObsCollection) && string.IsNullOrWhiteSpace(s.ObsProfile)) throw new InvalidOperationException("profil, collection et scène OBS vides");
         var end = DateTime.UtcNow.AddMilliseconds(s.TimeoutMs);
         while (true)
         {
             ct.ThrowIfCancellationRequested();
             try
             {
-                ObsSession.Apply(s.ObsHost, s.ObsPassword, s.ObsProfile, s.ObsCollection, s.ObsScene, Math.Max(5000, s.TimeoutMs), ct);
+                if (s.ObsAction == ObsActionKind.Scene) ObsSession.Apply(s.ObsHost, s.ObsPassword, s.ObsProfile, s.ObsCollection, s.ObsScene, Math.Max(5000, s.TimeoutMs), ct);
+                else ObsSession.RunAction(s.ObsHost, s.ObsPassword, s.ObsAction, Math.Max(15000, s.TimeoutMs), ct);
+                if (s.ObsAction == ObsActionKind.StartStream && s.ObsStopStream) ObsStops.Add(new ObsStop(s.ObsHost, s.ObsPassword, true, false));
+                if (s.ObsAction == ObsActionKind.StartRecord && s.ObsStopRecord) ObsStops.Add(new ObsStop(s.ObsHost, s.ObsPassword, false, true));
                 return;
             }
             catch (InvalidOperationException) { throw; }
@@ -257,6 +262,24 @@ class Runner
         return names.Where(n => !string.IsNullOrWhiteSpace(n)).Distinct().ToList();
     }
 
+    /// <summary>"Garder ouverte à l'arrêt du live" on a tray step: the windows that appear after the click, and every other window of their application, are left alone at stop</summary>
+    void KeepShownWindows(HashSet<IntPtr> seen, CancellationToken ct)
+    {
+        var end = DateTime.UtcNow.AddSeconds(6);
+        bool found = false;
+        do
+        {
+            ct.ThrowIfCancellationRequested();
+            Thread.Sleep(300);
+            var fresh = Native.TopWindows().Where(w => !seen.Contains(w.H)).ToList();
+            if (fresh.Count == 0) continue;
+            if (!found) { found = true; Thread.Sleep(1200); fresh = Native.TopWindows().Where(w => !seen.Contains(w.H)).ToList(); } // pop-ups can follow the first window
+            foreach (var w in fresh) { KeepWindows.Add(w.H); KeepProcesses.Add(w.Process); }
+            return;
+        } while (DateTime.UtcNow < end);
+        Log("  zone de notification : aucune fenêtre n'est apparue (« garder ouverte » sans effet)");
+    }
+
     void Tray(UIA3Automation uia, Step s, CancellationToken ct)
     {
         if (s.TrayName == "") throw new InvalidOperationException("TrayName vide");
@@ -268,7 +291,9 @@ class Runner
             var el = TaskbarButtons(uia).FirstOrDefault(Match) ?? OverflowButtons(uia).FirstOrDefault(Match);
             if (el != null && el.TryGetClickablePoint(out var p))
             {
+                var seen = s.KeepOpen ? Native.TopWindows().Select(w => w.H).ToHashSet() : null;
                 Native.Click(p.X, p.Y, s.Button == MouseBtn.Right, s.Double);
+                if (seen != null) KeepShownWindows(seen, ct);
                 return;
             }
             Thread.Sleep(500);
@@ -313,3 +338,6 @@ class Runner
         throw new TimeoutException($"élément introuvable ('{s.ElementName}' {s.ElementId})");
     }
 }
+
+/// <summary>what to stop in OBS when the live is stopped (kept in the live state file)</summary>
+record ObsStop(string Host, string Password, bool Stream, bool Record);

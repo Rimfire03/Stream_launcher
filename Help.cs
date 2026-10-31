@@ -117,20 +117,23 @@ Enregistrer : clique « + Icône du tray », puis clique toi-même l'icône de l
 Propriétés :
 - TrayName : fragment du nom (info-bulle) de l'icône.
 - Button, Double : clic droit ou double-clic selon l'application (voir catégorie « Clic »).
+- KeepOpen (« Garder ouverte à l'arrêt du live ») : si vrai, la fenêtre qui apparaît après le clic sur l'icône, et les autres fenêtres de la même application, ne sont pas fermées quand on arrête le live. L'étape attend jusqu'à 6 secondes l'apparition de la fenêtre ; sans fenêtre nouvelle, l'option est sans effet (une application déjà visible avant le clic n'est jamais fermée).
 
 « Icônes du tray… » écrit dans le journal la liste des noms disponibles (même chose en ligne de commande : StreamLauncher.exe --list-tray)."),
 
-        new("Étape Scène OBS", @"Passe OBS Studio sur une scène précise (scène en sortie / « programme »). À placer après l'étape qui lance OBS : si OBS démarre encore, l'étape réessaie jusqu'au délai maximum.
+        new("Étape OBS Studio", @"Pilote OBS Studio : choisir le profil, la collection et la scène, démarrer ou arrêter le live, l'enregistrement ou la caméra virtuelle. À placer après l'étape qui lance OBS : si OBS démarre encore, l'étape réessaie jusqu'au délai maximum.
 
 Préparation dans OBS (28 ou plus) : menu « Outils > Réglages du serveur WebSocket », coche « Activer le serveur WebSocket ». Note le port (4455 par défaut) et, si tu en as défini un, le mot de passe.
 
 Propriétés (catégorie « OBS Studio ») :
+- Action OBS : « Choisir profil, collection et scène » (par défaut), « Démarrer le live », « Arrêter le live », « Démarrer l'enregistrement », « Arrêter l'enregistrement », « Démarrer la caméra virtuelle », « Arrêter la caméra virtuelle ». Une action déjà dans l'état voulu (live déjà démarré, par exemple) est ignorée. « Démarrer le live » lance la diffusion configurée dans OBS (Réglages > Stream) et vérifie qu'elle démarre : sans clé de diffusion valide, l'étape échoue avec un message.
+- Arrêter le live OBS quand j'arrête le live (action « Démarrer le live ») : case décochée par défaut. Cochée, le clic sur « Arrêter le live » (bouton du profil, Stream Deck, tray) arrête la diffusion d'OBS avant de fermer les fenêtres. Même principe pour « Arrêter l'enregistrement OBS quand j'arrête le live » (action « Démarrer l'enregistrement »). Décochée, OBS continue de diffuser quand tu arrêtes le live.
 - Serveur WebSocket : adresse et port (localhost:4455 par défaut).
 - Mot de passe WebSocket : laisse vide s'il n'y en a pas. Il est enregistré en clair dans profiles.json.
 - Profil OBS : profil à charger en premier (laisse vide pour ne pas en changer). Choisis-le dans la liste ou tape son nom exact.
 - Collection de scènes : collection à charger ensuite (laisse vide pour ne pas en changer). Si elle n'est pas déjà active, l'étape attend qu'OBS l'ait chargée.
 - Scène à activer : choisis-la dans la liste (lue dans OBS quand il est lancé) ou tape son nom exact. La liste montre les scènes de la collection active : pour une autre collection, tape le nom de la scène.
-L'ordre d'exécution est : profil, collection, scène. Chaque champ peut rester vide (par exemple pour ne changer que de collection).
+Pour l'action « Choisir profil, collection et scène », l'ordre d'exécution est : profil, collection, scène. Chaque champ peut rester vide (par exemple pour ne changer que de collection). Les anciennes étapes « Scène OBS » gardent ce comportement.
 
 Si la scène n'existe pas, l'étape échoue tout de suite avec le message d'OBS ; si OBS est injoignable (fermé, WebSocket désactivé), elle réessaie puis échoue au bout du délai maximum."),
         new("Twitch, Kick et YouTube (titre, jeu, tags)", @"Bouton « Infos du live » (barre du profil) : change le titre, le jeu et les tags de ta chaîne sur Twitch, Kick et YouTube en même temps (mêmes valeurs partout).
@@ -180,7 +183,7 @@ Modération (ta chaîne) :
 - Nommer ou retirer modérateur ; nommer ou retirer VIP (Twitch ; YouTube : modérateur seulement ; Kick : ni l'un ni l'autre, l'API de Kick ne les propose pas). Le menu ne propose qu'une des deux actions selon le statut de la personne. Un modérateur ne peut pas être VIP, ni exclu ni banni sur Twitch : retire d'abord son rôle de modérateur.
 - Messages retenus par AutoMod (Twitch, à activer dans les Réglages) : clic droit sur le pseudo > « Autoriser le message » ou « Refuser le message ».
 
-Commandes tapées dans la zone du bas (appliquées aux plateformes allumées) : /ban pseudo, /unban pseudo, /timeout pseudo [secondes] (600 par défaut), /untimeout pseudo, /clear (vide le chat, Twitch), /mod, /unmod, /vip, /unvip pseudo. Le résultat s'écrit dans le chat. Les commandes avec un pseudo ne marchent pas sur YouTube. Les autres textes commençant par / (comme /me) sont envoyés tels quels.
+Commandes tapées dans la zone du bas (appliquées aux plateformes allumées) : /ban pseudo, /unban pseudo, /timeout pseudo [secondes] (600 par défaut), /untimeout pseudo, /clear (vide le chat, Twitch), /mod, /unmod, /vip, /unvip pseudo. Le résultat s'écrit dans le chat. Commandes du live (Twitch uniquement) : /raid pseudo (le raid part après environ 90 secondes), /unraid, /shoutout pseudo (ou /so pseudo), /announce texte (et /announceblue, /announcegreen, /announceorange, /announcepurple), /clip, /marker [description]. Les commandes avec un pseudo ne marchent pas sur YouTube. Les autres textes commençant par / (comme /me) sont envoyés tels quels.
 
 Bouton ⚡ Live (Twitch uniquement : les API de Kick et de YouTube n'offrent pas ces actions) :
 - Créer un clip : l'adresse est copiée dans le presse-papiers et écrite dans le chat (il faut être en direct).

@@ -100,6 +100,8 @@ static class Ui
             $"{Target(s)} · bouton {(s.Button == MouseBtn.Right ? "droit" : "gauche")}{(s.Double ? " · double-clic" : "")}"),
         StepType.Tray => ($"Ouvrir « {s.TrayName} » depuis la zone de notification", $"bouton {(s.Button == MouseBtn.Right ? "droit" : "gauche")}{(s.Double ? " · double-clic" : "")}"),
         StepType.Chat => ("Ouvrir le chat unifié", "Twitch, Kick et YouTube dans une fenêtre dédiée"),
+        StepType.Obs when s.ObsAction != ObsActionKind.Scene => (Fr.Of(s.ObsAction),
+            "OBS Studio" + (s.ObsAction == ObsActionKind.StartStream && s.ObsStopStream || s.ObsAction == ObsActionKind.StartRecord && s.ObsStopRecord ? " · s'arrête avec le live" : "") + $" · {s.ObsHost}"),
         StepType.Obs => (s.ObsScene != "" ? $"Activer la scène « {s.ObsScene} »" : s.ObsCollection != "" ? $"Charger la collection « {s.ObsCollection} »" : $"Charger le profil « {s.ObsProfile} »",
             "OBS Studio" + (s.ObsProfile != "" && (s.ObsScene != "" || s.ObsCollection != "") ? $" · profil « {s.ObsProfile} »" : "") + (s.ObsCollection != "" && s.ObsScene != "" ? $" · collection « {s.ObsCollection} »" : "") + $" · {s.ObsHost}"),
         _ => (Uri.TryCreate(s.Url, UriKind.Absolute, out var u) ? $"Ouvrir {u.Host}" : "Ouvrir un site", $"{Fr.Of(s.Browser)} · {s.Url}{(s.PlaceWindow ? " · fenêtre placée" : "")}"),
@@ -132,9 +134,14 @@ class StepView : ICustomTypeDescriptor
                 Target(); h.UnionWith(new[] { "Mode", "Button", "Double" });
                 h.UnionWith(s.Mode == ClickMode.Element ? new[] { "ElementName", "ElementId" } : new[] { "RelX", "RelY" });
                 break;
-            case StepType.Tray: h.UnionWith(new[] { "TrayName", "Button", "Double" }); break;
+            case StepType.Tray: h.UnionWith(new[] { "TrayName", "Button", "Double", "KeepOpen" }); break;
             case StepType.Chat: break; // nothing to set: only the delay
-            case StepType.Obs: h.UnionWith(new[] { "ObsHost", "ObsPassword", "ObsProfile", "ObsCollection", "ObsScene" }); break;
+            case StepType.Obs:
+                h.UnionWith(new[] { "ObsHost", "ObsPassword", "ObsAction" });
+                if (s.ObsAction == ObsActionKind.Scene) h.UnionWith(new[] { "ObsProfile", "ObsCollection", "ObsScene" });
+                if (s.ObsAction == ObsActionKind.StartStream) h.Add("ObsStopStream");
+                if (s.ObsAction == ObsActionKind.StartRecord) h.Add("ObsStopRecord");
+                break;
             default: h.UnionWith(new[] { "Browser", "Url", "PlaceWindow", "KeepOpen" }); if (s.PlaceWindow) Placement(); break;
         }
         return h;

@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 
 [TypeConverter(typeof(FrEnumConverter))] enum StepType { Launch, Place, Click, Window, Tray, Browser, Obs, Chat }
+[TypeConverter(typeof(FrEnumConverter))] enum ObsActionKind { Scene, StartStream, StopStream, StartRecord, StopRecord, StartVirtualCam, StopVirtualCam }
 [TypeConverter(typeof(FrEnumConverter))] enum BrowserKind { Defaut, Chrome, Edge, Firefox, Brave, Opera, Vivaldi }
 [TypeConverter(typeof(FrEnumConverter))] enum WindowAction { Reduire, Agrandir, Restaurer, Deplacer }
 [TypeConverter(typeof(FrEnumConverter))] enum ClickMode { Element, Coords }
@@ -20,10 +21,13 @@ class Step
     [DisplayName("Arguments"), Category("Lancement")] public string Args { get; set; } = "";
     [DisplayName("Ne pas relancer si déjà lancée"), Category("Lancement"), Description("Ne pas relancer si un processus du même nom tourne déjà"), TypeConverter(typeof(FrBool))] public bool SkipIfRunning { get; set; } = true;
 
-    [DisplayName("Garder ouverte à l'arrêt du live"), Category("Arrêt du live"), Description("Si oui, les fenêtres de cette application ne sont pas fermées quand on arrête le live"), TypeConverter(typeof(FrBool))] public bool KeepOpen { get; set; }
+    [DisplayName("Garder ouverte à l'arrêt du live"), Category("Arrêt du live"), Description("Si oui, les fenêtres de cette application ne sont pas fermées quand on arrête le live (étape Icône du tray : les fenêtres qui apparaissent après le clic et leur application)"), TypeConverter(typeof(FrBool))] public bool KeepOpen { get; set; }
 
     [DisplayName("Serveur WebSocket"), Category("OBS Studio"), Description("Adresse du serveur WebSocket d'OBS (Outils > Réglages du serveur WebSocket dans OBS). Par défaut localhost:4455.")] public string ObsHost { get; set; } = "localhost:4455";
     [DisplayName("Mot de passe WebSocket"), Category("OBS Studio"), Description("Mot de passe du serveur WebSocket d'OBS (laisser vide s'il n'y en a pas). Enregistré en clair dans profiles.json."), PasswordPropertyText(true)] public string ObsPassword { get; set; } = "";
+    [DisplayName("Action OBS"), Category("OBS Studio"), Description("Ce que fait l'étape dans OBS : choisir le profil, la collection et la scène, démarrer ou arrêter le live (la diffusion configurée dans OBS), l'enregistrement ou la caméra virtuelle. Une action déjà dans l'état voulu est ignorée.")] public ObsActionKind ObsAction { get; set; } = ObsActionKind.Scene;
+    [DisplayName("Arrêter le live OBS quand j'arrête le live"), Category("OBS Studio"), Description("Si oui, un clic sur « Arrêter le live » (bouton du profil, Stream Deck, tray) arrête aussi la diffusion d'OBS avant de fermer les fenêtres. Décoché par défaut : le live OBS reste en cours."), TypeConverter(typeof(FrBool))] public bool ObsStopStream { get; set; }
+    [DisplayName("Arrêter l'enregistrement OBS quand j'arrête le live"), Category("OBS Studio"), Description("Si oui, un clic sur « Arrêter le live » arrête aussi l'enregistrement d'OBS. Décoché par défaut."), TypeConverter(typeof(FrBool))] public bool ObsStopRecord { get; set; }
     [DisplayName("Profil OBS"), Category("OBS Studio"), Description("Profil OBS à charger en premier (réglages de sortie, flux, enregistrement). Laisser vide pour ne pas en changer. La liste est lue dans OBS quand il est lancé."), TypeConverter(typeof(ObsProfileConverter))] public string ObsProfile { get; set; } = "";
     [DisplayName("Collection de scènes"), Category("OBS Studio"), Description("Collection de scènes OBS à charger avant de choisir la scène (laisser vide pour ne pas en changer). La liste est lue dans OBS quand il est lancé."), TypeConverter(typeof(ObsCollectionConverter))] public string ObsCollection { get; set; } = "";
     [DisplayName("Scène à activer"), Category("OBS Studio"), Description("Scène OBS à passer en sortie. La liste est lue dans OBS quand il est lancé ; sinon, tape le nom exact."), TypeConverter(typeof(ObsSceneConverter))] public string ObsScene { get; set; } = "";
@@ -82,6 +86,7 @@ class Step
         },
         StepType.Browser => $"Ouvrir {Fr.Of(Browser)} sur {Url}",
         StepType.Chat => "Ouvrir le chat unifié",
+        StepType.Obs when ObsAction != ObsActionKind.Scene => "OBS : " + Fr.Of(ObsAction).ToLowerInvariant() + (ObsAction == ObsActionKind.StartStream && ObsStopStream || ObsAction == ObsActionKind.StartRecord && ObsStopRecord ? " (arrêt automatique à l'arrêt du live)" : ""),
         StepType.Obs => "OBS : " + string.Join(", ", new[] { ObsProfile != "" ? $"profil « {ObsProfile} »" : "", ObsCollection != "" ? $"collection « {ObsCollection} »" : "", ObsScene != "" ? $"scène « {ObsScene} »" : "" }.Where(x => x != "")),
         StepType.Tray => $"Ouvrir depuis la zone de notification « {TrayName} » ({Fr.Of(Button)}{(Double ? " x2" : "")})",
         StepType.Window => $"{Fr.Of(Action)} la fenêtre {Process} '{Title}'",
@@ -168,7 +173,10 @@ static class Fr
     static readonly Dictionary<string, string> L = new()
     {
         ["StepType.Launch"] = "Lancer une application", ["StepType.Place"] = "Placer une fenêtre", ["StepType.Click"] = "Clic",
-        ["StepType.Window"] = "Action sur une fenêtre", ["StepType.Tray"] = "Icône de la zone de notification", ["StepType.Browser"] = "Site web", ["StepType.Obs"] = "Scène OBS", ["StepType.Chat"] = "Chat unifié",
+        ["StepType.Window"] = "Action sur une fenêtre", ["StepType.Tray"] = "Icône de la zone de notification", ["StepType.Browser"] = "Site web", ["StepType.Obs"] = "OBS Studio",
+        ["ObsActionKind.Scene"] = "Choisir profil, collection et scène", ["ObsActionKind.StartStream"] = "Démarrer le live", ["ObsActionKind.StopStream"] = "Arrêter le live",
+        ["ObsActionKind.StartRecord"] = "Démarrer l'enregistrement", ["ObsActionKind.StopRecord"] = "Arrêter l'enregistrement",
+        ["ObsActionKind.StartVirtualCam"] = "Démarrer la caméra virtuelle", ["ObsActionKind.StopVirtualCam"] = "Arrêter la caméra virtuelle", ["StepType.Chat"] = "Chat unifié",
         ["ClickMode.Element"] = "Élément (par son nom)", ["ClickMode.Coords"] = "Coordonnées dans la fenêtre",
         ["MouseBtn.Left"] = "Gauche", ["MouseBtn.Right"] = "Droit",
         ["WindowAction.Reduire"] = "Réduire", ["WindowAction.Agrandir"] = "Agrandir", ["WindowAction.Restaurer"] = "Restaurer", ["WindowAction.Deplacer"] = "Déplacer",

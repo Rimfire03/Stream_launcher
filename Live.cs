@@ -8,7 +8,7 @@ using System.Text.Json;
 static class Live
 {
     record WinRef(long H, uint Pid);
-    record State(DateTime Started, long[] Before, WinRef[] Touched, string[]? Keep = null, long[]? KeepWindows = null); // Keep: process names, KeepWindows: window handles, both left open at stop
+    record State(DateTime Started, long[] Before, WinRef[] Touched, string[]? Keep = null, long[]? KeepWindows = null, ObsStop[]? ObsStops = null); // Keep: process names, KeepWindows: window handles, both left open at stop
 
     static string Dir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "StreamLauncher", "live");
 
@@ -41,8 +41,8 @@ static class Live
         {
             Directory.CreateDirectory(Dir);
             var keep = p.Steps.Where(s => s.Enabled && s.Type == StepType.Launch && s.KeepOpen && !string.IsNullOrWhiteSpace(s.Exe))
-                .Select(s => Path.GetFileNameWithoutExtension(s.Exe)).ToArray();
-            var state = new State(DateTime.Now, before, runner.Touched.Select(t => new WinRef((long)t.H, t.Pid)).ToArray(), keep, runner.KeepWindows.Select(h => (long)h).ToArray());
+                .Select(s => Path.GetFileNameWithoutExtension(s.Exe)).Concat(runner.KeepProcesses).ToArray();
+            var state = new State(DateTime.Now, before, runner.Touched.Select(t => new WinRef((long)t.H, t.Pid)).ToArray(), keep, runner.KeepWindows.Select(h => (long)h).ToArray(), runner.ObsStops.ToArray());
             File.WriteAllText(FileOf(p.Name), JsonSerializer.Serialize(state));
         }
     }
@@ -54,6 +54,15 @@ static class Live
         var file = FileOf(profile);
         if (!File.Exists(file)) return 0;
         var state = JsonSerializer.Deserialize<State>(File.ReadAllText(file)) ?? new State(DateTime.Now, Array.Empty<long>(), Array.Empty<WinRef>());
+        foreach (var stop in state.ObsStops ?? Array.Empty<ObsStop>()) // OBS first: closing its window would cut the stream abruptly
+        {
+            foreach (var (on, kind, what) in new[] { (stop.Stream, ObsActionKind.StopStream, "live"), (stop.Record, ObsActionKind.StopRecord, "enregistrement") })
+            {
+                if (!on) continue;
+                try { ObsSession.RunAction(stop.Host, stop.Password, kind, 10000, CancellationToken.None); log($"  OBS : {what} arrêté"); }
+                catch (Exception e) { log($"  OBS : {what} non arrêté ({e.Message})"); }
+            }
+        }
         var before = state.Before.ToHashSet();
         var own = (uint)Environment.ProcessId;
 
