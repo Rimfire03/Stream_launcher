@@ -16,6 +16,7 @@ sealed class StreamingDialog : Form
     CancellationTokenSource? searchCts;
     bool busy;
     Button btnApply = null!; // label follows the connected platforms
+    readonly FlowLayoutPanel onlyBtns = new() { AutoSize = true, WrapContents = true }; // one "apply on this platform only" button per connected platform
     readonly ToolTip tip = new() { InitialDelay = 300 };
 
     public StreamingDialog()
@@ -81,6 +82,7 @@ sealed class StreamingDialog : Form
         actions.Controls.Add(btnApply);
         actions.Controls.Add(Ui.Btn("Charger depuis le live", Ui.Kind.Secondary, async (_, _) => await LoadFromLive()));
         Add(actions);
+        Add(onlyBtns);
         var stars = new FlowLayoutPanel { AutoSize = true, WrapContents = true };
         stars.Controls.Add(Ui.Btn("★ Ajouter aux favoris (titre + jeu + tags)", Ui.Kind.Secondary, (_, _) => AddFavorite()));
         Add(stars);
@@ -148,10 +150,10 @@ sealed class StreamingDialog : Form
             if (!p.Connected) row.Controls.Add(new Panel { Width = 52, Height = 1, Margin = new Padding(0) }); // keeps the names aligned
             row.Controls.Add(new Label
             {
-                Text = $"{p.Name} : " + (p.Connected ? $"connecté ({p.UserName})" : p.Configured ? "non connecté" : "indisponible (build local)")
+                Text = $"{p.Name}{(p.Id is "kick" or "youtube" ? " (Beta)" : "")} : " + (p.Connected ? $"connecté ({p.UserName})" : p.Configured ? "non connecté" : "indisponible (build local)")
                     + (p.Connected && store.Skipped.Contains(p.Id) ? "  (envoi désactivé)" : "")
                     + (p.ReconnectReason != null ? "  ⚠ reconnexion nécessaire" : p.Connected ? p.State switch { Health.Ok => "  ✔ opérationnel", Health.Error => "  ✖ erreur", Health.Checking => "  …", _ => "" } : ""),
-                Font = Ui.Bold, AutoSize = false, Width = 300, Height = 24, Margin = new Padding(0, 8, 8, 0),
+                Font = Ui.Bold, AutoSize = false, Width = 360, Height = 24, Margin = new Padding(0, 8, 8, 0),
                 ForeColor = StatusPill.ColorOf(p.State),
             });
             var plat = p;
@@ -168,6 +170,13 @@ sealed class StreamingDialog : Form
             accounts.Controls.Add(row);
         }
         // the main button names where the update goes: connected platforms whose switch is on
+        onlyBtns.Controls.Clear();
+        var connected = Streaming.Platforms.Where(x => x.Connected).ToList();
+        foreach (var p in connected.Count > 1 ? connected : new List<Platform>()) // one account: the main button does the same
+        {
+            var one = p;
+            onlyBtns.Controls.Add(Ui.Btn($"Appliquer seulement sur {p.Name}", Ui.Kind.Secondary, async (_, _) => await ApplyForm(new[] { one })));
+        }
         var targets = Streaming.Targets.ToList();
         btnApply.Text = targets.Count == 0 ? "Appliquer sur les plateformes" : "Appliquer sur " + string.Join(" et ", targets.Select(p => p.Name));
     }

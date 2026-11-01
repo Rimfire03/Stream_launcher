@@ -1,3 +1,6 @@
+## V1.0.18
+- Infos du live : « (Beta) » affiché à côté de Kick et YouTube.
+- Infos du live : boutons « Appliquer seulement sur Twitch / Kick / YouTube » (affichés quand au moins deux comptes sont connectés).
 ## V1.0.17
 - Application cachée dans la zone de notification (Discord) : sa fenêtre est affichée en relançant son exe (instance unique), elle réapparaît normalement dans la barre des tâches et répond, au lieu de rester figée.
 ## V1.0.16
