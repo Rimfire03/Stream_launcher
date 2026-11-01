@@ -1,3 +1,5 @@
+## V1.0.13
+- Bouton « Lancer le live » renommé « Préparer le stream » (puis « Fermer le stream ») : l'application prépare l'environnement, elle ne démarre pas forcément un live.
 ## V1.0.12
 - Étape « Déplacer la fenêtre » : une fenêtre WinForms (chat unifié) est retrouvée même après une mise à jour (le suffixe de hash de sa classe change à chaque version).
 ## V1.0.11

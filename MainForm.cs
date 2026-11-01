@@ -109,7 +109,7 @@ class MainForm : Form
         sidebar.Controls.Add(profBtns);
 
         // ---- profile bar (title + run buttons) and toolbar ----
-        btnRun = Ui.Btn("▶  Lancer le live", Ui.Kind.Primary, (_, _) => { if (Cur != null) RunProfile(Cur); });
+        btnRun = Ui.Btn("▶  Préparer le stream", Ui.Kind.Primary, (_, _) => { if (Cur != null) RunProfile(Cur); });
         btnRun.Font = Ui.Bold;
         btnStop = Ui.Btn("■  Stop", Ui.Kind.Secondary, (_, _) => cts?.Cancel());
         btnStop.Enabled = false;
@@ -560,7 +560,7 @@ class MainForm : Form
         bool live = Live.IsLive(p.Name);
         var fl = TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.Left;
         TextRenderer.DrawText(g, p.Name, Ui.Bold, new Rectangle(e.Bounds.X + 16, e.Bounds.Y + 6, e.Bounds.Width - 50, 20), Ui.Text, fl);
-        TextRenderer.DrawText(g, live ? "en direct" : $"{p.Steps.Count} étape{(p.Steps.Count > 1 ? "s" : "")}", Ui.Small,
+        TextRenderer.DrawText(g, live ? "prêt" : $"{p.Steps.Count} étape{(p.Steps.Count > 1 ? "s" : "")}", Ui.Small,
             new Rectangle(e.Bounds.X + 16, e.Bounds.Y + 25, e.Bounds.Width - 50, 18), live ? Ui.LiveGreen : Ui.Muted, fl);
         if (live) using (var br = new SolidBrush(Ui.LiveGreen)) g.FillEllipse(br, e.Bounds.Right - 28, e.Bounds.Y + 17, 11, 11);
     }
@@ -939,7 +939,7 @@ class MainForm : Form
     {
         using var lease = Live.Enter(p.Name);
         if (lease == null) { Log($"« {p.Name} » est en cours d'exécution : fermeture ignorée"); return; }
-        Log($"=== Fermeture du live : {p.Name} ===");
+        Log($"=== Fermeture du stream : {p.Name} ===");
         int n = await Task.Run(() => Live.Close(p.Name, Log));
         Log($"{n} fenêtre(s) fermée(s)");
         RebuildProfiles();
@@ -948,7 +948,7 @@ class MainForm : Form
     void UpdateRunLabel()
     {
         bool live = Cur != null && Live.IsLive(Cur.Name);
-        btnRun.Text = live ? "■  Fermer le live" : "▶  Lancer le live";
+        btnRun.Text = live ? "■  Fermer le stream" : "▶  Préparer le stream";
         Ui.Style(btnRun, live ? Ui.Kind.Danger : Ui.Kind.Primary);
         lbProf.Invalidate();
         UpdateHeader();

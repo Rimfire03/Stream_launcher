@@ -25,7 +25,7 @@ Zone du milieu : les étapes du profil sélectionné.
 Zone de droite : les propriétés de l'étape sélectionnée (tout se règle là).
 
 Boutons principaux :
-- ▶ Lancer le live / ■ Fermer le live : exécute le profil, puis ferme ses fenêtres (bascule).
+- ▶ Préparer le stream / ■ Fermer le stream : exécute le profil (prépare ton environnement de stream, sans forcément démarrer un live), puis ferme ses fenêtres (bascule).
 - ■ Stop : interrompt une exécution en cours.
 - ＋ Ajouter une étape ▾ : menu par thèmes (Applications, Fenêtres, Interactions) : application ou fichier, import des fenêtres ouvertes, site web, placer / déplacer / réduire une fenêtre, enregistrer mes clics, clic réglé à la main, icône de la zone de notification, scène OBS.
 - Menus du bandeau du haut : « Paramètres » (démarrer avec Windows, canal de mise à jour, identifier ou renommer les écrans), « Outils » (dossier des raccourcis Stream Deck, journal des lancements, liste des icônes de la zone de notification) et « Aide » (guide, mises à jour, à propos).
@@ -127,7 +127,7 @@ Préparation dans OBS (28 ou plus) : menu « Outils > Réglages du serveur WebSo
 
 Propriétés (catégorie « OBS Studio ») :
 - Action OBS : « Choisir profil, collection et scène » (par défaut), « Démarrer le live », « Arrêter le live », « Démarrer l'enregistrement », « Arrêter l'enregistrement », « Démarrer la caméra virtuelle », « Arrêter la caméra virtuelle ». Une action déjà dans l'état voulu (live déjà démarré, par exemple) est ignorée. « Démarrer le live » lance la diffusion configurée dans OBS (Réglages > Stream) et vérifie qu'elle démarre : sans clé de diffusion valide, l'étape échoue avec un message.
-- Arrêter le live OBS quand j'arrête le live (action « Démarrer le live ») : case décochée par défaut. Cochée, le clic sur « Arrêter le live » (bouton du profil, Stream Deck, tray) arrête la diffusion d'OBS avant de fermer les fenêtres. Même principe pour « Arrêter l'enregistrement OBS quand j'arrête le live » (action « Démarrer l'enregistrement »). Décochée, OBS continue de diffuser quand tu arrêtes le live.
+- Arrêter le live OBS quand j'arrête le live (action « Démarrer le live ») : case décochée par défaut. Cochée, le clic sur « Fermer le stream » (bouton du profil, Stream Deck, tray) arrête la diffusion d'OBS avant de fermer les fenêtres. Même principe pour « Arrêter l'enregistrement OBS quand j'arrête le live » (action « Démarrer l'enregistrement »). Décochée, OBS continue de diffuser quand tu arrêtes le live.
 - Serveur WebSocket : adresse et port (localhost:4455 par défaut).
 - Mot de passe WebSocket : laisse vide s'il n'y en a pas. Il est enregistré en clair dans profiles.json.
 - Profil OBS : profil à charger en premier (laisse vide pour ne pas en changer). Choisis-le dans la liste ou tape son nom exact.
@@ -214,9 +214,9 @@ Les applications changent souvent leur titre (nom du document, messages non lus,
 
 Les profils retiennent le nom Windows de l'écran : renommer ne casse rien. Dans le fichier profiles.json, tu peux aussi écrire le nom personnalisé. Si un écran n'existe plus, l'écran principal est utilisé."),
 
-        new("Fermer le live (bouton bascule)", @"Le bouton de lancement d'un profil est une bascule :
+        new("Fermer le stream (bouton bascule)", @"Le bouton de lancement d'un profil est une bascule :
 - 1er appui (« ▶ Lancer » ou « ▶ nom du profil ») : le profil s'exécute et Stream Launcher retient les fenêtres déjà ouvertes à ce moment.
-- Le bouton devient « ■ Fermer le live ». 2e appui : toutes les fenêtres ouvertes depuis le lancement sont fermées proprement (demande de fermeture : une application qui a un travail non enregistré affiche sa question habituelle). Les fenêtres que le profil a placées ou cliquées sont fermées aussi.
+- Le bouton devient « ■ Fermer le stream ». 2e appui : toutes les fenêtres ouvertes depuis le lancement sont fermées proprement (demande de fermeture : une application qui a un travail non enregistré affiche sa question habituelle). Les fenêtres que le profil a placées ou cliquées sont fermées aussi.
 - Les fenêtres qui étaient déjà ouvertes avant le lancement et que le profil n'a pas touchées ne sont pas fermées.
 
 Ça marche partout : bouton du profil, bouton « ▶ nom » en haut de la fenêtre, menu de l'icône de la zone de notification, et Stream Deck (même touche pour lancer puis fermer). L'état est mémorisé sur disque : on peut lancer depuis la fenêtre et fermer depuis Stream Deck.
@@ -241,7 +241,7 @@ Le test est réel (les applications sont vraiment lancées, les clics vraiment f
 
 StreamLauncher.exe --profile ""Nom du profil""
 
-C'est une bascule : le premier appel lance le profil, le suivant ferme les fenêtres ouvertes (voir « Fermer le live »). Les arguments sont portés par les raccourcis générés (voir plus bas).
+C'est une bascule : le premier appel lance le profil, le suivant ferme les fenêtres ouvertes (voir « Fermer le stream »). Les arguments sont portés par les raccourcis générés (voir plus bas).
 
 Dans Stream Deck, l'action « Système > Ouvrir » n'a pas de champ pour les arguments. Utilise les raccourcis générés par l'application :
 1. Les raccourcis sont créés automatiquement : dans le dossier « Profils » de l'application (par défaut C:\Program Files (x86)\Stream Launcher\Profils), un sous-dossier par profil contient « nom - bascule », « nom - lancer » et « nom - fermer » (en .exe pour Stream Deck, en .lnk pour un usage manuel). Ils sont mis à jour quand tu crées, renommes ou supprimes un profil, et à chaque démarrage. « Outils > Ouvrir le dossier des raccourcis Stream Deck » ouvre le dossier du profil sélectionné.
