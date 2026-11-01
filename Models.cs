@@ -2,7 +2,7 @@ using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-[TypeConverter(typeof(FrEnumConverter))] enum StepType { Launch, Place, Click, Window, Tray, Browser, Obs, Chat }
+[TypeConverter(typeof(FrEnumConverter))] enum StepType { Launch, Place, Click, Window, Tray, Browser, Obs, Chat, Show }
 [TypeConverter(typeof(FrEnumConverter))] enum ObsActionKind { Scene, StartStream, StopStream, StartRecord, StopRecord, StartVirtualCam, StopVirtualCam }
 [TypeConverter(typeof(FrEnumConverter))] enum BrowserKind { Defaut, Chrome, Edge, Firefox, Brave, Opera, Vivaldi }
 [TypeConverter(typeof(FrEnumConverter))] enum WindowAction { Reduire, Agrandir, Restaurer, Deplacer }
@@ -32,7 +32,7 @@ class Step
     [DisplayName("Collection de scènes"), Category("OBS Studio"), Description("Collection de scènes OBS à charger avant de choisir la scène (laisser vide pour ne pas en changer). La liste est lue dans OBS quand il est lancé."), TypeConverter(typeof(ObsCollectionConverter))] public string ObsCollection { get; set; } = "";
     [DisplayName("Scène à activer"), Category("OBS Studio"), Description("Scène OBS à passer en sortie. La liste est lue dans OBS quand il est lancé ; sinon, tape le nom exact."), TypeConverter(typeof(ObsSceneConverter))] public string ObsScene { get; set; } = "";
 
-    [DisplayName("Processus (sans .exe)"), Category("Fenêtre cible"), Description("Nom du processus sans .exe")] public string Process { get; set; } = "";
+    [DisplayName("Processus (sans .exe)"), Category("Fenêtre cible"), Description("Nom du processus sans .exe (liste des applications ayant une fenêtre, visible ou masquée ; tu peux aussi le taper)"), Editor(typeof(ProcessEditor), typeof(System.Drawing.Design.UITypeEditor))] public string Process { get; set; } = "";
     [DisplayName("Titre contient"), Category("Fenêtre cible"), Description("Texte contenu dans le titre (vide = n'importe quel titre)")] public string Title { get; set; } = "";
 
     [DisplayName("Fenêtre du navigateur"), Category("Fenêtre cible"), Description("Vrai : cible la fenêtre ouverte par l'étape Navigateur précédente, sans chercher par titre ni processus (idéal pour les pages dont le titre change)."), TypeConverter(typeof(FrBool))] public bool OnLastWindow { get; set; }
@@ -86,6 +86,7 @@ class Step
         },
         StepType.Browser => $"Ouvrir {Fr.Of(Browser)} sur {Url}",
         StepType.Chat => "Ouvrir le chat unifié",
+        StepType.Show => $"Afficher l'application {Process}",
         StepType.Obs when ObsAction != ObsActionKind.Scene => "OBS : " + Fr.Of(ObsAction).ToLowerInvariant() + (ObsAction == ObsActionKind.StartStream && ObsStopStream || ObsAction == ObsActionKind.StartRecord && ObsStopRecord ? " (arrêt automatique à l'arrêt du live)" : ""),
         StepType.Obs => "OBS : " + string.Join(", ", new[] { ObsProfile != "" ? $"profil « {ObsProfile} »" : "", ObsCollection != "" ? $"collection « {ObsCollection} »" : "", ObsScene != "" ? $"scène « {ObsScene} »" : "" }.Where(x => x != "")),
         StepType.Tray => $"Ouvrir depuis la zone de notification « {TrayName} » ({Fr.Of(Button)}{(Double ? " x2" : "")})",
@@ -94,6 +95,46 @@ class Step
             ? $"Clic {Fr.Of(Button)}{(Double ? " x2" : "")} sur « {ElementName} » ({Process})"
             : $"Clic {Fr.Of(Button)}{(Double ? " x2" : "")} à {RelX},{RelY} ({Process})",
     };
+}
+
+/// <summary>Drop-down with a search box listing the applications that own a window right now (shown or hidden in the tray)</summary>
+class ProcessEditor : System.Drawing.Design.UITypeEditor
+{
+    public override System.Drawing.Design.UITypeEditorEditStyle GetEditStyle(ITypeDescriptorContext? c) => System.Drawing.Design.UITypeEditorEditStyle.DropDown;
+
+    public override object? EditValue(ITypeDescriptorContext? c, IServiceProvider provider, object? value)
+    {
+        if (provider.GetService(typeof(System.Windows.Forms.Design.IWindowsFormsEditorService)) is not System.Windows.Forms.Design.IWindowsFormsEditorService svc) return value;
+        var all = Native.AppNames();
+        var search = new TextBox { Dock = DockStyle.Top, PlaceholderText = "Rechercher une application…" };
+        var list = new ListBox { Dock = DockStyle.Fill, IntegralHeight = false, BorderStyle = BorderStyle.None };
+        var panel = new Panel { Width = 280, Height = 300 };
+        panel.Controls.Add(list);
+        panel.Controls.Add(search);
+        string? picked = null;
+        void Fill()
+        {
+            list.Items.Clear();
+            list.Items.AddRange(all.Where(n => n.Contains(search.Text.Trim(), StringComparison.OrdinalIgnoreCase)).ToArray<object>());
+            if (list.Items.Count > 0) list.SelectedIndex = 0;
+        }
+        void Pick() { if (list.SelectedItem is string n) { picked = n; svc.CloseDropDown(); } }
+        search.TextChanged += (_, _) => Fill();
+        search.KeyDown += (_, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { Pick(); e.SuppressKeyPress = true; }
+            else if (e.KeyCode is Keys.Down or Keys.Up && list.Items.Count > 0)
+            {
+                list.SelectedIndex = Math.Clamp(list.SelectedIndex + (e.KeyCode == Keys.Down ? 1 : -1), 0, list.Items.Count - 1);
+                e.SuppressKeyPress = true;
+            }
+        };
+        list.MouseClick += (_, e) => { if (list.IndexFromPoint(e.Location) >= 0) Pick(); };
+        panel.VisibleChanged += (_, _) => { if (panel.Visible) panel.BeginInvoke(() => search.Focus()); };
+        Fill();
+        svc.DropDownControl(panel);
+        return picked ?? value;
+    }
 }
 
 // Steps store the Windows device name (\\.\DISPLAYn, stable under renaming); the grid shows "Custom name (device)".
@@ -202,7 +243,7 @@ static class Fr
         ["StepType.Window"] = "Action sur une fenêtre", ["StepType.Tray"] = "Icône de la zone de notification", ["StepType.Browser"] = "Site web", ["StepType.Obs"] = "OBS Studio",
         ["ObsActionKind.Scene"] = "Choisir profil, collection et scène", ["ObsActionKind.StartStream"] = "Démarrer le live", ["ObsActionKind.StopStream"] = "Arrêter le live",
         ["ObsActionKind.StartRecord"] = "Démarrer l'enregistrement", ["ObsActionKind.StopRecord"] = "Arrêter l'enregistrement",
-        ["ObsActionKind.StartVirtualCam"] = "Démarrer la caméra virtuelle", ["ObsActionKind.StopVirtualCam"] = "Arrêter la caméra virtuelle", ["StepType.Chat"] = "Chat unifié",
+        ["ObsActionKind.StartVirtualCam"] = "Démarrer la caméra virtuelle", ["ObsActionKind.StopVirtualCam"] = "Arrêter la caméra virtuelle", ["StepType.Chat"] = "Chat unifié", ["StepType.Show"] = "Afficher une application",
         ["ClickMode.Element"] = "Élément (par son nom)", ["ClickMode.Coords"] = "Coordonnées dans la fenêtre",
         ["MouseBtn.Left"] = "Gauche", ["MouseBtn.Right"] = "Droit",
         ["WindowAction.Reduire"] = "Réduire", ["WindowAction.Agrandir"] = "Agrandir", ["WindowAction.Restaurer"] = "Restaurer", ["WindowAction.Deplacer"] = "Déplacer",

@@ -1,3 +1,8 @@
+## V1.0.14
+- Nouvelle étape « Afficher une application » : choisis l'application dans une liste (avec recherche) et sa fenêtre est affichée, même cachée dans la zone de notification, sans clic sur l'icône.
+- Les étapes « Fenêtre » affichent aussi une fenêtre masquée avant d'agir dessus.
+- L'étape « Icône du tray » reclique si son premier clic a masqué la fenêtre.
+- La liste des processus ignore les composants Windows.
 ## V1.0.13
 - Bouton « Lancer le live » renommé « Préparer le stream » (puis « Fermer le stream ») : l'application prépare l'environnement, elle ne démarre pas forcément un live.
 ## V1.0.12

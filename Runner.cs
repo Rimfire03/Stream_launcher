@@ -57,6 +57,7 @@ class Runner
                     case StepType.Tray: Tray(uia, s, ct); break;
                     case StepType.Browser: Browse(s, ct); break;
                     case StepType.Obs: Obs(s, ct); break;
+                    case StepType.Show: Show(s, ct); break;
                     case StepType.Chat:
                         if (OpenChat == null) Log("  fenêtre de chat indisponible ici");
                         else { OpenChat(); ChatOpened = true; ChatKeep = s.KeepOpen; }
@@ -115,6 +116,21 @@ class Runner
             var byTitle = s.Title == "" ? null : cands.FirstOrDefault(w => w.Title.Contains(s.Title, StringComparison.OrdinalIgnoreCase));
             if (s.Title == "" && cands.Count > 0) return cands[0].H;
             if (byTitle != null) return byTitle.H;
+            if (cands.Count == 0 && DateTime.UtcNow >= grace)
+            {
+                // no visible window: an app living in the tray keeps its hidden window, show it without any click on the icon
+                var hid = Native.HiddenWindows().FirstOrDefault(w =>
+                    (s.Process == "" || w.Process.Equals(s.Process, StringComparison.OrdinalIgnoreCase)) &&
+                    (s.WindowClass == "" || ClassKey(w.Class).Equals(ClassKey(s.WindowClass), StringComparison.OrdinalIgnoreCase)) &&
+                    (s.Title == "" || w.Title.Contains(s.Title, StringComparison.OrdinalIgnoreCase)));
+                if (hid != null)
+                {
+                    Log($"  fenêtre masquée '{hid.Title}' : affichée");
+                    Native.ShowWindowAsync(hid.H, 9);
+                    Thread.Sleep(600);
+                    return hid.H;
+                }
+            }
             if (!s.TitleStrict && cands.Count > 0 && DateTime.UtcNow >= grace)
             {
                 Log($"  titre '{s.Title}' absent : utilisation de la fenêtre '{cands[0].Title}'");
@@ -123,6 +139,29 @@ class Runner
             Thread.Sleep(250);
         } while (DateTime.UtcNow < end);
         throw new TimeoutException($"fenêtre introuvable ({s.Process} '{s.Title}' {s.WindowClass})");
+    }
+
+    /// <summary>Shows the window(s) of an application, hidden in the tray or minimized, without touching its tray icon</summary>
+    void Show(Step s, CancellationToken ct)
+    {
+        var end = DateTime.UtcNow.AddMilliseconds(s.TimeoutMs);
+        do
+        {
+            ct.ThrowIfCancellationRequested();
+            var wins = Native.MainWindows(s.Process);
+            if (wins.Count > 0)
+            {
+                foreach (var w in wins)
+                {
+                    if (!Native.IsVisible(w.H) || Native.IsMinimized(w.H)) { Log($"  fenêtre '{w.Title}' affichée"); Native.ShowWindowAsync(w.H, 9); }
+                    if (s.KeepOpen) { KeepWindows.Add(w.H); KeepProcesses.Add(w.Process); } else Touch(w.H);
+                }
+                Thread.Sleep(600);
+                return;
+            }
+            Thread.Sleep(300);
+        } while (DateTime.UtcNow < end);
+        throw new TimeoutException($"aucune fenêtre pour l'application '{s.Process}'");
     }
 
     void Place(Step s, CancellationToken ct)
@@ -343,8 +382,18 @@ class Runner
             if (best.El != null && best.El.TryGetClickablePoint(out var p))
             {
                 Log($"  icône « {NameOf(best.El).Split('\n')[0].Trim()} » (correspondance {best.Score}/4)");
-                var seen = Native.TopWindows().Select(w => w.H).ToHashSet();
+                var winsBefore = Native.TopWindows();
+                var seen = winsBefore.Select(w => w.H).ToHashSet();
                 Native.Click(p.X, p.Y, s.Button == MouseBtn.Right, s.Double);
+                // the icon toggles some apps (Discord): a window of that app that was open and is gone means the click hid it, so click again
+                Thread.Sleep(1200);
+                var now = Native.TopWindows().Select(w => w.H).ToHashSet();
+                var hidden = winsBefore.FirstOrDefault(w => !now.Contains(w.H) && w.Process.Contains(s.TrayName.Trim(), StringComparison.OrdinalIgnoreCase));
+                if (hidden != null && s.TrayName.Trim() != "" && !Native.TopWindows().Any(w => !seen.Contains(w.H)))
+                {
+                    Log($"  la fenêtre '{hidden.Title}' s'est masquée : nouveau clic sur l'icône");
+                    Native.Click(p.X, p.Y, s.Button == MouseBtn.Right, s.Double);
+                }
                 KeepShownWindows(seen, s.KeepOpen, ct);
                 return;
             }

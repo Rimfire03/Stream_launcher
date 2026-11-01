@@ -136,6 +136,7 @@ class MainForm : Form
         Item("Placer une fenêtre (écran, Multitâche)", () => AddStep(new Step { Type = StepType.Place, Zone = Zone.Gauche }));
         Item("Déplacer une fenêtre (je la déplace moi-même)", () => PickWindow(true));
         Item("Réduire une fenêtre (je clique dessus)", () => PickWindow(false));
+        Item("Afficher une application (je la choisis dans la liste)", () => AddStep(new Step { Type = StepType.Show }));
         addMenu.Items.Add(new ToolStripSeparator());
         Group("INTERACTIONS");
         Item("Enregistrer mes clics (j'utilise mes applications)", ToggleRec);

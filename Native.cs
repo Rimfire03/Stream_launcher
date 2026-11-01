@@ -156,6 +156,37 @@ static class Native
         return list;
     }
 
+    /// <summary>Titled top-level windows that are hidden (apps living in the tray keep their window, just not shown)</summary>
+    public static List<Win> HiddenWindows()
+    {
+        var list = new List<Win>();
+        EnumWindows((h, _) =>
+        {
+            if (!IsWindowVisible(h) && GetWindowTextLength(h) > 0) list.Add(Describe(h));
+            return true;
+        }, IntPtr.Zero);
+        return list;
+    }
+
+    /// <summary>Main windows of a process: shown or hidden, big enough not to be a tray helper window</summary>
+    public static List<Win> MainWindows(string process) => // shortcut: tray helper windows are told apart by size only, replace if an app breaks it
+
+        TopWindows().Concat(HiddenWindows()).Where(w => w.Process.Equals(process, StringComparison.OrdinalIgnoreCase) && GetWindowRect(w.H, out var r) && r.Right - r.Left >= 200 && r.Bottom - r.Top >= 120).ToList();
+
+    /// <summary>Applications worth picking: a real window (shown or hidden), not a Windows component, not this app</summary>
+    public static List<string> AppNames()
+    {
+        var own = (uint)Environment.ProcessId;
+        var sys = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        return TopWindows().Concat(HiddenWindows())
+            .Where(w => w.Pid != own && w.Process != "" && !w.Path.StartsWith(sys, StringComparison.OrdinalIgnoreCase) && !w.Path.StartsWith(Deck.AppDir, StringComparison.OrdinalIgnoreCase)
+                && GetWindowRect(w.H, out var r) && r.Right - r.Left >= 200 && r.Bottom - r.Top >= 120)
+            .Select(w => w.Process).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    public static bool IsMinimized(IntPtr h) => IsIconic(h);
+    public static bool IsVisible(IntPtr h) => IsWindowVisible(h);
+
     public static void Activate(IntPtr h)
     {
         if (IsIconic(h)) ShowWindow(h, 9); // SW_RESTORE

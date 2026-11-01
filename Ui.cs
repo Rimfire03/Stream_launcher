@@ -77,6 +77,7 @@ static class Ui
         StepType.Tray => ("TRAY", ColorTranslator.FromHtml("#B24A7A")),
         StepType.Obs => ("OBS", ColorTranslator.FromHtml("#4B5563")),
         StepType.Chat => ("CHAT", ColorTranslator.FromHtml("#0E8A7D")),
+        StepType.Show => ("AFFICHER", ColorTranslator.FromHtml("#3B6FD4")),
         _ => ("WEB", ColorTranslator.FromHtml("#2E7D32")),
     };
 
@@ -100,6 +101,7 @@ static class Ui
             $"{Target(s)} · bouton {(s.Button == MouseBtn.Right ? "droit" : "gauche")}{(s.Double ? " · double-clic" : "")}"),
         StepType.Tray => ($"Ouvrir « {s.TrayName} » depuis la zone de notification", $"bouton {(s.Button == MouseBtn.Right ? "droit" : "gauche")}{(s.Double ? " · double-clic" : "")}"),
         StepType.Chat => ("Ouvrir le chat unifié", "Twitch, Kick et YouTube dans une fenêtre dédiée"),
+        StepType.Show => ($"Afficher {(s.Process != "" ? s.Process : "une application")}", "fenêtre affichée, même si l'application est cachée dans la zone de notification"),
         StepType.Obs when s.ObsAction != ObsActionKind.Scene => (Fr.Of(s.ObsAction),
             "OBS Studio" + (s.ObsAction == ObsActionKind.StartStream && s.ObsStopStream || s.ObsAction == ObsActionKind.StartRecord && s.ObsStopRecord ? " · s'arrête avec le live" : "") + $" · {s.ObsHost}"),
         StepType.Obs => (s.ObsScene != "" ? $"Activer la scène « {s.ObsScene} »" : s.ObsCollection != "" ? $"Charger la collection « {s.ObsCollection} »" : $"Charger le profil « {s.ObsProfile} »",
@@ -136,6 +138,7 @@ class StepView : ICustomTypeDescriptor
                 break;
             case StepType.Tray: h.UnionWith(new[] { "TrayName", "Button", "Double", "KeepOpen" }); break;
             case StepType.Chat: h.Add("KeepOpen"); break;
+            case StepType.Show: h.UnionWith(new[] { "Process", "KeepOpen" }); break;
             case StepType.Obs:
                 h.UnionWith(new[] { "ObsHost", "ObsPassword", "ObsAction" });
                 if (s.ObsAction == ObsActionKind.Scene) h.UnionWith(new[] { "ObsProfile", "ObsCollection", "ObsScene" });
