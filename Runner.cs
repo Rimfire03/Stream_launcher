@@ -126,8 +126,7 @@ class Runner
                 if (hid != null)
                 {
                     Log($"  fenêtre masquée '{hid.Title}' : affichée");
-                    Native.ShowWindowAsync(hid.H, 9);
-                    Thread.Sleep(600);
+                    Reveal(hid);
                     return hid.H;
                 }
             }
@@ -139,6 +138,26 @@ class Runner
             Thread.Sleep(250);
         } while (DateTime.UtcNow < end);
         throw new TimeoutException($"fenêtre introuvable ({s.Process} '{s.Title}' {s.WindowClass})");
+    }
+
+    /// <summary>
+    /// Brings a hidden or minimized window back. A window hidden in the tray is shown by starting the exe again: an app living in the tray
+    /// is single-instance and shows its own window (a plain ShowWindow leaves Electron apps frozen and without taskbar button).
+    /// </summary>
+    void Reveal(Native.Win w)
+    {
+        if (Native.IsVisible(w.H)) { Native.ShowWindowAsync(w.H, 9); Thread.Sleep(600); return; } // minimized
+        if (w.Path != "" && File.Exists(w.Path))
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo(w.Path) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(w.Path)! });
+                for (int i = 0; i < 16 && !Native.IsVisible(w.H); i++) Thread.Sleep(250);
+            }
+            catch (Exception e) { Log("  relance impossible : " + e.Message); }
+        }
+        if (!Native.IsVisible(w.H)) { Native.ShowWindowAsync(w.H, 9); Thread.Sleep(400); Native.AddTaskbarButton(w.H); } // last resort
+        Thread.Sleep(600);
     }
 
     /// <summary>Shows the window(s) of an application, hidden in the tray or minimized, without touching its tray icon</summary>
@@ -155,7 +174,7 @@ class Runner
                 if (alreadyShown) Log("  déjà visible : rien à faire");
                 foreach (var w in wins)
                 {
-                    if (!alreadyShown && (!Native.IsVisible(w.H) || Native.IsMinimized(w.H))) { Log($"  fenêtre '{w.Title}' affichée"); Native.ShowWindowAsync(w.H, 9); }
+                    if (!alreadyShown && (!Native.IsVisible(w.H) || Native.IsMinimized(w.H))) { Log($"  fenêtre '{w.Title}' affichée"); Reveal(w); }
                     if (alreadyShown && !Native.IsVisible(w.H)) continue; // hidden helper of an app that is already on screen
                     if (s.KeepOpen) { KeepWindows.Add(w.H); KeepProcesses.Add(w.Process); } else Touch(w.H);
                 }

@@ -187,6 +187,17 @@ static class Native
             .Select(w => w.Process).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
+    [ComImport, Guid("56FDF342-FD6D-11d0-958A-006097C9A090"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    interface ITaskbarList { void HrInit(); void AddTab(IntPtr h); void DeleteTab(IntPtr h); void ActivateTab(IntPtr h); void SetActiveAlt(IntPtr h); }
+    [ComImport, Guid("56FDF344-FD6D-11d0-958A-006097C9A090")] class TaskbarList { }
+
+    /// <summary>Gives a window shown by hand its taskbar button back (apps hidden in the tray remove it)</summary>
+    public static void AddTaskbarButton(IntPtr h)
+    {
+        try { var t = (ITaskbarList)new TaskbarList(); t.HrInit(); t.AddTab(h); }
+        catch { /* cosmetic only */ }
+    }
+
     public static bool IsMinimized(IntPtr h) => IsIconic(h);
     public static bool IsVisible(IntPtr h) => IsWindowVisible(h);
 
