@@ -69,6 +69,38 @@ static class Native
 
     public record Win(IntPtr H, uint Pid, string Process, string Title, string Path, string Class);
 
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    struct ProcessEntry
+    {
+        public uint Size, Usage, Pid; public UIntPtr Heap; public uint Module, Threads, ParentPid; public int PriClass; public uint Flags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)] public string Exe;
+    }
+    [DllImport("kernel32")] static extern IntPtr CreateToolhelp32Snapshot(uint flags, uint pid);
+    [DllImport("kernel32", CharSet = CharSet.Unicode)] static extern bool Process32First(IntPtr s, ref ProcessEntry e);
+    [DllImport("kernel32", CharSet = CharSet.Unicode)] static extern bool Process32Next(IntPtr s, ref ProcessEntry e);
+
+    /// <summary>The given processes plus every process descended from them (a parent that already exited still links its children).</summary>
+    public static HashSet<uint> WithDescendants(IEnumerable<uint> roots)
+    {
+        var all = new HashSet<uint>(roots);
+        var parent = new Dictionary<uint, uint>();
+        var snap = CreateToolhelp32Snapshot(2, 0); // TH32CS_SNAPPROCESS
+        if (snap == (IntPtr)(-1)) return all;
+        try
+        {
+            var e = new ProcessEntry { Size = (uint)Marshal.SizeOf<ProcessEntry>() };
+            for (bool ok = Process32First(snap, ref e); ok; ok = Process32Next(snap, ref e)) parent[e.Pid] = e.ParentPid;
+        }
+        finally { CloseHandle(snap); }
+        for (bool grew = true; grew;)
+        {
+            grew = false;
+            foreach (var (pid, ppid) in parent)
+                if (pid != 0 && all.Contains(ppid) && all.Add(pid)) grew = true;
+        }
+        return all;
+    }
+
     public static string GetTitle(IntPtr h)
     {
         int n = GetWindowTextLength(h);

@@ -12,6 +12,8 @@ class Runner
     public readonly HashSet<(IntPtr H, uint Pid)> Touched = new();
     public Action? OpenChat; // opens the unified chat window (set by the GUI, or by the command line which starts the GUI)
     public readonly List<ObsStop> ObsStops = new(); // OBS outputs to stop when the live is stopped (steps with the box ticked)
+    public readonly HashSet<uint> LaunchedPids = new(); // processes started by Launch steps: their descendants count as launched by the profile too
+    public bool ChatOpened, ChatKeep; // chat step ran: the chat is closed at stop unless KeepOpen
     public readonly HashSet<IntPtr> KeepWindows = new(); // browser windows left open at stop (KeepOpen)
     public readonly HashSet<string> KeepProcesses = new(StringComparer.OrdinalIgnoreCase); // applications shown from the tray with KeepOpen: none of their windows is closed at stop
 
@@ -57,7 +59,7 @@ class Runner
                     case StepType.Obs: Obs(s, ct); break;
                     case StepType.Chat:
                         if (OpenChat == null) Log("  fenêtre de chat indisponible ici");
-                        else OpenChat();
+                        else { OpenChat(); ChatOpened = true; ChatKeep = s.KeepOpen; }
                         break;
                     default: Click(uia, s, ct); break;
                 }
@@ -78,7 +80,8 @@ class Runner
         }
         var psi = new ProcessStartInfo(s.Exe, s.Args) { UseShellExecute = true };
         if (File.Exists(s.Exe)) psi.WorkingDirectory = Path.GetDirectoryName(s.Exe)!;
-        Process.Start(psi);
+        var proc = Process.Start(psi);
+        if (proc != null) LaunchedPids.Add((uint)proc.Id);
     }
 
     // Window lookup: process and class are hard criteria; the title is a preference, because some apps rewrite
@@ -266,7 +269,7 @@ class Runner
     }
 
     /// <summary>"Garder ouverte à l'arrêt du live" on a tray step: the windows that appear after the click, and every other window of their application, are left alone at stop</summary>
-    void KeepShownWindows(HashSet<IntPtr> seen, CancellationToken ct)
+    void KeepShownWindows(HashSet<IntPtr> seen, bool keep, CancellationToken ct)
     {
         var end = DateTime.UtcNow.AddSeconds(6);
         bool found = false;
@@ -277,7 +280,11 @@ class Runner
             var fresh = Native.TopWindows().Where(w => !seen.Contains(w.H)).ToList();
             if (fresh.Count == 0) continue;
             if (!found) { found = true; Thread.Sleep(1200); fresh = Native.TopWindows().Where(w => !seen.Contains(w.H)).ToList(); } // pop-ups can follow the first window
-            foreach (var w in fresh) { KeepWindows.Add(w.H); KeepProcesses.Add(w.Process); }
+            foreach (var w in fresh)
+            {
+                if (keep) { KeepWindows.Add(w.H); KeepProcesses.Add(w.Process); }
+                else Touched.Add((w.H, w.Pid)); // opened by this step: closed at stop
+            }
             return;
         } while (DateTime.UtcNow < end);
         Log("  zone de notification : aucune fenêtre n'est apparue (« garder ouverte » sans effet)");
@@ -333,9 +340,9 @@ class Runner
             if (best.El != null && best.El.TryGetClickablePoint(out var p))
             {
                 Log($"  icône « {NameOf(best.El).Split('\n')[0].Trim()} » (correspondance {best.Score}/4)");
-                var seen = s.KeepOpen ? Native.TopWindows().Select(w => w.H).ToHashSet() : null;
+                var seen = Native.TopWindows().Select(w => w.H).ToHashSet();
                 Native.Click(p.X, p.Y, s.Button == MouseBtn.Right, s.Double);
-                if (seen != null) KeepShownWindows(seen, ct);
+                KeepShownWindows(seen, s.KeepOpen, ct);
                 return;
             }
             Thread.Sleep(500);

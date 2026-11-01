@@ -135,7 +135,7 @@ class StepView : ICustomTypeDescriptor
                 h.UnionWith(s.Mode == ClickMode.Element ? new[] { "ElementName", "ElementId" } : new[] { "RelX", "RelY" });
                 break;
             case StepType.Tray: h.UnionWith(new[] { "TrayName", "Button", "Double", "KeepOpen" }); break;
-            case StepType.Chat: break; // nothing to set: only the delay
+            case StepType.Chat: h.Add("KeepOpen"); break;
             case StepType.Obs:
                 h.UnionWith(new[] { "ObsHost", "ObsPassword", "ObsAction" });
                 if (s.ObsAction == ObsActionKind.Scene) h.UnionWith(new[] { "ObsProfile", "ObsCollection", "ObsScene" });

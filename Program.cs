@@ -101,6 +101,12 @@ static class Program
             while (chatEvent.WaitOne())
                 if (form.IsHandleCreated && !form.IsDisposed) form.BeginInvoke(form.OpenChatWindow);
         }) { IsBackground = true }.Start();
+        using var chatCloseEvent = new EventWaitHandle(false, EventResetMode.AutoReset, "TomLine.StreamLauncher.ChatClose");
+        new Thread(() =>
+        {
+            while (chatCloseEvent.WaitOne())
+                if (form.IsHandleCreated && !form.IsDisposed) form.BeginInvoke(form.CloseChatWindow);
+        }) { IsBackground = true }.Start();
         Application.Run(form);
         return 0;
     }

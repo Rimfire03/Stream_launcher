@@ -8,7 +8,13 @@ using System.Text.Json;
 static class Live
 {
     record WinRef(long H, uint Pid);
-    record State(DateTime Started, long[] Before, WinRef[] Touched, string[]? Keep = null, long[]? KeepWindows = null, ObsStop[]? ObsStops = null); // Keep: process names, KeepWindows: window handles, both left open at stop
+    record State(DateTime Started, long[] Before, WinRef[] Touched, string[]? Keep = null, long[]? KeepWindows = null, ObsStop[]? ObsStops = null, string[]? Owned = null, bool CloseChat = false, Dictionary<uint, long>? OwnedPids = null); // OwnedPids: pid -> start time ticks, so a reused pid is not mistaken for the original process
+
+    static long StartOf(uint pid)
+    {
+        try { using var p = System.Diagnostics.Process.GetProcessById((int)pid); return p.StartTime.Ticks; }
+        catch { return 0; } // exited or not readable
+    } // Keep: process names, KeepWindows: window handles, both left open at stop; Owned: processes launched by the profile (only these, plus Touched, are closed)
 
     static string Dir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "StreamLauncher", "live");
 
@@ -42,7 +48,9 @@ static class Live
             Directory.CreateDirectory(Dir);
             var keep = p.Steps.Where(s => s.Enabled && s.Type == StepType.Launch && s.KeepOpen && !string.IsNullOrWhiteSpace(s.Exe))
                 .Select(s => Path.GetFileNameWithoutExtension(s.Exe)).Concat(runner.KeepProcesses).ToArray();
-            var state = new State(DateTime.Now, before, runner.Touched.Select(t => new WinRef((long)t.H, t.Pid)).ToArray(), keep, runner.KeepWindows.Select(h => (long)h).ToArray(), runner.ObsStops.ToArray());
+            var state = new State(DateTime.Now, before, runner.Touched.Select(t => new WinRef((long)t.H, t.Pid)).ToArray(), keep, runner.KeepWindows.Select(h => (long)h).ToArray(), runner.ObsStops.ToArray(),
+                p.Steps.Where(s => s.Enabled && s.Type == StepType.Launch && !string.IsNullOrWhiteSpace(s.Exe)).Select(s => Path.GetFileNameWithoutExtension(s.Exe)).ToArray(),
+                runner.ChatOpened && !runner.ChatKeep, Native.WithDescendants(runner.LaunchedPids).Select(pid => (pid, t: StartOf(pid))).Where(x => x.t != 0).ToDictionary(x => x.pid, x => x.t));
             File.WriteAllText(FileOf(p.Name), JsonSerializer.Serialize(state));
         }
     }
@@ -67,8 +75,12 @@ static class Live
         var own = (uint)Environment.ProcessId;
 
         var targets = new Dictionary<IntPtr, Native.Win>();
-        foreach (var w in Native.TopWindows())
-            if (w.Pid != own && !before.Contains((long)w.H) && !w.Path.StartsWith(Deck.AppDir, StringComparison.OrdinalIgnoreCase)) targets[w.H] = w; // never our own app, whichever instance
+        var owned = (state.Owned ?? Array.Empty<string>()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        // still the same process (same start time), plus the children it started later
+        var pids = Native.WithDescendants((state.OwnedPids ?? new()).Where(kv => StartOf(kv.Key) == kv.Value).Select(kv => kv.Key));
+        foreach (var w in Native.TopWindows()) // only applications the profile launched: never one the user opened during the live
+            if (w.Pid != own && !before.Contains((long)w.H) && (owned.Contains(w.Process) || pids.Contains(w.Pid)) && !w.Path.StartsWith(Deck.AppDir, StringComparison.OrdinalIgnoreCase)) targets[w.H] = w; // never our own app, whichever instance
+        if (state.CloseChat) { using var ev = new EventWaitHandle(false, EventResetMode.AutoReset, "TomLine.StreamLauncher.ChatClose"); ev.Set(); log("  fermeture : chat unifié"); }
         foreach (var t in state.Touched)
         {
             var h = (IntPtr)t.H;

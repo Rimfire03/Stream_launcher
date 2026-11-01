@@ -38,6 +38,8 @@ class MainForm : Form
         chatWindow.Show();
     }
 
+    public void CloseChatWindow() { if (chatWindow is { IsDisposed: false }) chatWindow.Close(); }
+
     public bool OpenChatOnStart { get; set; }
     readonly System.Windows.Forms.Timer healthTimer = new() { Interval = 5 * 60 * 1000 }; // Twitch / Kick connection check
     /// <summary>the game dictionary is re-read from the connected platforms at every launch (in the background)</summary>
