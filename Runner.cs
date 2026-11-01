@@ -151,9 +151,12 @@ class Runner
             var wins = Native.MainWindows(s.Process);
             if (wins.Count > 0)
             {
+                bool alreadyShown = wins.Any(w => Native.IsVisible(w.H) && !Native.IsMinimized(w.H));
+                if (alreadyShown) Log("  déjà visible : rien à faire");
                 foreach (var w in wins)
                 {
-                    if (!Native.IsVisible(w.H) || Native.IsMinimized(w.H)) { Log($"  fenêtre '{w.Title}' affichée"); Native.ShowWindowAsync(w.H, 9); }
+                    if (!alreadyShown && (!Native.IsVisible(w.H) || Native.IsMinimized(w.H))) { Log($"  fenêtre '{w.Title}' affichée"); Native.ShowWindowAsync(w.H, 9); }
+                    if (alreadyShown && !Native.IsVisible(w.H)) continue; // hidden helper of an app that is already on screen
                     if (s.KeepOpen) { KeepWindows.Add(w.H); KeepProcesses.Add(w.Process); } else Touch(w.H);
                 }
                 Thread.Sleep(600);
@@ -383,6 +386,11 @@ class Runner
             {
                 Log($"  icône « {NameOf(best.El).Split('\n')[0].Trim()} » (correspondance {best.Score}/4)");
                 var winsBefore = Native.TopWindows();
+                if (s.TrayName.Trim() != "" && winsBefore.Any(w => w.Process.Contains(s.TrayName.Trim(), StringComparison.OrdinalIgnoreCase) && !Native.IsMinimized(w.H)))
+                {
+                    Log("  application déjà visible : clic sur l'icône ignoré"); // the icon would toggle (hide) it
+                    return;
+                }
                 var seen = winsBefore.Select(w => w.H).ToHashSet();
                 Native.Click(p.X, p.Y, s.Button == MouseBtn.Right, s.Double);
                 // the icon toggles some apps (Discord): a window of that app that was open and is gone means the click hid it, so click again

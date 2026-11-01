@@ -1,3 +1,5 @@
+## V1.0.15
+- « Afficher une application » et « Icône du tray » vérifient d'abord si l'application est déjà visible : rien n'est fait dans ce cas (le clic sur l'icône l'aurait masquée).
 ## V1.0.14
 - Nouvelle étape « Afficher une application » : choisis l'application dans une liste (avec recherche) et sa fenêtre est affichée, même cachée dans la zone de notification, sans clic sur l'icône.
 - Les étapes « Fenêtre » affichent aussi une fenêtre masquée avant d'agir dessus.
