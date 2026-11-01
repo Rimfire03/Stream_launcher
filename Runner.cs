@@ -94,6 +94,9 @@ class Runner
         return h;
     }
 
+    /// <summary>WinForms class names end with a hash that changes with every build ("WindowsForms10.Window.8.app.0.a0f91b_r3_ad1"): compare without it</summary>
+    static string ClassKey(string c) => System.Text.RegularExpressions.Regex.Replace(c, @"(\.app\.\d+)\.[0-9a-f]+_r\d+_ad\d+$", "$1", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
     IntPtr FindWindowFor(Step s, CancellationToken ct)
     {
         if (s.OnLastWindow)
@@ -108,7 +111,7 @@ class Runner
             ct.ThrowIfCancellationRequested();
             var cands = Native.TopWindows().Where(w =>
                 (s.Process == "" || w.Process.Equals(s.Process, StringComparison.OrdinalIgnoreCase)) &&
-                (s.WindowClass == "" || w.Class.Equals(s.WindowClass, StringComparison.OrdinalIgnoreCase))).ToList();
+                (s.WindowClass == "" || ClassKey(w.Class).Equals(ClassKey(s.WindowClass), StringComparison.OrdinalIgnoreCase))).ToList();
             var byTitle = s.Title == "" ? null : cands.FirstOrDefault(w => w.Title.Contains(s.Title, StringComparison.OrdinalIgnoreCase));
             if (s.Title == "" && cands.Count > 0) return cands[0].H;
             if (byTitle != null) return byTitle.H;

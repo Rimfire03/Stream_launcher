@@ -1,3 +1,5 @@
+## V1.0.12
+- Étape « Déplacer la fenêtre » : une fenêtre WinForms (chat unifié) est retrouvée même après une mise à jour (le suffixe de hash de sa classe change à chaque version).
 ## V1.0.11
 - Chat unifié : se ferme à l'arrêt du live ; nouvelle option « Garder ouverte à l'arrêt du live » sur l'étape Chat.
 - Arrêt du live : seules les applications lancées par le profil sont fermées (plus celles ouvertes par ailleurs pendant le live).
