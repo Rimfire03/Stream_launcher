@@ -1,3 +1,5 @@
+## V1.0.16
+- « Afficher une application » : une fenêtre réduite dans la barre des tâches est maintenant retrouvée et restaurée.
 ## V1.0.15
 - « Afficher une application » et « Icône du tray » vérifient d'abord si l'application est déjà visible : rien n'est fait dans ce cas (le clic sur l'icône l'aurait masquée).
 ## V1.0.14

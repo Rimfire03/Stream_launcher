@@ -171,7 +171,10 @@ static class Native
     /// <summary>Main windows of a process: shown or hidden, big enough not to be a tray helper window</summary>
     public static List<Win> MainWindows(string process) => // shortcut: tray helper windows are told apart by size only, replace if an app breaks it
 
-        TopWindows().Concat(HiddenWindows()).Where(w => w.Process.Equals(process, StringComparison.OrdinalIgnoreCase) && GetWindowRect(w.H, out var r) && r.Right - r.Left >= 200 && r.Bottom - r.Top >= 120).ToList();
+        TopWindows().Concat(HiddenWindows()).Where(w => w.Process.Equals(process, StringComparison.OrdinalIgnoreCase) && IsBig(w.H)).ToList();
+
+    // a minimized window is a tiny title bar: it counts as big
+    static bool IsBig(IntPtr h) => IsIconic(h) || GetWindowRect(h, out var r) && r.Right - r.Left >= 200 && r.Bottom - r.Top >= 120;
 
     /// <summary>Applications worth picking: a real window (shown or hidden), not a Windows component, not this app</summary>
     public static List<string> AppNames()
@@ -180,7 +183,7 @@ static class Native
         var sys = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
         return TopWindows().Concat(HiddenWindows())
             .Where(w => w.Pid != own && w.Process != "" && !w.Path.StartsWith(sys, StringComparison.OrdinalIgnoreCase) && !w.Path.StartsWith(Deck.AppDir, StringComparison.OrdinalIgnoreCase)
-                && GetWindowRect(w.H, out var r) && r.Right - r.Left >= 200 && r.Bottom - r.Top >= 120)
+                && IsBig(w.H))
             .Select(w => w.Process).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
