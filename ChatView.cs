@@ -229,7 +229,26 @@ static class ChatGifs
 sealed class ChatView : Control
 {
     const int Pad = 8, Logo = 16, MaxItems = 600;
-    readonly Font body = new("Segoe UI", 10f), bold = new("Segoe UI", 10f, FontStyle.Bold), small = new("Segoe UI", 8.5f);
+    Font body = new("Segoe UI", 10f), bold = new("Segoe UI", 10f, FontStyle.Bold), small = new("Segoe UI", 8.5f);
+
+    float fontSize = 10f;
+    public event Action<float>? FontSizeChanged; // raised by Ctrl + wheel, so the window can remember it
+
+    /// <summary>text size in points (the small text follows at 85 %); Ctrl + wheel changes it</summary>
+    public float FontSize
+    {
+        get => fontSize;
+        set
+        {
+            value = Math.Clamp(value, 7f, 28f);
+            if (value == fontSize) return;
+            fontSize = value;
+            body.Dispose(); bold.Dispose(); small.Dispose();
+            body = new Font("Segoe UI", value); bold = new Font("Segoe UI", value, FontStyle.Bold); small = new Font("Segoe UI", value * 0.85f);
+            spaceW = 0; // Metrics() measures again
+            if (IsHandleCreated) Remeasure();
+        }
+    }
 
     readonly List<ChatMessage> items = new();
     readonly List<int> heights = new();
@@ -292,7 +311,13 @@ sealed class ChatView : Control
     protected override void OnMouseWheel(MouseEventArgs e)
     {
         base.OnMouseWheel(e);
-        offset = Math.Clamp(offset - e.Delta / 120 * 60, 0, MaxOffset);
+        if ((ModifierKeys & Keys.Control) != 0)
+        {
+            FontSize = fontSize + (e.Delta > 0 ? 1 : -1);
+            FontSizeChanged?.Invoke(fontSize);
+            return;
+        }
+        offset =Math.Clamp(offset - e.Delta / 120 * 60, 0, MaxOffset);
         Sync();
     }
 

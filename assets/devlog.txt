@@ -1,3 +1,5 @@
+## V1.0.19
+- Chat unifié : Ctrl + molette de la souris agrandit ou réduit le texte (taille mémorisée).
 ## V1.0.18
 - Infos du live : « (Beta) » affiché à côté de Kick et YouTube.
 - Infos du live : boutons « Appliquer seulement sur Twitch / Kick / YouTube » (affichés quand au moins deux comptes sont connectés).

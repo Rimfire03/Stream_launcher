@@ -107,6 +107,8 @@ sealed class ChatWindow : Form
         input.PreviewKeyDown += (_, e) => { if (suggest.Visible && e.KeyCode == Keys.Tab) e.IsInputKey = true; };
 
         view.ShowBadges = ChatKinds.Shown("twitch", "badges");
+        view.FontSize = store.ChatFontSize;
+        view.FontSizeChanged += size => { store.ChatFontSize = size; store.Save(); };
         view.AuthorRightClicked += ShowAuthorMenu;
         foreach (var s in sources)
         {

@@ -67,6 +67,8 @@ class StreamingStore
     public List<string> Skipped { get; set; } = new();
     /// <summary>ids of the platforms switched off in the unified chat window</summary>
     public List<string> ChatOff { get; set; } = new();
+    /// <summary>text size of the unified chat (Ctrl + mouse wheel)</summary>
+    public float ChatFontSize { get; set; } = 10f;
     /// <summary>"platform:kind" pairs hidden in the unified chat (everything is shown by default)</summary>
     public List<string> ChatHidden { get; set; } = new();
     /// <summary>"platform:kind" events and alerts switched on (they are all off by default; see ChatKinds.EventKinds)</summary>
