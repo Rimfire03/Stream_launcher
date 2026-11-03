@@ -231,7 +231,8 @@ sealed class ChatView : Control
     const int Pad = 8, Logo = 16, MaxItems = 600;
     Font body = new("Segoe UI", 10f), bold = new("Segoe UI", 10f, FontStyle.Bold), small = new("Segoe UI", 8.5f);
 
-    float fontSize = 10f;
+    public const float DefaultFontSize = 10f;
+    float fontSize = DefaultFontSize;
     public event Action<float>? FontSizeChanged; // raised by Ctrl + wheel, so the window can remember it
 
     /// <summary>text size in points (the small text follows at 85 %); Ctrl + wheel changes it</summary>

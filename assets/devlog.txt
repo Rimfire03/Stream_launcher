@@ -1,3 +1,5 @@
+## V1.0.21
+- Chat unifié : bouton « A↺ » et Ctrl+0 remettent le texte à sa taille par défaut ; la taille utilisée est aussi enregistrée à la fermeture du chat.
 ## V1.0.20
 - Chat unifié : à grande taille de texte, le pseudo et l'heure ne sont plus coupés.
 ## V1.0.19

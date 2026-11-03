@@ -23,6 +23,8 @@ sealed class ChatWindow : Form
     readonly Label replyText = new() { Dock = DockStyle.Fill, ForeColor = Ui.Muted, Font = Ui.Small, TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true };
     DateTime lastActivity = DateTime.MinValue; // last message that counted (for the "quiet moment" sound)
 
+    void ResetZoom() { view.FontSize = ChatView.DefaultFontSize; store.ChatFontSize = view.FontSize; store.Save(); }
+
     public ChatWindow()
     {
         Text = "Chat unifié";
@@ -53,6 +55,10 @@ sealed class ChatWindow : Form
         find.Margin = new Padding(0, 2, 0, 0);
         tip.SetToolTip(find, "Chercher dans le chat (Ctrl+F)");
         top.Controls.Add(find);
+        var zoom = Ui.Btn("A↺", Ui.Kind.Ghost, (_, _) => ResetZoom());
+        zoom.Margin = new Padding(0, 2, 0, 0);
+        tip.SetToolTip(zoom, "Taille du texte par défaut (Ctrl+0). Ctrl + molette : agrandir / réduire");
+        top.Controls.Add(zoom);
         Button live = null!;
         live = Ui.Btn("⚡ Live", Ui.Kind.Secondary, (_, _) => ShowLiveMenu(live));
         live.Margin = new Padding(8, 2, 0, 0);
@@ -86,7 +92,11 @@ sealed class ChatWindow : Form
         searchBox.TextChanged += (_, _) => view.SetFilter(searchBox.Text);
         searchBox.KeyDown += (_, e) => { if (e.KeyCode == Keys.Escape) { e.SuppressKeyPress = true; ToggleSearch(); } };
         KeyPreview = true;
-        KeyDown += (_, e) => { if (e.Control && e.KeyCode == Keys.F) { e.SuppressKeyPress = true; ToggleSearch(); } };
+        KeyDown += (_, e) =>
+        {
+            if (e.Control && e.KeyCode == Keys.F) { e.SuppressKeyPress = true; ToggleSearch(); }
+            else if (e.Control && e.KeyCode is Keys.D0 or Keys.NumPad0) { e.SuppressKeyPress = true; ResetZoom(); }
+        };
         Controls.Add(suggest);
         suggest.BringToFront();
         suggest.DrawItem += DrawSuggestion;
@@ -109,6 +119,7 @@ sealed class ChatWindow : Form
         view.ShowBadges = ChatKinds.Shown("twitch", "badges");
         view.FontSize = store.ChatFontSize;
         view.FontSizeChanged += size => { store.ChatFontSize = size; store.Save(); };
+        FormClosing += (_, _) => { if (store.ChatFontSize != view.FontSize) { store.ChatFontSize = view.FontSize; store.Save(); } }; // belt and braces: the size in use is always the one kept
         view.AuthorRightClicked += ShowAuthorMenu;
         foreach (var s in sources)
         {
