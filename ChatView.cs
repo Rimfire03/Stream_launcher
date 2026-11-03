@@ -335,7 +335,8 @@ sealed class ChatView : Control
             {
                 var m = items[i];
                 if (m.System || m.PlatformId == "system") return;
-                int x = 46 + Logo + 4 + (m.SourceRoom != null ? Logo + 4 : 0);
+                Metrics();
+                int x = Gut + Logo + 4 + (m.SourceRoom != null ? Logo + 4 : 0);
                 if (ShowBadges && m.Badges != null) foreach (var b in m.Badges) if (ChatBadges.Known(b)) x += Logo + 2;
                 int w = TextRenderer.MeasureText(m.Author, bold, new Size(int.MaxValue, 0), TextFormatFlags.NoPadding).Width;
                 if (e.X >= x && e.X <= x + w + 2 && e.Y >= y + Hdr(m) && e.Y <= y + Hdr(m) + 3 + Logo + 6) AuthorRightClicked?.Invoke(m, e.Location);
@@ -349,18 +350,21 @@ sealed class ChatView : Control
     // ---- layout: the prefix (time, logo, badges, name, label) is drawn by hand, then the text is flowed word by word and emote by emote
 
     const int Emote = 24, EmojiSize = 20;
-    int spaceW, bodyH;
+    int spaceW, bodyH, timeW;
+    int Gut => Math.Max(46, Pad + timeW + 8); // x of the platform logo: after the time, whatever the text size
 
     void Metrics()
     {
         if (spaceW > 0) return;
+        timeW = TextRenderer.MeasureText("00:00", small, new Size(int.MaxValue, 0), TextFormatFlags.NoPadding).Width;
         spaceW = Math.Max(3, TextRenderer.MeasureText("a a", body, new Size(int.MaxValue, 0), TextFormatFlags.NoPadding).Width - TextRenderer.MeasureText("aa", body, new Size(int.MaxValue, 0), TextFormatFlags.NoPadding).Width);
         bodyH = TextRenderer.MeasureText("Ag", body, new Size(int.MaxValue, 0), TextFormatFlags.NoPadding).Height;
     }
 
     (int Width, List<Image?> Badges) Prefix(ChatMessage m)
     {
-        int x = 46 + Logo + 4 + (m.SourceRoom != null ? Logo + 4 : 0);
+        Metrics();
+        int x = Gut + Logo + 4 + (m.SourceRoom != null ? Logo + 4 : 0);
         var imgs = new List<Image?>();
         if (ShowBadges && m.Badges != null)
             foreach (var b in m.Badges) if (ChatBadges.Known(b)) { imgs.Add(ChatBadges.Get(b)); x += Logo + 2; } // room is kept while the image downloads
@@ -503,16 +507,17 @@ sealed class ChatView : Control
 
         if (m.ReplyName != null)
         {
-            TextRenderer.DrawText(g, $"↪ {m.ReplyName} : {m.ReplyBody}", small, new Rectangle(r.X + 46, r.Y + 2, r.Width - 54, ReplyH - 2), Ui.Muted, TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter);
+            TextRenderer.DrawText(g, $"↪ {m.ReplyName} : {m.ReplyBody}", small, new Rectangle(r.X + Gut, r.Y + 2, r.Width - Gut - 8, ReplyH - 2), Ui.Muted, TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter);
             r = new Rectangle(r.X, r.Y + ReplyH, r.Width, r.Height - ReplyH);
         }
         var (px, badges) = Prefix(m);
         var (pieces, lines, _) = Flow(m, px, r.Width);
-        int top = r.Y + 3 + (lines[0] - bodyH) / 2; // the prefix is centred on the first line when an emote makes it taller
+        int top = r.Y + 3 + (lines[0] - Logo) / 2; // logos and badges are centred on the first line (taller with a big text or an emote)
 
-        TextRenderer.DrawText(g, m.Time.ToString("HH:mm"), small, new Rectangle(r.X + Pad, top + 1, 38, Logo), Ui.Muted, TextFormatFlags.NoPadding | TextFormatFlags.VerticalCenter);
-        PlatformLogos.Draw(g, m.PlatformId, new Rectangle(r.X + 46, top, Logo, Logo));
-        int x = r.X + 46 + Logo + 4;
+        int th = Math.Max(Logo + 2, bodyH + 2), ty = top + (Logo - th) / 2; // text boxes as tall as the text, centred on the logo
+        TextRenderer.DrawText(g, m.Time.ToString("HH:mm"), small, new Rectangle(r.X + Pad, ty, timeW + 4, th), Ui.Muted, TextFormatFlags.NoPadding | TextFormatFlags.VerticalCenter);
+        PlatformLogos.Draw(g, m.PlatformId, new Rectangle(r.X + Gut, top, Logo, Logo));
+        int x = r.X + Gut + Logo + 4;
         if (m.SourceRoom != null) // shared chat: the channel the message comes from, as a round picture right after the platform logo
         {
             var rect = new Rectangle(x, top, Logo, Logo);
@@ -531,12 +536,12 @@ sealed class ChatView : Control
         foreach (var b in badges) { if (b != null) g.DrawImage(b, new Rectangle(x, top, Logo, Logo)); x += Logo + 2; }
         var nameColor = m.Mine ? ColorTranslator.FromHtml("#B79BFF") : ParseColor(m.Color);
         var nameSize = TextRenderer.MeasureText(m.Author, bold, new Size(int.MaxValue, 0), TextFormatFlags.NoPadding);
-        TextRenderer.DrawText(g, m.Author, bold, new Rectangle(x, top, nameSize.Width + 2, Logo + 2), nameColor, TextFormatFlags.NoPadding | TextFormatFlags.VerticalCenter);
+        TextRenderer.DrawText(g, m.Author, bold, new Rectangle(x, ty, nameSize.Width + 2, th), nameColor, TextFormatFlags.NoPadding | TextFormatFlags.VerticalCenter);
         x += nameSize.Width + 6;
         if (m.Extra != null)
         {
             var exSize = TextRenderer.MeasureText(m.Extra, bold, new Size(int.MaxValue, 0), TextFormatFlags.NoPadding);
-            TextRenderer.DrawText(g, m.Extra, bold, new Rectangle(x, top, exSize.Width + 2, Logo + 2), accent == Color.Transparent ? ForeColor : accent, TextFormatFlags.NoPadding | TextFormatFlags.VerticalCenter);
+            TextRenderer.DrawText(g, m.Extra, bold, new Rectangle(x, ty, exSize.Width + 2, th), accent == Color.Transparent ? ForeColor : accent, TextFormatFlags.NoPadding | TextFormatFlags.VerticalCenter);
         }
 
         var color = m.System ? ColorTranslator.FromHtml("#E0A030") : ForeColor;
