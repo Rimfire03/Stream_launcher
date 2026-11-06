@@ -55,13 +55,17 @@ static class ConfigBackup
         using var f = new Form
         {
             Text = "Correspondance des écrans", StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog,
-            MaximizeBox = false, MinimizeBox = false, ShowInTaskbar = false, BackColor = Ui.Bg, ForeColor = Ui.Text, Font = Ui.Base, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(16),
+            MaximizeBox = false, MinimizeBox = false, ShowInTaskbar = false, BackColor = Ui.Bg, ForeColor = Ui.Text, Font = Ui.Base, Padding = new Padding(16),
+            ClientSize = new Size(760, 150 + file.Count * 42), // fixed: a docked, auto-sized layout collapses to a sliver
         };
         var grid = new TableLayoutPanel { AutoSize = true, ColumnCount = 3, Dock = DockStyle.Top };
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 300));
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 30));
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 380));
         var combos = new Dictionary<string, ComboBox>(StringComparer.OrdinalIgnoreCase);
         foreach (var s in file.Values.OrderBy(s => s.Device, StringComparer.OrdinalIgnoreCase))
         {
-            var cb = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 330, Margin = new Padding(0, 4, 0, 4) };
+            var cb = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 370, Margin = new Padding(0, 4, 0, 4) };
             foreach (var r in real) cb.Items.Add(new Choice(r.DeviceName, Describe(r.DeviceName, Config.Current.ScreenNames.GetValueOrDefault(r.DeviceName, ""), r.Bounds.Width, r.Bounds.Height) + (r.Primary ? "  (principal)" : "")));
             var wanted = Suggest(s);
             cb.SelectedIndex = Math.Max(0, Array.FindIndex(real, r => r.DeviceName == wanted));
@@ -70,7 +74,7 @@ static class ConfigBackup
             grid.Controls.Add(new Label { Text = "→", AutoSize = true, Margin = new Padding(0, 8, 8, 0) });
             grid.Controls.Add(cb);
         }
-        var head = new Label { Text = "Les écrans de la configuration importée ne sont pas ceux de ce PC.\nChoisis quel écran réel remplace chaque écran du fichier :", AutoSize = true, Dock = DockStyle.Top, Padding = new Padding(0, 0, 0, 10) };
+        var head = new Label { Text = "Les écrans de la configuration importée ne sont pas ceux de ce PC.\nChoisis quel écran réel remplace chaque écran du fichier :", AutoSize = false, Height = 56, Dock = DockStyle.Top };
         var ok = Ui.Btn("Importer", Ui.Kind.Primary, (_, _) => f.DialogResult = DialogResult.OK);
         var cancel = Ui.Btn("Annuler", Ui.Kind.Secondary, (_, _) => f.DialogResult = DialogResult.Cancel);
         var buttons = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Top, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(0, 10, 0, 0) };

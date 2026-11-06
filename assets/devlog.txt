@@ -1,3 +1,5 @@
+## V1.0.23
+- Import de configuration : la fenêtre de correspondance des écrans est de nouveau lisible et utilisable.
 ## V1.0.22
 - Paramètres : « Exporter la configuration » et « Importer une configuration » (profils, favoris, historique, réglages du chat ; pas les comptes).
 - Import : si les écrans du fichier ne sont pas ceux du PC, une fenêtre demande quel écran réel remplace chaque écran du fichier.
