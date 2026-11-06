@@ -178,6 +178,9 @@ class MainForm : Form
         settingsMenu.DropDownItems.Add(startup);
         settingsMenu.DropDownItems.Add(new ToolStripSeparator());
         settingsMenu.DropDownItems.Add(screensMenu);
+        settingsMenu.DropDownItems.Add(new ToolStripSeparator());
+        settingsMenu.DropDownItems.Add("Exporter la configuration…", null, (_, _) => ExportConfig());
+        settingsMenu.DropDownItems.Add("Importer une configuration…", null, (_, _) => ImportConfig());
 
         btnToggle = Ui.Btn("Désactiver", Ui.Kind.Secondary, (_, _) => ToggleStep());
         btnRepick = Ui.Btn("Resélectionner", Ui.Kind.Secondary, (_, _) => RePick());
@@ -755,6 +758,46 @@ class MainForm : Form
         menu.Items.Add("Quitter", null, (_, _) => { exiting = true; Close(); });
         tray.ContextMenuStrip = menu;
         UpdateRunLabel();
+    }
+
+    const string ConfigFilter = "Configuration Stream Launcher (*.json)|*.json";
+
+    void ExportConfig()
+    {
+        using var dlg = new SaveFileDialog { Filter = ConfigFilter, FileName = $"StreamLauncher-config-{DateTime.Now:yyyy-MM-dd}.json", Title = "Exporter la configuration" };
+        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        bool pwd = cfg.Profiles.SelectMany(p => p.Steps).Any(s => s.ObsPassword != "")
+            && MessageBox.Show("Inclure les mots de passe OBS des étapes dans le fichier ?\n\nOui : restauration complète, mais le fichier contient ces mots de passe en clair (ne le partage pas).\nNon : les mots de passe seront à ressaisir après l'import.",
+                Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) == DialogResult.Yes;
+        try
+        {
+            ConfigBackup.Export(cfg, dlg.FileName, pwd);
+            Log($"Configuration exportée : {dlg.FileName} (profils, favoris, historique, réglages du chat ; pas les comptes)");
+        }
+        catch (Exception e) { MessageBox.Show("Export impossible : " + e.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error); }
+    }
+
+    void ImportConfig()
+    {
+        if (cfg.Profiles.Any(p => Live.IsLive(p.Name))) { Log("Ferme d'abord le stream en cours avant d'importer une configuration."); return; }
+        using var dlg = new OpenFileDialog { Filter = ConfigFilter, Title = "Importer une configuration" };
+        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        ConfigBackup.Bundle b;
+        try { b = ConfigBackup.Read(dlg.FileName); }
+        catch (Exception e) { MessageBox.Show("Import impossible : " + e.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error); return; }
+        if (MessageBox.Show($"Remplacer la configuration actuelle par celle du fichier ?\n\n{b.Config.Profiles.Count} profil(s), {b.Streaming.Favorites.Count} favori(s) — exporté le {b.ExportedAt:dd/MM/yyyy HH:mm} ({b.App}).\n\nTes profils actuels sont d'abord copiés dans profiles.json.bak. Les comptes connectés ne changent pas.",
+            Text, MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
+        var screens = ConfigBackup.AskScreens(this, b);
+        if (screens == null) return;
+        try
+        {
+            ConfigBackup.Apply(cfg, b, screens);
+            SyncDeck();
+            RebuildProfiles();
+            if (lbProf.Items.Count > 0) lbProf.SelectedIndex = 0;
+            Log($"Configuration importée : {b.Config.Profiles.Count} profil(s). Les réglages du chat s'appliquent à sa prochaine ouverture.");
+        }
+        catch (Exception e) { MessageBox.Show("Import impossible : " + e.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error); }
     }
 
     void NewProfile()

@@ -196,6 +196,8 @@ class Config
         Converters = { new JsonStringEnumConverter() },
     };
 
+    public static JsonSerializerOptions JsonOpt => Opt;
+
     public static Config Load()
     {
         var c = LoadFile();
