@@ -1,3 +1,5 @@
+## V1.0.24
+- Import de configuration : pendant la correspondance des écrans, le numéro de chaque écran s'affiche sur l'écran pour l'identifier.
 ## V1.0.23
 - Import de configuration : la fenêtre de correspondance des écrans est de nouveau lisible et utilisable.
 ## V1.0.22

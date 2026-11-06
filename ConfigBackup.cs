@@ -84,11 +84,46 @@ static class ConfigBackup
         f.Controls.Add(grid);
         f.Controls.Add(head);
         f.AcceptButton = ok; f.CancelButton = cancel;
-        if (f.ShowDialog(owner) != DialogResult.OK) return null;
+        var overlays = real.Select(s => new NumberOverlay(s)).ToList();
+        try
+        {
+            foreach (var o in overlays) o.Show();
+            f.TopMost = true; // above the numbers
+            if (f.ShowDialog(owner) != DialogResult.OK) return null;
+        }
+        finally { foreach (var o in overlays) o.Dispose(); }
         return combos.ToDictionary(kv => kv.Key, kv => ((Choice)kv.Value.SelectedItem!).Device, StringComparer.OrdinalIgnoreCase);
     }
 
     sealed record Choice(string Device, string Label) { public override string ToString() => Label; }
+
+    /// <summary>Big number in the middle of each real screen, click-through, so the screens can be told apart while the dialog is open</summary>
+    sealed class NumberOverlay : Form
+    {
+        protected override bool ShowWithoutActivation => true;
+        protected override CreateParams CreateParams
+        {
+            get { var cp = base.CreateParams; cp.ExStyle |= 0x20 | 0x08000000 | 0x80; return cp; } // transparent to the mouse, never takes focus, no taskbar button
+        }
+
+        public NumberOverlay(Screen s)
+        {
+            var num = new string(s.DeviceName.Where(char.IsDigit).ToArray());
+            const int W = 460, H = 320;
+            FormBorderStyle = FormBorderStyle.None; TopMost = true; ShowInTaskbar = false; StartPosition = FormStartPosition.Manual;
+            Bounds = new Rectangle(s.Bounds.X + (s.Bounds.Width - W) / 2, s.Bounds.Y + 60, W, H); // near the top: the dialog opens in the middle of the window and would hide it
+            BackColor = Color.Black; Opacity = 0.8;
+            var label = $"{Config.Label(s.DeviceName)}  {s.Bounds.Width}x{s.Bounds.Height}{(s.Primary ? "  (principal)" : "")}";
+            Paint += (_, e) =>
+            {
+                var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                using var big = new Font("Segoe UI", 150f, FontStyle.Bold, GraphicsUnit.Pixel);
+                using var small = new Font("Segoe UI", 20f, GraphicsUnit.Pixel);
+                e.Graphics.DrawString(num, big, Brushes.White, new Rectangle(0, 0, W, H - 50), sf);
+                e.Graphics.DrawString(label, small, Brushes.LightGray, new Rectangle(0, H - 56, W, 50), sf);
+            };
+        }
+    }
 
     /// <param name="obsPasswords">false: the OBS WebSocket passwords of the steps are left empty in the file</param>
     public static void Export(Config cfg, string path, bool obsPasswords)
