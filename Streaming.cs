@@ -728,7 +728,17 @@ sealed class KickPlatform : Platform
             foreach (var kv in body)
             {
                 try { await SendAsync(patch, "/v1/channels", new Dictionary<string, object> { [kv.Key] = kv.Value }, ct); ok.Add(Label(kv.Key)); }
-                catch (Exception e2) { ko.Add(Label(kv.Key)); last = e2.Message; }
+                catch (Exception e2)
+                {
+                    // the id of the dictionary (v2 list) may not be the one the channel update takes: retry with the id of the v1 search
+                    if (kv.Key == "category_id" && gameName != null
+                        && (await SearchGamesAsync(gameName, ct)).FirstOrDefault(f => f.Name.Equals(gameName.Trim(), StringComparison.OrdinalIgnoreCase))?.KickId is { } v1 && !v1.Equals(kv.Value))
+                    {
+                        try { await SendAsync(patch, "/v1/channels", new Dictionary<string, object> { [kv.Key] = v1 }, ct); ok.Add(Label(kv.Key)); continue; }
+                        catch (Exception e3) { e2 = e3; }
+                    }
+                    ko.Add(Label(kv.Key)); last = e2.Message;
+                }
             }
             if (ok.Count == 0) throw new InvalidOperationException(last ?? e.Message);
             if (ko.Count > 0) warning = (warning == null ? "" : warning + " ; ") + $"refusé par Kick : {string.Join(", ", ko)} (appliqué : {string.Join(", ", ok)}) — {last}";
