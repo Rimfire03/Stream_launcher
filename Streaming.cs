@@ -721,14 +721,21 @@ sealed class KickPlatform : Platform
         if (body.Count == 0) return warning;
         var patch = new HttpMethod("PATCH");
         try { await SendAsync(patch, "/v1/channels", body, ct); }
-        catch (Exception e) when (tags != null && body.Count > 1 && e.Message.Contains("500"))
+        catch (Exception e) when (body.Count > 1 && e.Message.Contains("500"))
         {
-            // Kick answers 500 when it dislikes the tags: keep the title and the game, report the tags
-            body.Remove("custom_tags");
-            await SendAsync(patch, "/v1/channels", body, ct);
-            warning = (warning == null ? "" : warning + " ; ") + "tags refusés par Kick (erreur 500), titre et jeu appliqués";
+            // Kick answers 500 without saying which field it dislikes: send them one by one, report the refused ones
+            var ok = new List<string>(); var ko = new List<string>(); string? last = null;
+            foreach (var kv in body)
+            {
+                try { await SendAsync(patch, "/v1/channels", new Dictionary<string, object> { [kv.Key] = kv.Value }, ct); ok.Add(Label(kv.Key)); }
+                catch (Exception e2) { ko.Add(Label(kv.Key)); last = e2.Message; }
+            }
+            if (ok.Count == 0) throw new InvalidOperationException(last ?? e.Message);
+            if (ko.Count > 0) warning = (warning == null ? "" : warning + " ; ") + $"refusé par Kick : {string.Join(", ", ko)} (appliqué : {string.Join(", ", ok)}) — {last}";
         }
         return warning;
+
+        static string Label(string k) => k switch { "stream_title" => "titre", "category_id" => "jeu", _ => "tags" };
     }
 
     /// <summary>makes Kick send these events of the streamer's channel as webhooks to the relay (only the missing ones are created)</summary>
