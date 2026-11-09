@@ -718,7 +718,16 @@ sealed class KickPlatform : Platform
             if (await ResolveGameAsync(gameName, ct) is { } id) body["category_id"] = id;
             else warning = $"jeu « {gameName} » introuvable sur Kick (non modifié)";
         }
-        if (body.Count > 0) await SendAsync(new HttpMethod("PATCH"), "/v1/channels", body, ct);
+        if (body.Count == 0) return warning;
+        var patch = new HttpMethod("PATCH");
+        try { await SendAsync(patch, "/v1/channels", body, ct); }
+        catch (Exception e) when (tags != null && body.Count > 1 && e.Message.Contains("500"))
+        {
+            // Kick answers 500 when it dislikes the tags: keep the title and the game, report the tags
+            body.Remove("custom_tags");
+            await SendAsync(patch, "/v1/channels", body, ct);
+            warning = (warning == null ? "" : warning + " ; ") + "tags refusés par Kick (erreur 500), titre et jeu appliqués";
+        }
         return warning;
     }
 

@@ -1,3 +1,5 @@
+## V1.0.25
+- Kick : si Kick répond « 500 Internal server error », titre et jeu sont appliqués quand même et les tags refusés sont signalés.
 ## V1.0.24
 - Import de configuration : pendant la correspondance des écrans, le numéro de chaque écran s'affiche sur l'écran pour l'identifier.
 ## V1.0.23
