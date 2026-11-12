@@ -322,12 +322,108 @@ sealed class ChatView : Control
         Sync();
     }
 
+    // ---- selection: drag with the mouse (word by word), Ctrl+C copies, Ctrl+A selects everything
+    // a position is a message and a piece of it (-1 = the time and the name, int.MaxValue = the end); messages, not indexes, so new rows do not shift it
+    ChatMessage? anchorM, caretM;
+    int anchorK, caretK;
+    bool selecting;
+    (int Idx, int K, int Idx2, int K2)? selRange; // ordered selection, refreshed at each paint and copy
+
+    (int Idx, int K, int Idx2, int K2)? Range()
+    {
+        if (anchorM == null || caretM == null) return null;
+        int a = items.IndexOf(anchorM), c = items.IndexOf(caretM);
+        if (a < 0 || c < 0 || (a == c && anchorK == caretK)) return null;
+        return a < c || (a == c && anchorK <= caretK) ? (a, anchorK, c, caretK) : (c, caretK, a, anchorK);
+    }
+
+    (ChatMessage M, int K)? HitTest(Point pt)
+    {
+        if (items.Count == 0) return null;
+        if (pt.Y < -offset) return (items[0], -1);
+        int y = -offset;
+        for (int i = 0; i < items.Count; i++)
+        {
+            if (pt.Y < y + heights[i]) return HitRow(items[i], y, pt);
+            y += heights[i];
+        }
+        return (items[^1], int.MaxValue);
+    }
+
+    (ChatMessage, int) HitRow(ChatMessage m, int rowTop, Point pt)
+    {
+        var (px, _) = Prefix(m);
+        var (pieces, lines, _) = Flow(m, px, Wide);
+        int y = rowTop + Hdr(m) + 3, line = lines.Count - 1;
+        for (int i = 0; i < lines.Count; i++) { if (pt.Y < y + lines[i] + 1) { line = i; break; } y += lines[i] + 1; }
+        int best = -1;
+        for (int k = 0; k < pieces.Count; k++) if (pieces[k].Line == line && pieces[k].X <= pt.X) best = k;
+        if (best >= 0) return (m, best);
+        if (line == 0) return (m, -1);
+        int first = pieces.FindIndex(p => p.Line == line);
+        return (m, first >= 0 ? first : pieces.Count - 1);
+    }
+
+    protected override void OnMouseDown(MouseEventArgs e)
+    {
+        base.OnMouseDown(e);
+        Focus();
+        if (e.Button != MouseButtons.Left) return;
+        if (HitTest(e.Location) is { } h) { anchorM = caretM = h.M; anchorK = caretK = h.K; selecting = true; Capture = true; }
+        Invalidate();
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        if (!selecting) return;
+        if (e.Y < 0) offset = Math.Clamp(offset - 20, 0, MaxOffset); // dragging past an edge scrolls
+        else if (e.Y > ClientSize.Height) offset = Math.Clamp(offset + 20, 0, MaxOffset);
+        if (HitTest(e.Location) is { } h) { caretM = h.M; caretK = h.K; }
+        Sync();
+    }
+
+    string SelectedText()
+    {
+        if (Range() is not { } r) return "";
+        var sb = new StringBuilder();
+        for (int i = r.Idx; i <= r.Idx2; i++)
+        {
+            var m = items[i];
+            var (px, _) = Prefix(m);
+            var (pieces, _, _) = Flow(m, px, Wide);
+            int from = i == r.Idx ? r.K : -1, to = i == r.Idx2 ? r.K2 : int.MaxValue;
+            if (sb.Length > 0) sb.Append("\r\n");
+            if (from < 0) sb.Append($"{m.Time:HH:mm} {m.Author}{(m.Extra != null ? " " + m.Extra : "")} : ");
+            if (from <= 0 && to >= pieces.Count - 1) { sb.Append(m.Text); continue; } // the whole text keeps its emote names
+            sb.Append(string.Join(" ", pieces.Where((p, k) => k >= from && k <= to && p.Word != null).Select(p => p.Word)));
+        }
+        return sb.ToString();
+    }
+
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (keyData == (Keys.Control | Keys.C) && Range() != null)
+        {
+            try { Clipboard.SetText(SelectedText()); } catch { }
+            return true;
+        }
+        if (keyData == (Keys.Control | Keys.A) && items.Count > 0)
+        {
+            anchorM = items[0]; anchorK = -1; caretM = items[^1]; caretK = int.MaxValue;
+            Invalidate();
+            return true;
+        }
+        return base.ProcessCmdKey(ref msg, keyData);
+    }
+
     // ---- right click on an author name (copy the name, moderation: see ChatWindow)
     public event Action<ChatMessage, Point>? AuthorRightClicked;
 
     protected override void OnMouseUp(MouseEventArgs e)
     {
         base.OnMouseUp(e);
+        if (e.Button == MouseButtons.Left && selecting) { selecting = false; Capture = false; if (Range() == null) anchorM = caretM = null; Invalidate(); }
         if (e.Button != MouseButtons.Right) return;
         int y = -offset;
         for (int i = 0; i < items.Count; i++)
@@ -485,16 +581,19 @@ sealed class ChatView : Control
         var g = e.Graphics;
         g.Clear(BackColor);
         gifVisible = false;
+        selRange = Range();
         int y = -offset;
         for (int i = 0; i < items.Count && y < ClientSize.Height; i++)
         {
-            if (y + heights[i] > 0) DrawRow(g, items[i], new Rectangle(0, y, Wide, heights[i]));
+            if (y + heights[i] > 0) DrawRow(g, items[i], new Rectangle(0, y, Wide, heights[i]), i);
             y += heights[i];
         }
     }
 
-    void DrawRow(Graphics g, ChatMessage m, Rectangle r)
+    void DrawRow(Graphics g, ChatMessage m, Rectangle r, int idx)
     {
+        bool Sel(int k) => selRange is { } s && (idx > s.Idx || (idx == s.Idx && k >= s.K)) && (idx < s.Idx2 || (idx == s.Idx2 && k <= s.K2));
+        var hl = Color.FromArgb(110, 145, 70, 255);
         bool special = m.Kind != "message" || m.System;
         var accent = m.System ? ColorTranslator.FromHtml("#D64535") : m.Kind switch
         {
@@ -515,6 +614,7 @@ sealed class ChatView : Control
         var (pieces, lines, _) = Flow(m, px, r.Width);
         int top = r.Y + 3 + (lines[0] - Logo) / 2; // logos and badges are centred on the first line (taller with a big text or an emote)
 
+        if (Sel(-1)) using (var b = new SolidBrush(hl)) g.FillRectangle(b, r.X + Pad - 2, r.Y + 3, px - Pad + 2, lines[0]);
         int th = Math.Max(Logo + 2, bodyH + 2), ty = top + (Logo - th) / 2; // text boxes as tall as the text, centred on the logo
         TextRenderer.DrawText(g, m.Time.ToString("HH:mm"), small, new Rectangle(r.X + Pad, ty, timeW + 4, th), Ui.Muted, TextFormatFlags.NoPadding | TextFormatFlags.VerticalCenter);
         PlatformLogos.Draw(g, m.PlatformId, new Rectangle(r.X + Gut, top, Logo, Logo));
@@ -550,9 +650,16 @@ sealed class ChatView : Control
         int y = r.Y + 3;
         for (int i = 0; i < lines.Count; i++) { lineTop[i] = y; y += lines[i] + 1; }
         g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-        foreach (var p in pieces)
+        for (int k = 0; k < pieces.Count; k++)
         {
+            var p = pieces[k];
             int py = lineTop[p.Line] + (lines[p.Line] - p.H) / 2;
+            if (Sel(k))
+            {
+                bool joined = k + 1 < pieces.Count && pieces[k + 1].Line == p.Line && Sel(k + 1); // fill the space between two selected words
+                using var b = new SolidBrush(hl);
+                g.FillRectangle(b, r.X + p.X - 1, lineTop[p.Line], p.W + (joined ? spaceW : 1) + 1, lines[p.Line]);
+            }
             if (p.Word != null) TextRenderer.DrawText(g, p.Word, body, new Point(r.X + p.X, py), color, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
             else if (p.Image != null && p.Gif) { Animate(p.Image); g.DrawImage(p.Image, new Rectangle(r.X + p.X, py, p.W, p.H)); gifVisible = true; }
             else if (p.Image != null) g.DrawImage(p.Image, new Rectangle(r.X + p.X, py + 1, p.W, p.H - 2));

@@ -3,7 +3,7 @@ sealed class StreamingDialog : Form
 {
     readonly StreamingStore store = StreamingStore.Current;
     readonly TextBox tbTitle = new() { Dock = DockStyle.Top, Font = Ui.Base, MaxLength = 140 };
-    readonly TextBox tbGame = new() { Dock = DockStyle.Top, Font = Ui.Base, AutoCompleteMode = AutoCompleteMode.SuggestAppend, AutoCompleteSource = AutoCompleteSource.CustomSource };
+    readonly TextBox tbGame = new() { Dock = DockStyle.Top, Font = Ui.Base, AutoCompleteMode = AutoCompleteMode.SuggestAppend, AutoCompleteSource = AutoCompleteSource.CustomSource, AutoCompleteCustomSource = new AutoCompleteStringCollection() };
     readonly TagEditor tbTags = new() { Dock = DockStyle.Top };
     readonly Label lblCount = new() { AutoSize = true, Font = Ui.Small, ForeColor = Ui.Muted };
     readonly Label lblGameInfo = new() { AutoSize = true, Font = Ui.Small, ForeColor = Ui.Muted };
@@ -415,10 +415,13 @@ sealed class StreamingDialog : Form
 
     void SetSuggestions(List<GameEntry> games)
     {
-        var src = new AutoCompleteStringCollection();
-        src.AddRange(games.Select(g => g.Name).ToArray());
-        tbGame.AutoCompleteCustomSource = src;
+        // assigning a new source closes the open suggestion list (the user could not pick a game): names are only added, and only when some are new
+        var fresh = games.Select(g => g.Name).Where(n => suggested.Add(n)).ToArray();
+        if (fresh.Length == 0) return;
+        tbGame.AutoCompleteCustomSource.AddRange(fresh);
     }
+
+    readonly HashSet<string> suggested = new(StringComparer.OrdinalIgnoreCase);
 
     void ShowGameInfo()
     {

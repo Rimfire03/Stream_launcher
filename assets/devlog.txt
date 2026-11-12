@@ -1,3 +1,6 @@
+## V1.0.28
+- Chat unifié : le texte se sélectionne à la souris (mot par mot, sur plusieurs messages) ; Ctrl+C copie, Ctrl+A sélectionne tout.
+- Infos du live : la liste de suggestions du jeu ne se referme plus toute seule pendant la recherche.
 ## V1.0.27
 - Kick : si Kick répond « 500 », titre, jeu et tags sont envoyés un par un, ce qui est refusé est signalé, et le jeu est retenté avec l'identifiant de la recherche Kick.
 ## V1.0.25
