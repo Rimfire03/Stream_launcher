@@ -1,3 +1,5 @@
+## V1.0.29
+- Chat unifié : les emotes animées de Twitch et de Kick bougent au lieu de rester fixes.
 ## V1.0.28
 - Chat unifié : le texte se sélectionne à la souris (mot par mot, sur plusieurs messages) ; Ctrl+C copie, Ctrl+A sélectionne tout.
 - Infos du live : la liste de suggestions du jeu ne se referme plus toute seule pendant la recherche.

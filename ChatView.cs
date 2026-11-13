@@ -542,9 +542,12 @@ sealed class ChatView : Control
             {
                 if (sp.Start < pos || sp.Start + sp.Length > m.Text.Length) continue;
                 Words(m.Text[pos..sp.Start]);
-                var img = ChatBadges.GetUrl(sp.Url);
-                if (img == null && ChatBadges.Failed(sp.Url)) Words(m.Text.Substring(sp.Start, sp.Length)); // no image: show the name
-                else Place(null, img, img == null ? Emote : Math.Max(8, (int)Math.Round(Emote * (double)img.Width / img.Height)), Emote + 2);
+                // Twitch serves the animated version under /animated/ (404 for a still emote: then the still image is used); Kick's file is already animated when it is
+                var animUrl = sp.Url.Contains("jtvnw.net") ? sp.Url.Replace("/default/", "/animated/") : sp.Url;
+                bool anim = !ChatGifs.Failed(animUrl);
+                var img = anim ? ChatGifs.Get(animUrl) : ChatBadges.GetUrl(sp.Url);
+                if (img == null && !anim && ChatBadges.Failed(sp.Url)) Words(m.Text.Substring(sp.Start, sp.Length)); // no image: show the name
+                else Place(null, img, img == null ? Emote : Math.Max(8, (int)Math.Round(Emote * (double)img.Width / img.Height)), Emote + 2, gif: anim && img != null);
                 pos = sp.Start + sp.Length;
             }
         Words(m.Text[pos..]);
