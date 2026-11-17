@@ -17,7 +17,7 @@ using System.Text.RegularExpressions;
 /// <param name="SourceRoom">Twitch shared chat: id of the channel the message was sent from</param>
 /// <param name="Badges">Twitch badges as "set/version" (broadcaster/1, subscriber/12...)</param>
 record ChatMessage(DateTime Time, string PlatformId, string Author, string Text, string? Color = null, bool Mine = false, bool System = false,
-    string Kind = "message", string? Extra = null, string[]? Badges = null, EmoteSpan[]? Emotes = null, string? SourceRoom = null, string? UserId = null, string? MessageId = null, string? GifUrl = null, string? ReplyName = null, string? ReplyBody = null);
+    string Kind = "message", string? Extra = null, string[]? Badges = null, EmoteSpan[]? Emotes = null, string? SourceRoom = null, string? UserId = null, string? MessageId = null, string? GifUrl = null, string? ReplyName = null, string? ReplyBody = null, string[]? Also = null);
 
 /// <summary>an emote inside the text of a message: UTF-16 position and length of its name, and the image url</summary>
 readonly record struct EmoteSpan(int Start, int Length, string Url);

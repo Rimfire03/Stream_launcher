@@ -433,7 +433,7 @@ sealed class ChatView : Control
                 var m = items[i];
                 if (m.System || m.PlatformId == "system") return;
                 Metrics();
-                int x = Gut + Logo + 4 + (m.SourceRoom != null ? Logo + 4 : 0);
+                int x = Gut + Logo + 4 + (m.SourceRoom != null ? Logo + 4 : 0) + (m.Also?.Length ?? 0) * (Logo + 4);
                 if (ShowBadges && m.Badges != null) foreach (var b in m.Badges) if (ChatBadges.Known(b)) x += Logo + 2;
                 int w = TextRenderer.MeasureText(m.Author, bold, new Size(int.MaxValue, 0), TextFormatFlags.NoPadding).Width;
                 if (e.X >= x && e.X <= x + w + 2 && e.Y >= y + Hdr(m) && e.Y <= y + Hdr(m) + 3 + Logo + 6) AuthorRightClicked?.Invoke(m, e.Location);
@@ -461,7 +461,7 @@ sealed class ChatView : Control
     (int Width, List<Image?> Badges) Prefix(ChatMessage m)
     {
         Metrics();
-        int x = Gut + Logo + 4 + (m.SourceRoom != null ? Logo + 4 : 0);
+        int x = Gut + Logo + 4 + (m.SourceRoom != null ? Logo + 4 : 0) + (m.Also?.Length ?? 0) * (Logo + 4);
         var imgs = new List<Image?>();
         if (ShowBadges && m.Badges != null)
             foreach (var b in m.Badges) if (ChatBadges.Known(b)) { imgs.Add(ChatBadges.Get(b)); x += Logo + 2; } // room is kept while the image downloads
@@ -622,6 +622,7 @@ sealed class ChatView : Control
         TextRenderer.DrawText(g, m.Time.ToString("HH:mm"), small, new Rectangle(r.X + Pad, ty, timeW + 4, th), Ui.Muted, TextFormatFlags.NoPadding | TextFormatFlags.VerticalCenter);
         PlatformLogos.Draw(g, m.PlatformId, new Rectangle(r.X + Gut, top, Logo, Logo));
         int x = r.X + Gut + Logo + 4;
+        if (m.Also != null) foreach (var pid in m.Also) { PlatformLogos.Draw(g, pid, new Rectangle(x, top, Logo, Logo)); x += Logo + 4; } // same message received on several platforms
         if (m.SourceRoom != null) // shared chat: the channel the message comes from, as a round picture right after the platform logo
         {
             var rect = new Rectangle(x, top, Logo, Logo);
@@ -698,8 +699,37 @@ sealed class ChatView : Control
         Sync();
     }
 
+    /// <summary>same text within 15 s on another platform: the earlier row gets this platform's logo instead of a second row</summary>
+    bool MergeDuplicate(ChatMessage m)
+    {
+        if (m.Kind != "message" || m.System || m.Mine || m.GifUrl != null || string.IsNullOrWhiteSpace(m.Text)) return false;
+        for (int i = all.Count - 1; i >= 0 && i >= all.Count - 40; i--)
+        {
+            var p = all[i];
+            if ((m.Time - p.Time).TotalSeconds > 15) break;
+            if (p.Kind != "message" || p.System || p.Mine || p.GifUrl != null || !p.Text.Trim().Equals(m.Text.Trim(), StringComparison.OrdinalIgnoreCase)) continue;
+            if (p.PlatformId == m.PlatformId || p.Also?.Contains(m.PlatformId) == true) continue;
+            var n = p with { Also = (p.Also ?? Array.Empty<string>()).Append(m.PlatformId).ToArray() };
+            all[i] = n;
+            int k = items.IndexOf(p);
+            if (k >= 0)
+            {
+                bool follow = AtBottom();
+                items[k] = n;
+                int h = RowHeight(n); total += h - heights[k]; heights[k] = h;
+                if (anchorM == p) anchorM = n;
+                if (caretM == p) caretM = n;
+                if (follow) offset = MaxOffset;
+                Sync();
+            }
+            return true;
+        }
+        return false;
+    }
+
     public void AddMessage(ChatMessage m)
     {
+        if (MergeDuplicate(m)) return;
         all.Add(m);
         if (all.Count > MaxItems) all.RemoveAt(0);
         if (!Matches(m)) return;

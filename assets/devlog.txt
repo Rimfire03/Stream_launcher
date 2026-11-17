@@ -1,3 +1,5 @@
+## V1.0.30
+- Chat unifié : un message identique reçu sur plusieurs plateformes (en 15 s) n'apparaît qu'une fois, avec les puces des plateformes devant.
 ## V1.0.29
 - Chat unifié : les emotes animées de Twitch et de Kick bougent au lieu de rester fixes.
 ## V1.0.28
