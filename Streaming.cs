@@ -29,6 +29,10 @@ class GameEntry
     public string Name { get; set; } = "";
     public long? TwitchId { get; set; }
     public long? KickId { get; set; }
+    /// <summary>correspondence table: name of the game on each platform ("twitch", "kick") when it differs from Name; editable in games.json</summary>
+    public Dictionary<string, string> Names { get; set; } = new();
+
+    public bool Is(string name) => Name.Equals(name, StringComparison.OrdinalIgnoreCase) || Names.Values.Any(n => n.Equals(name, StringComparison.OrdinalIgnoreCase));
 }
 
 static class Json
@@ -119,9 +123,12 @@ class GameDict
     static readonly object Gate = new();
     public static GameDict Current => current ??= Json.Load<GameDict>(File_);
 
+    /// <summary>the game typed by the user, under any of its names (Twitch name, Kick name) or a spelling that normalizes the same</summary>
     public GameEntry? Get(string name)
     {
-        lock (Gate) return Games.FirstOrDefault(g => g.Name.Equals(name.Trim(), StringComparison.OrdinalIgnoreCase));
+        name = name.Trim();
+        lock (Gate)
+            return Games.FirstOrDefault(g => g.Is(name)) ?? (Norm(name) is { Length: > 0 } n ? Games.FirstOrDefault(g => Norm(g.Name) == n || g.Names.Values.Any(v => Norm(v) == n)) : null);
     }
 
     public List<GameEntry> Find(string text, int max = 30)
@@ -132,16 +139,59 @@ class GameDict
                 .OrderByDescending(g => g.Name.StartsWith(text, StringComparison.OrdinalIgnoreCase)).ThenBy(g => g.Name).Take(max).ToList();
     }
 
+    /// <summary>the same game spelled differently on two platforms must compare equal: no case, accents, punctuation, "the"; roman numerals as digits</summary>
+    public static string Norm(string s)
+    {
+        var d = s.Replace("&", " and ").Normalize(System.Text.NormalizationForm.FormD);
+        var sb = new StringBuilder();
+        foreach (var c in d)
+            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark)
+                sb.Append(char.IsLetterOrDigit(c) ? char.ToLowerInvariant(c) : ' ');
+        var toks = sb.ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries).Where((t, i) => !(i == 0 && t == "the")).Select(t => Roman.TryGetValue(t, out var n) ? n : t);
+        return string.Join(' ', toks);
+    }
+
+    static readonly Dictionary<string, string> Roman = new() { ["ii"] = "2", ["iii"] = "3", ["iv"] = "4", ["v"] = "5", ["vi"] = "6", ["vii"] = "7", ["viii"] = "8", ["ix"] = "9", ["x"] = "10", ["xi"] = "11", ["xii"] = "12" };
+
+    /// <summary>the platform's category that is this game: exact name, then same normalized name, then a very close one (token overlap >= 0.8); null if none</summary>
+    public static GameEntry? Best(IEnumerable<GameEntry> found, string name)
+    {
+        var list = found.ToList();
+        name = name.Trim();
+        var hit = list.FirstOrDefault(f => f.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) ?? list.FirstOrDefault(f => Norm(f.Name) == Norm(name));
+        if (hit != null) return hit;
+        var a = Norm(name).Split(' ').ToHashSet();
+        return list.Select(f => (f, s: Overlap(a, Norm(f.Name).Split(' ').ToHashSet()))).Where(x => x.s >= 0.8).OrderByDescending(x => x.s).Select(x => x.f).FirstOrDefault();
+    }
+
+    static double Overlap(HashSet<string> a, HashSet<string> b) => (double)a.Intersect(b).Count() / a.Union(b).Count();
+
+    /// <summary>adds what a platform returned; a game already known under another spelling is the same entry, and the platform's own name goes into its correspondence table</summary>
     public void Merge(IEnumerable<GameEntry> found)
     {
         lock (Gate)
         {
             foreach (var f in found)
             {
-                var g = Games.FirstOrDefault(x => x.Name.Equals(f.Name, StringComparison.OrdinalIgnoreCase));
-                if (g == null) Games.Add(new GameEntry { Name = f.Name, TwitchId = f.TwitchId, KickId = f.KickId });
-                else { g.TwitchId ??= f.TwitchId; g.KickId ??= f.KickId; }
+                var plat = f.TwitchId != null ? "twitch" : "kick";
+                var g = Games.FirstOrDefault(x => x.Is(f.Name)) ?? Games.FirstOrDefault(x => Norm(x.Name) == Norm(f.Name) || x.Names.Values.Any(v => Norm(v) == Norm(f.Name)));
+                if (g == null) Games.Add(g = new GameEntry { Name = f.Name });
+                g.TwitchId ??= f.TwitchId; g.KickId ??= f.KickId;
+                if (!g.Name.Equals(f.Name, StringComparison.OrdinalIgnoreCase)) g.Names[plat] = f.Name;
             }
+        }
+    }
+
+    /// <summary>pairs a game with the category a platform has for it (found by search), so it is never searched again</summary>
+    public void Link(string name, string plat, GameEntry cat)
+    {
+        var known = Get(name);
+        lock (Gate)
+        {
+            var g = known ?? new GameEntry { Name = name.Trim() };
+            if (known == null) Games.Add(g);
+            if (plat == "twitch") g.TwitchId = cat.TwitchId; else g.KickId = cat.KickId;
+            if (!g.Name.Equals(cat.Name, StringComparison.OrdinalIgnoreCase)) g.Names[plat] = cat.Name;
         }
     }
 
@@ -313,14 +363,35 @@ abstract class Platform
     /// <summary>id of a game on this platform: from the dictionary, else by searching the platform</summary>
     protected async Task<long?> ResolveGameAsync(string name, CancellationToken ct)
     {
-        var g = GameDict.Current.Get(name);
+        var dict = GameDict.Current;
+        var g = dict.Get(name);
         if (g != null && IdOf(g) is { } known) return known;
-        var found = await SearchGamesAsync(name, ct);
-        GameDict.Current.Merge(found);
-        GameDict.Current.Save();
-        var hit = found.FirstOrDefault(f => f.Name.Equals(name.Trim(), StringComparison.OrdinalIgnoreCase));
-        return hit == null ? null : IdOf(hit);
+        // search under every name we have for the game (the name typed, the dictionary's, this platform's own), keep the first close match
+        var queries = new[] { g?.Names.GetValueOrDefault(Id), name.Trim(), g?.Name }.Where(q => !string.IsNullOrWhiteSpace(q)).Select(q => q!).Distinct(StringComparer.OrdinalIgnoreCase);
+        var all = new List<GameEntry>();
+        foreach (var q in queries)
+        {
+            var found = await SearchGamesAsync(q, ct);
+            all.AddRange(found);
+            var hit = GameDict.Best(found, name) ?? (g == null ? null : GameDict.Best(found, g.Name));
+            if (hit != null && IdOf(hit) is { } id)
+            {
+                dict.Merge(all);
+                dict.Link(g?.Name ?? name, Id, hit);
+                dict.Save();
+                return id;
+            }
+        }
+        dict.Merge(all); // the categories seen still join the dictionary
+        dict.Save();
+        LastCandidates = all.Select(f => f.Name).Distinct(StringComparer.OrdinalIgnoreCase).Take(3).ToList();
+        return null;
     }
+
+    /// <summary>closest categories of the platform when the last game was not found (to tell the user what to type)</summary>
+    protected List<string> LastCandidates { get; private set; } = new();
+
+    protected string NotFound(string name) => $"jeu « {name} » introuvable sur {Name} (non modifié)" + (LastCandidates.Count > 0 ? $" — catégories proches : {string.Join(" ; ", LastCandidates.Select(c => "« " + c + " »"))}, à associer dans games.json (champ Names)" : "");
 
     protected static void OpenBrowser(string url)
     {
@@ -559,7 +630,7 @@ sealed class TwitchPlatform : Platform
         if (!string.IsNullOrWhiteSpace(gameName))
         {
             if (await ResolveGameAsync(gameName, ct) is { } id) body["game_id"] = id.ToString();
-            else warning = $"jeu « {gameName} » introuvable sur Twitch (non modifié)";
+            else warning = NotFound(gameName);
         }
         if (body.Count > 0) await SendAsync(new HttpMethod("PATCH"), "/channels?broadcaster_id=" + Auth.UserId, body, ct);
         return warning;
@@ -716,7 +787,7 @@ sealed class KickPlatform : Platform
         if (!string.IsNullOrWhiteSpace(gameName))
         {
             if (await ResolveGameAsync(gameName, ct) is { } id) body["category_id"] = id;
-            else warning = $"jeu « {gameName} » introuvable sur Kick (non modifié)";
+            else warning = NotFound(gameName);
         }
         if (body.Count == 0) return warning;
         var patch = new HttpMethod("PATCH");
@@ -732,7 +803,7 @@ sealed class KickPlatform : Platform
                 {
                     // the id of the dictionary (v2 list) may not be the one the channel update takes: retry with the id of the v1 search
                     if (kv.Key == "category_id" && gameName != null
-                        && (await SearchGamesAsync(gameName, ct)).FirstOrDefault(f => f.Name.Equals(gameName.Trim(), StringComparison.OrdinalIgnoreCase))?.KickId is { } v1 && !v1.Equals(kv.Value))
+                        && GameDict.Best(await SearchGamesAsync(gameName, ct), gameName)?.KickId is { } v1 && !v1.Equals(kv.Value))
                     {
                         try { await SendAsync(patch, "/v1/channels", new Dictionary<string, object> { [kv.Key] = v1 }, ct); ok.Add(Label(kv.Key)); continue; }
                         catch (Exception e3) { e2 = e3; }
