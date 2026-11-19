@@ -699,15 +699,18 @@ sealed class ChatView : Control
         Sync();
     }
 
-    /// <summary>same text within 15 s on another platform: the earlier row gets this platform's logo instead of a second row</summary>
+    const int MergeSeconds = 120;
+
+    /// <summary>same text within 2 min on another platform: the earlier row gets this platform's logo instead of a second row</summary>
     bool MergeDuplicate(ChatMessage m)
     {
         if (m.Kind != "message" || m.System || m.Mine || m.GifUrl != null || string.IsNullOrWhiteSpace(m.Text)) return false;
-        for (int i = all.Count - 1; i >= 0 && i >= all.Count - 40; i--)
+        for (int i = all.Count - 1; i >= 0 && i >= all.Count - 200; i--)
         {
             var p = all[i];
-            if ((m.Time - p.Time).TotalSeconds > 15) break;
-            if (p.Kind != "message" || p.System || p.Mine || p.GifUrl != null || !p.Text.Trim().Equals(m.Text.Trim(), StringComparison.OrdinalIgnoreCase)) continue;
+            if ((m.Time - p.Time).TotalSeconds > MergeSeconds) break; // platforms can be late (announcements, echo of a message sent from here)
+            if (p.Kind != "message" || p.System || p.GifUrl != null || !p.Text.Trim().Equals(m.Text.Trim(), StringComparison.OrdinalIgnoreCase)) continue;
+            if (p.Mine) return true; // the platform's echo of a message sent from this window: the "Moi" row already stands for it
             if (p.PlatformId == m.PlatformId || p.Also?.Contains(m.PlatformId) == true) continue;
             var n = p with { Also = (p.Also ?? Array.Empty<string>()).Append(m.PlatformId).ToArray() };
             all[i] = n;
