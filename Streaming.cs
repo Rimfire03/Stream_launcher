@@ -87,7 +87,7 @@ class StreamingStore
     public int YtQuotaUnits { get; set; }
     public List<HistoryEntry> History { get; set; } = new();
 
-    public const int HistorySize = 15;
+    public const int HistorySize = 20;
     const string File_ = "streaming.json";
     static StreamingStore? current;
     public static StreamingStore Current => current ??= Json.Load<StreamingStore>(File_);
@@ -778,7 +778,57 @@ sealed class KickPlatform : Platform
         };
     }
 
+    async Task<bool> IsLiveAsync(CancellationToken ct)
+    {
+        var r = await SendAsync(HttpMethod.Get, "/v1/livestreams?broadcaster_user_id=" + Auth.UserId, null, ct);
+        return r.TryGetProperty("data", out var d) && d.ValueKind == JsonValueKind.Array && d.GetArrayLength() > 0;
+    }
+
+    CancellationTokenSource? watch;
+
+    /// <summary>Kick resets title, category and tags when the stream starts: the values are sent again once it is on air (checked every 30 s, 12 h at most)</summary>
+    void WatchStart(string? title, string? gameName, List<string>? tags)
+    {
+        watch?.Cancel();
+        var cts = watch = new CancellationTokenSource();
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                for (var end = DateTime.UtcNow.AddHours(12); DateTime.UtcNow < end && Connected; await Task.Delay(TimeSpan.FromSeconds(30), cts.Token))
+                {
+                    try { if (!await IsLiveAsync(cts.Token)) continue; } catch (OperationCanceledException) { throw; } catch { continue; }
+                    for (int i = 0; i < 3; i++) // Kick may reset a few seconds after the start: send, then check
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(i == 0 ? 15 : 20), cts.Token);
+                        await SetNowAsync(title, gameName, tags, cts.Token);
+                        if (string.IsNullOrEmpty(title) || (await GetLiveAsync(cts.Token)).Title == title) break;
+                    }
+                    Mark(Health.Ok, "Kick : live démarré, infos du stream réappliquées");
+                    RunLog.Write("Kick : infos réappliquées au démarrage du live");
+                    return;
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception e) { Mark(Health.Error, "Kick : " + e.Message); }
+        });
+    }
+
     public override async Task<string?> SetLiveAsync(string? title, string? gameName, List<string>? tags, CancellationToken ct)
+    {
+        watch?.Cancel();
+        var warning = await SetNowAsync(title, gameName, tags, ct);
+        bool onAir;
+        try { onAir = await IsLiveAsync(ct); } catch (Exception e) when (e is not OperationCanceledException) { onAir = false; }
+        if (!onAir)
+        {
+            WatchStart(title, gameName, tags);
+            warning = (warning == null ? "" : warning + " ; ") + "Kick remet ses infos à zéro au démarrage du live : elles seront renvoyées automatiquement dès qu'il démarre (laisse l'application ouverte)";
+        }
+        return warning;
+    }
+
+    async Task<string?> SetNowAsync(string? title, string? gameName, List<string>? tags, CancellationToken ct)
     {
         var body = new Dictionary<string, object>();
         string? warning = null;

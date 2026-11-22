@@ -202,6 +202,7 @@ sealed class StreamingDialog : Form
     async Task OnShown()
     {
         if (Streaming.Connected.Any() && tbTitle.Text == "") await LoadFromLive();
+        await ImportVods(true); // history straight from Twitch / YouTube
     }
 
     // ---- status helpers ----
@@ -356,10 +357,11 @@ sealed class StreamingDialog : Form
         FillFavs();
     }
 
-    Task ImportVods() => Guard(async () =>
+    /// <param name="quiet">automatic import when the window opens: says nothing unless something new came in or failed</param>
+    Task ImportVods(bool quiet = false) => Guard(async () =>
     {
         var sources = Streaming.Connected.Where(p => p.Id is "twitch" or "youtube").ToList(); // Kick gives no history
-        if (sources.Count == 0) { Say("Connecte d'abord ton compte Twitch ou YouTube.", true); return; }
+        if (sources.Count == 0) { if (!quiet) Say("Connecte d'abord ton compte Twitch ou YouTube.", true); return; }
         int before = store.History.Count;
         var errors = new List<string>();
         foreach (var p in sources)
@@ -374,7 +376,9 @@ sealed class StreamingDialog : Form
         store.History = store.History.OrderByDescending(h => h.Date).Take(StreamingStore.HistorySize).ToList();
         store.Save();
         FillHistory();
-        Say($"{Math.Max(0, store.History.Count - before)} live(s) importé(s) (titre et date seulement)." + (errors.Count > 0 ? "\n✖ " + string.Join("\n✖ ", errors) : ""), errors.Count > 0);
+        int added = Math.Max(0, store.History.Count - before);
+        if (quiet && added == 0 && errors.Count == 0) return;
+        Say($"{added} live(s) importé(s) (titre et date seulement)." + (errors.Count > 0 ? "\n✖ " + string.Join("\n✖ ", errors) : ""), errors.Count > 0);
     });
 
     // ---- game dictionary ----
