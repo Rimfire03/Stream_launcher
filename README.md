@@ -1,5 +1,7 @@
 # Stream Launcher
 
+[![Release](https://img.shields.io/github/v/release/Rimfire03/Stream_launcher)](https://github.com/Rimfire03/Stream_launcher/releases/latest) [![Téléchargements](https://img.shields.io/github/downloads/Rimfire03/Stream_launcher/total)](https://github.com/Rimfire03/Stream_launcher/releases) ![.NET 8](https://img.shields.io/badge/.NET-8-512BD4?logo=dotnet&logoColor=white) ![Windows](https://img.shields.io/badge/Windows-10%2F11-0078D6?logo=windows&logoColor=white)
+
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Donate-orange.svg?logo=buy-me-a-coffee&logoColor=white)](https://buymeacoffee.com/slide598b)
 
 Application Windows gratuite (.NET 8, self-contained), distribuée uniquement par installateur MSI signé (release GitHub), pour préparer un live Twitch ou Kick : lance des applications, les place sur le bon écran, clique dans leurs fenêtres, change la scène, le profil et la collection d'OBS, et met à jour le titre, le jeu et les tags de la chaîne sur Twitch et Kick. Profils stockés dans `profiles.json` à côté de l'exe. Un basculement (même touche Stream Deck) lance le live puis ferme ses fenêtres.
