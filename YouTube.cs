@@ -191,10 +191,55 @@ sealed class YouTubePlatform : Platform
         };
     }
 
+    /// <summary>the broadcast that is on air right now; null when the live is not started</summary>
+    async Task<JsonElement?> FindActiveAsync(CancellationToken ct)
+    {
+        var r = await SendAsync(HttpMethod.Get, "/liveBroadcasts?part=snippet&broadcastStatus=active&maxResults=1", null, ct);
+        return r.TryGetProperty("items", out var items) && items.GetArrayLength() > 0 ? items[0] : null;
+    }
+
+    CancellationTokenSource? pending;
+
+    /// <summary>YouTube refuses edits before the live starts: no live on air = the values wait, and go out as soon as it starts (checked every 30 s, 12 h at most)</summary>
+    void Defer(string? title, string? gameName, List<string>? tags)
+    {
+        pending?.Cancel();
+        var cts = pending = new CancellationTokenSource();
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                for (var end = DateTime.UtcNow.AddHours(12); DateTime.UtcNow < end && Connected; await Task.Delay(TimeSpan.FromSeconds(30), cts.Token))
+                {
+                    JsonElement? b;
+                    try { b = await FindActiveAsync(cts.Token); } catch (OperationCanceledException) { throw; } catch { continue; }
+                    if (b == null) continue;
+                    var w = await ApplyAsync(b.Value, title, gameName, tags, cts.Token);
+                    Mark(Health.Ok, "YouTube : live démarré, titre appliqué" + (w == null ? "" : " (" + w + ")"));
+                    RunLog.Write("YouTube : titre appliqué au démarrage du live");
+                    return;
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception e) { Mark(Health.Error, "YouTube : " + e.Message); }
+        });
+    }
+
     public override async Task<string?> SetLiveAsync(string? title, string? gameName, List<string>? tags, CancellationToken ct)
     {
+        pending?.Cancel();
+        var b = await FindActiveAsync(ct);
+        if (b == null)
+        {
+            Defer(title, gameName, tags);
+            return "⏳ en attente : le live YouTube n'est pas lancé, le titre, la catégorie et les tags seront appliqués dès son démarrage (laisse l'application ouverte)";
+        }
+        return await ApplyAsync(b.Value, title, gameName, tags, ct);
+    }
+
+    async Task<string?> ApplyAsync(JsonElement b, string? title, string? gameName, List<string>? tags, CancellationToken ct)
+    {
         var warnings = new List<string>();
-        var b = await FindBroadcastAsync(ct);
         var id = b.GetProperty("id").GetString()!;
         var bs = b.GetProperty("snippet");
         var currentTitle = bs.GetProperty("title").GetString() ?? "";

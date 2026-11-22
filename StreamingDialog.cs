@@ -231,7 +231,7 @@ sealed class StreamingDialog : Form
 
     void Report(List<(Platform P, string? Warning, Exception? Error)> results)
     {
-        Say(string.Join("\n", results.Select(r => r.Error != null ? "✖ " + (r.Error.Message.StartsWith(r.P.Name) ? r.Error.Message : $"{r.P.Name} : {r.Error.Message}") : r.Warning != null ? $"⚠ {r.P.Name} : appliqué, mais {r.Warning}" : $"✔ {r.P.Name} : appliqué")),
+        Say(string.Join("\n", results.Select(r => r.Error != null ? "✖ " + (r.Error.Message.StartsWith(r.P.Name) ? r.Error.Message : $"{r.P.Name} : {r.Error.Message}") : r.Warning?.StartsWith("⏳") == true ? $"⏳ {r.P.Name} {r.Warning[1..].TrimStart()}" : r.Warning != null ? $"⚠ {r.P.Name} : appliqué, mais {r.Warning}" : $"✔ {r.P.Name} : appliqué")),
             results.Any(r => r.Error != null));
     }
 

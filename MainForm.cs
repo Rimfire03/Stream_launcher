@@ -282,6 +282,19 @@ class MainForm : Form
         header.Controls.Add(menu);
         healthTimer.Tick += (_, _) => CheckConnections();
         healthTimer.Start();
+        // a live whose windows were all closed by hand (or lost in a reboot) goes back to "Préparer le stream"
+        var liveTimer = new System.Windows.Forms.Timer { Interval = 3000 };
+        string liveSeen = "";
+        liveTimer.Tick += (_, _) =>
+        {
+            if (cts != null) return; // a profile is running
+            var now = string.Join("|", cfg.Profiles.Where(p => Live.IsLive(p.Name)).Select(p => p.Name));
+            if (now == liveSeen) return;
+            liveSeen = now;
+            RebuildProfiles();
+            UpdateRunLabel();
+        };
+        liveTimer.Start();
         Shown += (_, _) => { CheckConnections(); RefreshGames(); ShowDevlog(); };
 
         // ---- step list: right-click menu and drawing ----

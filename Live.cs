@@ -21,7 +21,38 @@ static class Live
     static string FileOf(string profile) =>
         Path.Combine(Dir, string.Concat(profile.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)) + ".json");
 
-    public static bool IsLive(string profile) => File.Exists(FileOf(profile));
+    static readonly Dictionary<string, (DateTime At, bool Live)> cache = new();
+
+    /// <summary>a state file counts only while something it started still runs: after a reboot or once every window was closed by hand, it is stale and dropped</summary>
+    public static bool IsLive(string profile)
+    {
+        var file = FileOf(profile);
+        if (!File.Exists(file)) return false;
+        lock (cache)
+        {
+            if (cache.TryGetValue(profile, out var c) && DateTime.UtcNow - c.At < TimeSpan.FromSeconds(2)) return c.Live;
+            bool live;
+            try { live = Alive(JsonSerializer.Deserialize<State>(File.ReadAllText(file))); }
+            catch (IOException) { return true; } // being written right now
+            catch { live = false; } // unreadable state
+            if (!live) try { File.Delete(file); } catch { }
+            cache[profile] = (DateTime.UtcNow, live);
+            return live;
+        }
+    }
+
+    static bool Alive(State? s)
+    {
+        if (s == null) return false;
+        if (s.Started < DateTime.Now - TimeSpan.FromMilliseconds(Environment.TickCount64)) return false; // started before the last boot
+        var owned = (s.Owned ?? Array.Empty<string>()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var pids = (s.OwnedPids ?? new()).Where(kv => StartOf(kv.Key) == kv.Value).Select(kv => kv.Key).ToList();
+        if (s.Touched.Length == 0 && owned.Count == 0 && (s.OwnedPids?.Count ?? 0) == 0) return true; // nothing to watch: only the reboot check applies
+        if (pids.Count > 0) return true;
+        if (s.Touched.Any(t => { var h = (IntPtr)t.H; if (!Native.IsWindow(h)) return false; Native.GetWindowThreadProcessId(h, out var pid); return pid == t.Pid; })) return true;
+        var before = s.Before.ToHashSet();
+        return owned.Count > 0 && Native.TopWindows().Any(w => !before.Contains((long)w.H) && owned.Contains(w.Process));
+    }
 
     /// <summary>One start or stop of a profile at a time, across the GUI and the command line (Stream Deck pressed twice).</summary>
     /// <returns>a lease to dispose when finished, or null when that profile is already being started or stopped</returns>
@@ -52,6 +83,7 @@ static class Live
                 p.Steps.Where(s => s.Enabled && s.Type == StepType.Launch && !string.IsNullOrWhiteSpace(s.Exe)).Select(s => Path.GetFileNameWithoutExtension(s.Exe)).ToArray(),
                 runner.ChatOpened && !runner.ChatKeep, Native.WithDescendants(runner.LaunchedPids).Select(pid => (pid, t: StartOf(pid))).Where(x => x.t != 0).ToDictionary(x => x.pid, x => x.t));
             File.WriteAllText(FileOf(p.Name), JsonSerializer.Serialize(state));
+            lock (cache) cache.Remove(p.Name);
         }
     }
 
@@ -102,6 +134,7 @@ static class Live
             Native.PostMessage(w.H, 0x10, IntPtr.Zero, IntPtr.Zero); // WM_CLOSE
         }
         File.Delete(file);
+        lock (cache) cache.Remove(profile);
         return targets.Count;
     }
 }
