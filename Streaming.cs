@@ -342,13 +342,19 @@ abstract class Platform
     protected async Task<string> TokenAsync(CancellationToken ct)
     {
         if (!Connected) throw new InvalidOperationException($"{Name} : compte non connecté");
-        if (Auth.Access == "" || Auth.Expires < DateTime.UtcNow.AddSeconds(60))
+        if (Stale)
         {
-            try { await RefreshAsync(ct); }
-            catch (Exception e) { throw new InvalidOperationException($"{Name} : session expirée, reconnecte le compte ({e.Message})"); }
+            // one refresh at a time: the refresh token is single-use, so two calls in parallel (chat, health check, viewers...) make the second one fail as "session expired"
+            await refreshLock.WaitAsync(ct);
+            try { if (Stale) await RefreshAsync(ct); }
+            catch (Exception e) when (e is not OperationCanceledException) { RunLog.Write($"{Name} : renouvellement du jeton refusé ({e.Message})"); throw new InvalidOperationException($"{Name} : session expirée, reconnecte le compte ({e.Message})"); }
+            finally { refreshLock.Release(); }
         }
         return Auth.Access;
     }
+
+    readonly SemaphoreSlim refreshLock = new(1, 1);
+    bool Stale => Auth.Access == "" || Auth.Expires < DateTime.UtcNow.AddSeconds(60);
 
     protected static async Task<JsonElement> ReadAsync(string what, HttpResponseMessage r, CancellationToken ct)
     {

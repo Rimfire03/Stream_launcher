@@ -477,8 +477,9 @@ sealed class KickChatSource : ChatSource
 
     void Alert(string text) => Emit(new ChatMessage(DateTime.Now, "kick", "Stream Launcher", text, System: true));
 
-    InvalidOperationException RelayLost(string status, string alert)
+    InvalidOperationException RelayLost(string status, string alert, Exception? cause = null)
     {
+        RunLog.Write("Kick : " + status + (cause == null ? "" : " (" + cause.GetType().Name + " : " + cause.Message + ")"));
         if (!relayDown) { relayDown = true; Alert(alert); }
         return new InvalidOperationException(status);
     }
@@ -499,7 +500,7 @@ sealed class KickChatSource : ChatSource
         catch (Exception e) when (!ct.IsCancellationRequested && e is WebSocketException or HttpRequestException or IOException or OperationCanceledException)
         {
             throw RelayLost("relais du chat Kick injoignable, nouvelle tentative automatique",
-                "Kick : le relais du chat est injoignable (service Cloudflare ou connexion Internet). La lecture du chat Kick est interrompue, l'envoi reste possible. L'application réessaie toute seule.");
+                "Kick : le relais du chat est injoignable (service Cloudflare ou connexion Internet). La lecture du chat Kick est interrompue, l'envoi reste possible. L'application réessaie toute seule.", e);
         }
         if (relayDown) { relayDown = false; Alert("Kick : lecture du chat rétablie."); }
         SetStatus($"Connecté (lecture : {P.UserName})", true);
@@ -541,7 +542,7 @@ sealed class KickChatSource : ChatSource
         catch (Exception e) when (!ct.IsCancellationRequested && e is WebSocketException or IOException or OperationCanceledException)
         {
             throw RelayLost("connexion au relais du chat Kick perdue, reconnexion automatique",
-                "Kick : la connexion au relais du chat est perdue. Les messages Kick n'arrivent plus pour l'instant ; l'application se reconnecte toute seule.");
+                "Kick : la connexion au relais du chat est perdue. Les messages Kick n'arrivent plus pour l'instant ; l'application se reconnecte toute seule.", e);
         }
         finally { keepAlive.Cancel(); }
     }
