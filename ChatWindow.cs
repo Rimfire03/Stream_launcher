@@ -196,12 +196,26 @@ sealed class ChatWindow : Form
         try
         {
             if (store.ChatOff.Contains(m.PlatformId) || !ChatKinds.Shown(m.PlatformId, m.Kind)) return;
+            if (IsEchoOfSent(m)) return;
             view.AddMessage(m);
             foreach (var h in histories) if (h.Matches(m)) h.Add(m);
             if (m.Emotes != null) foreach (var sp in m.Emotes) if (sp.Start + sp.Length <= m.Text.Length) Emotes.Seen(m.Text.Substring(sp.Start, sp.Length), sp.Url, m.PlatformId);
             if (!m.Mine && !m.System) MaybePlaySound(m);
         }
         catch (Exception e) { RunLog.Write("chat : affichage impossible : " + e); }
+    }
+
+    string? sentText;
+    DateTime sentAt;
+
+    /// <summary>a platform can echo my message before the "Moi" row exists (the send is still awaiting the other platforms): it is dropped, that row stands for it</summary>
+    bool IsEchoOfSent(ChatMessage m)
+    {
+        if (sentText == null || m.Mine || m.System || m.Kind != "message" || (DateTime.Now - sentAt).TotalSeconds > 30) return false;
+        if (!m.Text.Trim().Equals(sentText, StringComparison.OrdinalIgnoreCase)) return false;
+        static string Key(string? s) => new string((s ?? "").Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+        var me = Streaming.Platforms.FirstOrDefault(p => p.Id == m.PlatformId)?.UserName;
+        return Key(me) != "" && Key(me) == Key(m.Author);
     }
 
     void AddSystem(string text) => view.AddMessage(new ChatMessage(DateTime.Now, "system", "Stream Launcher", text));
@@ -576,6 +590,7 @@ sealed class ChatWindow : Form
         if (targets.Count == 0) { AddSystem("Aucune plateforme allumée : clique sur un logo pour en allumer une."); return; }
         send.Enabled = false;
         input.Enabled = false;
+        sentText = text; sentAt = DateTime.Now;
         try
         {
             var results = await Task.WhenAll(targets.Select(async s =>
